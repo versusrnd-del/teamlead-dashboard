@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend 
 } from 'recharts';
@@ -70,13 +70,7 @@ const replaceLoginsWithNames = (text) => {
 const safeString = (val) => {
   if (val === null || val === undefined) return '';
   if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(' ');
-  if (typeof val === 'object') {
-    try {
-      return JSON.stringify(val);
-    } catch (e) {
-      return '';
-    }
-  }
+  if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
 };
 
@@ -86,7 +80,7 @@ const formatCSAT = (val) => {
   return isNaN(num) ? '0.0' : num.toFixed(1);
 };
 
-// --- НАЧАЛЬНЫЕ ДАННЫЕ (ЧИСТЫЙ СТЕЙТ) ---
+// --- НАЧАЛЬНЫЕ ДАННЫЕ ДЛЯ СБРОСА ---
 
 const defaultWeekData = {
   year: new Date().getFullYear(), month: new Date().getMonth(), weekNumber: getISOWeekNumber(new Date()), dates: "Текущая неделя", 
@@ -174,7 +168,7 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
-          <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
+          <p className="text-slate-400 text-sm">Оперативный статус направления техни поддержки</p>
         </div>
         <WeekSelector historyKeys={historyKeys} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
@@ -182,7 +176,6 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
       <h2 className="text-lg font-medium text-white mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-slate-400" />Операционные показатели</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
         
-        {/* Индекс управляемости */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-indigo-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> Индекс управляемости</h3>
@@ -197,7 +190,6 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
           </div>
         </div>
 
-        {/* 1-Я ЛИНИЯ */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-emerald-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> 1-я линия</h3>
@@ -207,7 +199,6 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">В очереди:</span><span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-sm border border-emerald-500/20">{Number(weekData.incidentsQueue) || 0}</span></div>
         </div>
         
-        {/* СПРИНТ */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-amber-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Спринт (План)</h3>
@@ -217,7 +208,6 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Перенесено:</span><span className="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded font-bold text-sm border border-orange-500/20">{Number(weekData.sprintCarriedOver) || 0}</span></div>
         </div>
         
-        {/* СРОЧНАЯ ЛИНИЯ */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-red-500 shadow-sm relative overflow-hidden bg-gradient-to-b from-slate-800 to-slate-800/80 flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500"></div> Срочная (Щит)</h3>
@@ -227,7 +217,6 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(weekData.urgentQueue) || 0}</span></div>
         </div>
         
-        {/* БЭКЛОГ */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Бэклог</h3>
@@ -413,85 +402,34 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
   );
 };
 
-// --- ФОРМА ИМПОРТА ---
+// --- ВКЛАДКА: ЗАПОЛНИТЬ НЕДЕЛЮ ---
 
 const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSaveWeek, setProfiles }) => {
   const [formData, setFormData] = useState(weekData);
   const [isSaved, setIsSaved] = useState(false);
   const [importJson, setImportJson] = useState('');
-  const [status, setStatus] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(formData.year || new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(formData.month || new Date().getMonth());
-  const weeksOptions = generateMonthWeeks(selectedYear, selectedMonth);
+  const [importStatus, setImportStatus] = useState(null);
 
-  useEffect(() => { setFormData(weekData); setSelectedYear(weekData.year); setSelectedMonth(weekData.month); }, [weekData]);
+  const [selectedYear, setSelectedYear] = useState(formData.year !== undefined ? formData.year : new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(formData.month !== undefined ? formData.month : new Date().getMonth());
+  const [weeksOptions, setWeeksOptions] = useState([]);
 
-  const handleImportData = () => {
-    try {
-      let raw = importJson;
-      const f = raw.indexOf('{');
-      const l = raw.lastIndexOf('}');
-      if (f !== -1 && l !== -1) raw = raw.substring(f, l + 1);
-      
-      // СУПЕР-ОЧИСТКА JSON ОТ ГАЛЛЮЦИНАЦИЙ GPT
-      raw = raw.replace(/,\s*([\]}])/g, '$1'); // убрать висячие запятые
-      raw = raw.replace(/[\n\r\t]+/g, ' '); // убрать реальные переносы строк
-      raw = raw.replace(/\\(?!["\\/bfnrtu])/g, "\\\\"); // починить пути в Windows (X:\)
-      
-      const data = JSON.parse(raw);
-      
-      let newIndex = formData.managementIndex || 100;
-      if (data.slaMetrics && Array.isArray(data.slaMetrics)) {
-        const totalViolations = data.slaMetrics.reduce((sum, sla) => sum + (Number(sla.violations) || 0), 0);
-        if (totalViolations > 50) newIndex -= 30;
-        else if (totalViolations > 20) newIndex -= 15;
-      }
-      
-      // ВАЖНОЕ СЛИЯНИЕ ДАННЫХ (чтобы задачи не затерли инциденты и наоборот)
-      const merged = { ...formData, ...data, managementIndex: newIndex };
-      
-      if (!data.topIncidents && formData.topIncidents) merged.topIncidents = formData.topIncidents;
-      if (!data.slaMetrics && formData.slaMetrics) merged.slaMetrics = formData.slaMetrics;
-      if (!data.topPerformers && formData.topPerformers) merged.topPerformers = formData.topPerformers;
-      if (!data.taskComplexity && formData.taskComplexity) merged.taskComplexity = formData.taskComplexity;
+  useEffect(() => {
+    setFormData(weekData);
+    setSelectedYear(weekData.year);
+    setSelectedMonth(weekData.month);
+  }, [weekData]);
 
-      if (data.topPerformers) {
-        merged.topPerformers = data.topPerformers.map(p => ({ ...p, name: USER_DICTIONARY[safeString(p.name).trim()] || safeString(p.name) }));
-      }
-
-      ['mainInsight', 'mainRisk', 'nextFocus', 'trainingHypothesis', 'mainWin', 'thanks', 'sprintWin', 'sprintRisk', 'shieldHero'].forEach(field => {
-        if (data[field] !== undefined && data[field] !== null) {
-          let textVal = data[field];
-          if (Array.isArray(textVal)) textVal = textVal.join(' ');
-          else if (typeof textVal === 'object') textVal = JSON.stringify(textVal);
-          merged[field] = replaceLoginsWithNames(String(textVal));
-        } else if (formData[field]) {
-          merged[field] = formData[field]; // Сохраняем старое, если GPT не прислал новое
-        }
-      });
-
-      if (data.teamProfiles && setProfiles) {
-         const newProfiles = data.teamProfiles.map((p, i) => {
-           const lvl = Number(p.delegationLevel) || 1;
-           const color = lvl <= 2 ? 'blue' : (lvl === 3 ? 'emerald' : 'amber');
-           return {
-             ...p, id: i + 1, color: color, name: replaceLoginsWithNames(safeString(p.name))
-           };
-         });
-         setProfiles(newProfiles);
-      }
-      
-      setFormData(merged);
-      setStatus('success');
-      setImportJson(''); 
-      setTimeout(() => setStatus(null), 3000);
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    } catch (e) {
-      console.error("JSON parse error:", e);
-      setStatus('error');
-      setTimeout(() => setStatus(null), 3000);
+  useEffect(() => {
+    const generatedWeeks = generateMonthWeeks(selectedYear, selectedMonth);
+    setWeeksOptions(generatedWeeks);
+    const currentWeekValid = generatedWeeks.find(w => w.weekNumber === formData.weekNumber);
+    if (!currentWeekValid && generatedWeeks.length > 0) {
+      setFormData(prev => ({ ...prev, year: selectedYear, month: selectedMonth, weekNumber: generatedWeeks[0].weekNumber, dates: generatedWeeks[0].dates }));
+    } else {
+      setFormData(prev => ({ ...prev, year: selectedYear, month: selectedMonth }));
     }
-  };
+  }, [selectedYear, selectedMonth]);
 
   const handleChange = (e) => {
     const value = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
@@ -509,6 +447,88 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
   const addIncident = () => { setFormData({ ...formData, topIncidents: [...(formData.topIncidents||[]), { name: '', count: 0, analysis: '' }] }); setIsSaved(false); };
   const removeIncident = (index) => { const newIncidents = (formData.topIncidents||[]).filter((_, i) => i !== index); setFormData({ ...formData, topIncidents: newIncidents }); setIsSaved(false); };
 
+  const handleImportData = () => {
+    try {
+      let raw = importJson;
+      const f = raw.indexOf('{'); const l = raw.lastIndexOf('}');
+      if (f !== -1 && l !== -1) raw = raw.substring(f, l + 1);
+      
+      let parsedData;
+      try {
+        // Попытка 1: Парсинг оригинального JSON (работает в большинстве случаев)
+        parsedData = JSON.parse(raw);
+      } catch (err1) {
+        try {
+          // Попытка 2: Очистка от висячих запятых и буквальных переносов строк
+          let cleaned = raw.replace(/,\s*([\]}])/g, '$1').replace(/[\n\r\t]+/g, ' ');
+          parsedData = JSON.parse(cleaned);
+        } catch (err2) {
+          // Попытка 3: Безопасное удаление битых обратных слешей (вызывающих ошибку "Bad escaped character")
+          let superCleaned = raw.replace(/,\s*([\]}])/g, '$1').replace(/[\n\r\t]+/g, ' ');
+          // Удаляем обратные слеши, которые не являются частью валидной escape-последовательности JSON
+          superCleaned = superCleaned.replace(/\\([^"\\/bfnrtu])/g, '$1');
+          parsedData = JSON.parse(superCleaned);
+        }
+      }
+
+      const data = parsedData;
+      const merged = { ...formData, ...data };
+      
+      let newIndex = formData.managementIndex || 100;
+      if (data.slaMetrics && Array.isArray(data.slaMetrics)) {
+        const totalViolations = data.slaMetrics.reduce((sum, sla) => sum + (Number(sla.violations) || 0), 0);
+        if (totalViolations > 50) newIndex -= 30;
+        else if (totalViolations > 20) newIndex -= 15;
+      }
+      merged.managementIndex = newIndex;
+      
+      ['topIncidents', 'slaMetrics', 'topPerformers', 'taskComplexity'].forEach(key => {
+        if (!data[key] && formData[key]) merged[key] = formData[key];
+      });
+
+      if (data.topPerformers && Array.isArray(data.topPerformers)) {
+        merged.topPerformers = data.topPerformers.map(perf => ({
+          ...perf,
+          name: USER_DICTIONARY[safeString(perf.name).trim()] || safeString(perf.name)
+        }));
+      }
+
+      ['mainInsight', 'mainRisk', 'nextFocus', 'trainingHypothesis', 'mainWin', 'thanks', 'sprintWin', 'sprintRisk', 'shieldHero'].forEach(field => {
+        if (data[field] !== undefined && data[field] !== null) {
+          let textVal = data[field];
+          if (Array.isArray(textVal)) textVal = textVal.join(' ');
+          else if (typeof textVal === 'object') textVal = JSON.stringify(textVal);
+          merged[field] = replaceLoginsWithNames(String(textVal));
+        } else if (formData[field]) {
+          merged[field] = formData[field];
+        }
+      });
+
+      if (data.teamProfiles && Array.isArray(data.teamProfiles) && setProfiles) {
+         const newProfiles = data.teamProfiles.map((p, i) => {
+           const lvl = Number(p.delegationLevel) || 1;
+           const color = lvl <= 2 ? 'blue' : (lvl === 3 ? 'emerald' : (lvl === 4 ? 'amber' : 'indigo'));
+           return {
+             ...p, id: i + 1, color: color, name: replaceLoginsWithNames(safeString(p.name))
+           };
+         });
+         setProfiles(newProfiles);
+      }
+      
+      setFormData(merged);
+      setImportStatus('success');
+      setImportJson(''); 
+      setTimeout(() => setImportStatus(null), 3000);
+      setIsSaved(false);
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      
+    } catch (e) {
+      console.error("JSON parse error:", e);
+      setImportStatus('error');
+      setTimeout(() => setImportStatus(null), 3000);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const cleanedIncidents = (formData.topIncidents || []).filter(inc => safeString(inc.name).trim() !== '' || (Number(inc.count) || 0) > 0);
@@ -519,37 +539,62 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
   };
 
   return (
-    <div className="max-w-4xl pb-24 animate-in fade-in">
-      <div className="flex justify-between items-end mb-8 gap-4">
-        <div><h1 className="text-3xl font-bold text-white">Импорт данных</h1><p className="text-slate-400 text-sm">Сначала загрузите инциденты, затем задачи. Не забудьте сохранить!</p></div>
+    <div className="animate-in fade-in duration-500 max-w-4xl pb-24">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Заполнить неделю</h1>
+          <p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов AI-анализа Jira</p>
+        </div>
         <WeekSelector historyKeys={historyKeys} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
-      <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 mb-8 shadow-sm">
-        <textarea value={importJson} onChange={(e) => setImportJson(e.target.value)} placeholder='Вставьте сгенерированный GPT JSON (сначала инциденты, потом задачи)...' className="w-full h-40 bg-slate-900/80 border border-indigo-500/30 rounded-lg p-4 text-indigo-100 text-xs font-mono custom-scrollbar focus:border-indigo-500 outline-none" />
-        <div className="flex items-center gap-4 mt-4">
-          <button onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2"><DownloadCloud size={16} /> Загрузить из JSON</button>
-          {status === 'success' && <span className="text-emerald-400 text-sm flex items-center gap-1"><Check size={18}/> Данные загружены. Не забудьте сохранить внизу!</span>}
-          {status === 'error' && <span className="text-red-400 text-sm flex items-center gap-1"><AlertTriangle size={18}/> Ошибка формата JSON</span>}
+      <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 shadow-sm relative overflow-hidden mb-8 group transition-all">
+        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
+        <h3 className="text-lg font-medium text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> 🤖 Умный импорт (AI Parsing)</h3>
+        <p className="text-sm text-indigo-200/70 mb-4 relative z-10">Скормил CSV-выгрузку из Jira нейросети? Вставь полученный от неё JSON-код сюда. Если у тебя два JSON (инциденты и задачи), загружай их по очереди.</p>
+        
+        <div className="relative z-10 space-y-3">
+          <textarea 
+            value={importJson} onChange={(e) => setImportJson(e.target.value)}
+            placeholder='Вставь сюда сгенерированный JSON...'
+            className="w-full h-24 bg-slate-900/80 border border-indigo-500/30 rounded-lg p-3 text-indigo-100 text-sm font-mono focus:border-indigo-400 outline-none resize-none placeholder:text-indigo-400/30 custom-scrollbar"
+          ></textarea>
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><DownloadCloud size={16} /> Загрузить данные из JSON</button>
+            {importStatus === 'success' && <span className="text-emerald-400 text-sm font-medium flex items-center gap-1"><Check size={16}/> Успешно! Нажми "Сохранить" внизу 👇</span>}
+            {importStatus === 'error' && <span className="text-red-400 text-sm font-medium flex items-center gap-1"><AlertTriangle size={16}/> Ошибка! Неверный формат JSON.</span>}
+          </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 relative overflow-hidden">
-          <Calendar size={80} className="absolute top-0 right-0 opacity-5" />
-          <h3 className="text-lg font-medium text-white mb-4 relative z-10">Период отчета</h3>
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5"><Calendar size={80} /></div>
+          <h3 className="text-lg font-medium text-white mb-4 relative z-10">Отчетный период</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
-            <div><label className="text-xs text-slate-500 mb-1 block">Год</label>
-              <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-indigo-500">{availableYears.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
-            <div><label className="text-xs text-slate-500 mb-1 block">Месяц</label>
-              <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-indigo-500">{monthNames.map((n, i) => <option key={n} value={i}>{n}</option>)}</select></div>
-            <div><label className="text-xs text-slate-500 mb-1 block">Неделя (ISO)</label>
-              <select value={formData.weekNumber || ''} onChange={(e) => { const w = weeksOptions.find(o => o.weekNumber === parseInt(e.target.value)); setFormData({...formData, weekNumber: w.weekNumber, dates: w.dates}); }} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-indigo-500">{weeksOptions.map(w => <option key={w.weekNumber} value={w.weekNumber}>{w.label}</option>)}</select></div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Год</label>
+              <select value={selectedYear} onChange={(e) => { setSelectedYear(parseInt(e.target.value, 10)); setIsSaved(false); }} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none appearance-none cursor-pointer">
+                {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Месяц</label>
+              <select value={selectedMonth} onChange={(e) => { setSelectedMonth(parseInt(e.target.value, 10)); setIsSaved(false); }} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none appearance-none cursor-pointer">
+                {monthNames.map((name, index) => <option key={index} value={index}>{name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Учетная неделя (ISO)</label>
+              <select value={formData.weekNumber || ''} onChange={(e) => { const w = weeksOptions.find(o => o.weekNumber === parseInt(e.target.value)); setFormData({...formData, weekNumber: w.weekNumber, dates: w.dates}); }} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none appearance-none cursor-pointer">
+                {weeksOptions.map(week => <option key={week.weekNumber} value={week.weekNumber}>{week.label}</option>)}
+              </select>
+            </div>
           </div>
         </div>
 
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm">
-          <h3 className="text-lg font-medium text-white mb-4">Метрики потоков</h3>
+          <h3 className="text-lg font-medium text-white mb-4">Метрики потоков (Jira)</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-emerald-500/20">
               <h4 className="text-sm font-bold text-emerald-400">1-я линия (Инциденты)</h4>
@@ -566,20 +611,20 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             </div>
             <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-red-500/20">
               <h4 className="text-sm font-bold text-red-400">Срочная (Щит)</h4>
-              <div><label className="block text-xs text-slate-400 mb-1">Закрыто срочных</label><input type="number" name="urgentCompleted" value={formData.urgentCompleted || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-xs text-slate-400 mb-1">Закрыто срочных за неделю</label><input type="number" name="urgentCompleted" value={formData.urgentCompleted || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
               <div><label className="block text-xs text-slate-400 mb-1">Активно в моменте</label><input type="number" name="urgentQueue" value={formData.urgentQueue || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
             </div>
             <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-blue-500/20">
               <h4 className="text-sm font-bold text-blue-400">Бэклог / Долг</h4>
               <div><label className="block text-xs text-slate-400 mb-1">Всего в очереди</label><input type="number" name="backlog" value={formData.backlog || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
-              <div><label className="block text-xs text-slate-400 mb-1">Старше 30 дней</label><input type="number" name="backlogOld30" value={formData.backlogOld30 || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-red-400" /></div>
+              <div><label className="block text-xs text-slate-400 mb-1">Из них старше 30 дней</label><input type="number" name="backlogOld30" value={formData.backlogOld30 || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-red-400" /></div>
             </div>
           </div>
         </div>
 
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <div><h3 className="text-lg font-medium text-white">Топ драйверов (Ручная корректировка)</h3></div>
+            <div><h3 className="text-lg font-medium text-white">Топ драйверов инцидентов (1-я линия)</h3><p className="text-xs text-slate-400 mt-1">AI-парсинг или ручной ввод.</p></div>
             <button type="button" onClick={addIncident} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1 transition"><Plus size={16} /> Добавить строку</button>
           </div>
           <div className="space-y-3">
@@ -600,16 +645,25 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         </div>
 
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm">
-          <h3 className="text-lg font-medium text-white mb-4">Управленческие выводы (Инциденты)</h3>
+          <h3 className="text-lg font-medium text-white mb-4">Управленческие выводы и обучение</h3>
           <div className="space-y-4">
-            <div><label className="block text-sm font-medium text-emerald-400 mb-1">Главный вывод</label><textarea name="mainInsight" value={safeString(formData.mainInsight)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none resize-none custom-scrollbar"></textarea></div>
-            <div><label className="block text-sm font-medium text-amber-400 mb-1">Главный риск</label><textarea name="mainRisk" value={safeString(formData.mainRisk)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none resize-none custom-scrollbar"></textarea></div>
-            <div><label className="block text-sm font-medium text-blue-400 mb-1">Фокус следующей недели</label><textarea name="nextFocus" value={safeString(formData.nextFocus)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none resize-none custom-scrollbar"></textarea></div>
+            <div><label className="block text-sm font-medium text-emerald-400 mb-1">Главный вывод (Что сработало?)</label><textarea name="mainInsight" value={safeString(formData.mainInsight)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none resize-none custom-scrollbar"></textarea></div>
+            <div><label className="block text-sm font-medium text-amber-400 mb-1">Главный риск (Где сбоит процесс?)</label><textarea name="mainRisk" value={safeString(formData.mainRisk)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none resize-none custom-scrollbar"></textarea></div>
+            <div><label className="block text-sm font-medium text-blue-400 mb-1">Фокус следующей недели</label><textarea name="nextFocus" value={safeString(formData.nextFocus)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none resize-none custom-scrollbar"></textarea></div>
+            <div className="pt-4 border-t border-slate-700/50"><label className="block text-sm font-bold text-indigo-400 mb-1 flex items-center gap-2"><BookOpen size={16} /> Какую гипотезу проверяли? (Для трекера/обучения)</label><textarea name="trainingHypothesis" value={safeString(formData.trainingHypothesis)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-indigo-500/30 rounded-lg p-2.5 text-white focus:border-indigo-500 outline-none resize-none custom-scrollbar"></textarea></div>
+          </div>
+        </div>
+
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm">
+          <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2"><Star size={18} className="text-amber-400" /> Победы и благодарности (Для команды)</h3>
+          <div className="space-y-4">
+            <div><label className="block text-sm font-medium text-slate-400 mb-1">Главная командная победа</label><input type="text" name="mainWin" value={safeString(formData.mainWin)} onChange={handleChange} placeholder="Например: Справились с аномальным потоком" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none transition" /></div>
+            <div><label className="block text-sm font-medium text-slate-400 mb-1">Кого хотим отметить лично и за что?</label><textarea name="thanks" value={safeString(formData.thanks)} onChange={handleChange} rows={2} placeholder="Например: Петру за FAQ по принтерам" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none resize-none transition custom-scrollbar"></textarea></div>
           </div>
         </div>
 
         <div className="fixed bottom-0 left-64 right-0 p-4 bg-slate-950/90 backdrop-blur-md border-t border-slate-800 flex justify-center z-10">
-          <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-3.5 rounded-xl font-black transition-all shadow-xl shadow-emerald-900/20 active:scale-95 flex items-center gap-2">
+          <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors shadow-lg shadow-emerald-900/20">
             <Save size={20} /> {isSaved ? 'Сохранено в базу портала!' : 'Сохранить данные недели'}
           </button>
         </div>
@@ -631,16 +685,16 @@ const ReportsGenerator = ({ weekData, historyKeys, selectedKey, onWeekSelect }) 
 
   const reports = [
     {
-      id: 'team', title: 'Отчет для команды', icon: Users, color: 'emerald',
-      content: `Привет, команда! Итоги ${weekData.weekNumber || ''} недели (${safeString(weekData.dates)}):\n\n✅ 1-я линия круто отработала: закрыто ${weekData.incidentsClosed || 0} инцидентов.\n🔥 Топ-3 проблемы: ${top3Text}.\n🚀 Дежурный "Щит" отбил ${weekData.urgentCompleted || 0} срочных задач.\n⚙️ Спринт: выполнили ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0} плановых.\n\n🏆 Главная победа: ${safeString(weekData.mainWin) || 'Выдержали темп и не сдались!'}\n🙏 Отдельное спасибо: ${safeString(weekData.thanks) || 'Всей команде за крутую работу!'}\n\n🎯 Вывод: ${safeString(weekData.mainInsight)}\nФокус на след. неделю: ${safeString(weekData.nextFocus)}`
+      id: 'team', title: 'Отчет для команды (Telegram / Чат)', icon: Users, color: 'emerald',
+      content: `Привет, команда! Итоги ${weekData.weekNumber || ''} недели (${safeString(weekData.dates)}):\n\n✅ 1-я линия круто отработала: закрыто ${weekData.incidentsClosed || 0} инцидентов (в очереди всего ${weekData.incidentsQueue || 0}).\n🔥 Топ-3 проблемы: ${top3Text}.\n🚀 Дежурный "Щит" отбил ${weekData.urgentCompleted || 0} срочных задач, дав остальным поработать.\n⚙️ Спринт: выполнили ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0} плановых. Перенесли ${weekData.sprintCarriedOver || 0}.\n\n🏆 Главная победа: ${safeString(weekData.mainWin) || 'Выдержали темп и не сдались!'}\n🙏 Отдельное спасибо: ${safeString(weekData.thanks) || 'Всей команде за крутую работу!'}\n\n🎯 Вывод: ${safeString(weekData.mainInsight)}\nФокус на след. неделю: ${safeString(weekData.nextFocus)}`
     },
     {
-      id: 'manager', title: 'Отчет для руководителя', icon: LayoutDashboard, color: 'blue',
-      content: `Статус по направлению ОСО за ${weekData.weekNumber || ''} неделю (${safeString(weekData.dates)})\n\n🔹 Основные метрики:\n- Индекс управляемости: ${weekData.managementIndex || 0}/100\n- Спринт: выполнено ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0}. Хвост: ${weekData.sprintCarriedOver || 0} задач.\n- Срочная линия: закрыл ${weekData.urgentCompleted || 0} задач.\n- 1-я линия: закрыто ${weekData.incidentsClosed || 0} инцидентов.\n- Бэклог Support: ${weekData.backlog || 0} задач (из них ${weekData.backlogOld30 || 0} старше 30 дней).\n\n⚠️ Аналитика нагрузки (1-я линия):\nТоп-3 проблемы забирают ${paretoPercent}% времени (${top3Text}).\n\n❗️ Основные риски:\n${safeString(weekData.mainRisk)}\n\n📝 План действий:\n${safeString(weekData.nextFocus)}`
+      id: 'manager', title: 'Отчет для руководителя (Почта / Статус)', icon: LayoutDashboard, color: 'blue',
+      content: `Статус по направлению ОСО за ${weekData.weekNumber || ''} неделю (${safeString(weekData.dates)})\n\n🔹 Основные метрики:\n- Индекс управляемости: ${weekData.managementIndex || 0}/100\n- Спринт: выполнено ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0}. Хвост (перенос): ${weekData.sprintCarriedOver || 0} задач.\n- Срочная линия: выделенный дежурный закрыл ${weekData.urgentCompleted || 0} срочных задач, обеспечив защиту спринта.\n- 1-я линия: закрыто ${weekData.incidentsClosed || 0} инцидентов.\n- Бэклог Support: ${weekData.backlog || 0} задач (из них ${weekData.backlogOld30 || 0} старше 30 дней).\n\n⚠️ Аналитика нагрузки (1-я линия):\nТоп-3 проблемы забирают ${paretoPercent}% времени (${top3Text}). Требуется системное решение для их снижения.\n\n❗️ Основные риски:\n${safeString(weekData.mainRisk)}\n\n📝 План действий:\n${safeString(weekData.nextFocus)}`
     },
     {
-      id: 'retro', title: 'Отчет для трекера', icon: BookOpen, color: 'indigo',
-      content: `Рефлексия (Этап 2: Процессы и метрики). Неделя ${weekData.weekNumber || ''}.\n\n🧪 Проверяемая гипотеза:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики процесса:\n- Выполнение плана: ${weekData.sprintCompleted || 0}/${weekData.sprintPlanned || 0}.\n- Защита от хаоса: "Щит" закрыл ${weekData.urgentCompleted || 0} внеплановых задач.\n- Эффект "Черри-пикинга": ${weekData.backlogOld30 || 0} задач висят >30 дней.\n- Узкое место (Парето): ${top3Sum} инцидентов (${paretoPercent}%) генерируется 3 типами проблем (${top3Text}).\n\n💡 Управленческий вывод:\n${safeString(weekData.mainInsight)}\n\n🚧 Что мешает процессу:\n${safeString(weekData.mainRisk)}\n\n🛠 Изменение (Эксперимент):\n${safeString(weekData.nextFocus)}`
+      id: 'retro', title: 'Отчет для трекера / Обучения (Этап 2)', icon: BookOpen, color: 'indigo',
+      content: `Рефлексия (Этап 2: Процессы и метрики). Неделя ${weekData.weekNumber || ''}.\n\n🧪 Проверяемая гипотеза:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики процесса:\n- Выполнение плана: ${weekData.sprintCompleted || 0}/${weekData.sprintPlanned || 0}.\n- Защита от хаоса: "Щит" закрыл ${weekData.urgentCompleted || 0} внеплановых задач.\n- Эффект "Черри-пикинга" в бэклоге: ${weekData.backlogOld30 || 0} задач висят старше 30 дней, при общем бэклоге ${weekData.backlog || 0}.\n- Узкое место (Парето): ${top3Sum} инцидентов (${paretoPercent}%) генерируется всего тремя типами проблем (${top3Text}).\n\n💡 Управленческий вывод:\n${safeString(weekData.mainInsight)}\n\n🚧 Что мешает процессу:\n${safeString(weekData.mainRisk)}\n\n🛠 Изменение (Эксперимент):\n${safeString(weekData.nextFocus)}`
     }
   ];
 
@@ -654,7 +708,10 @@ const ReportsGenerator = ({ weekData, historyKeys, selectedKey, onWeekSelect }) 
   return (
     <div className="animate-in fade-in duration-500 max-w-5xl pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
-        <div><h1 className="text-3xl font-bold text-white mb-1">Генератор отчетов</h1><p className="text-slate-400 text-sm">Умная сборка метрик</p></div>
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Генератор отчетов</h1>
+          <p className="text-slate-400 text-sm">Умная сборка метрик для коммуникации с разными ролями</p>
+        </div>
         <WeekSelector historyKeys={historyKeys} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -662,9 +719,15 @@ const ReportsGenerator = ({ weekData, historyKeys, selectedKey, onWeekSelect }) 
           const Icon = report.icon; const isCopied = copiedId === report.id;
           return (
             <div key={report.id} className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm flex flex-col overflow-hidden">
-              <div className={`bg-slate-900/50 p-4 border-b border-slate-700/50 flex justify-between items-center`}><div className="flex items-center gap-2"><Icon size={18} className={`text-${report.color}-400`} /><h3 className="font-medium text-slate-200 text-sm">{report.title}</h3></div></div>
-              <div className="p-4 flex-1"><textarea readOnly value={report.content} className="w-full h-full min-h-[300px] bg-transparent text-slate-300 text-sm resize-none outline-none custom-scrollbar" /></div>
-              <div className="p-4 bg-slate-900/30 border-t border-slate-700/50"><button onClick={() => handleCopy(report.content, report.id)} className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${isCopied ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600'}`}>{isCopied ? <Check size={16} /> : <Copy size={16} />} {isCopied ? 'Скопировано!' : 'Скопировать'}</button></div>
+              <div className={`bg-slate-900/50 p-4 border-b border-slate-700/50 flex justify-between items-center`}>
+                <div className="flex items-center gap-2"><Icon size={18} className={`text-${report.color}-400`} /><h3 className="font-medium text-slate-200 text-sm">{report.title}</h3></div>
+              </div>
+              <div className="p-4 flex-1"><textarea readOnly value={report.content} className="w-full h-full min-h-[300px] bg-transparent text-slate-300 text-sm resize-none outline-none focus:ring-0 custom-scrollbar" /></div>
+              <div className="p-4 bg-slate-900/30 border-t border-slate-700/50">
+                <button onClick={() => handleCopy(report.content, report.id)} className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${isCopied ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600'}`}>
+                  {isCopied ? <Check size={16} /> : <Copy size={16} />} {isCopied ? 'Скопировано!' : 'Скопировать текст'}
+                </button>
+              </div>
             </div>
           )
         })}
@@ -686,16 +749,33 @@ const ProcessesMap = ({ processes }) => {
 
   return (
     <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
-      <div className="flex justify-between items-end mb-8"><div><h1 className="text-3xl font-bold text-white mb-1">Карта процессов</h1><p className="text-slate-400 text-sm">Управление операционной моделью команды</p></div></div>
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Карта процессов</h1>
+          <p className="text-slate-400 text-sm">Управление операционной моделью команды</p>
+        </div>
+      </div>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {processes.map(proc => (
           <div key={proc.id} className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden flex flex-col transition-all hover:border-slate-600">
-            <div className="p-5 border-b border-slate-700/50 flex justify-between items-start bg-slate-900/20"><div><h3 className="text-lg font-bold text-white mb-1">{safeString(proc.name)}</h3><p className="text-slate-500 text-xs flex items-center gap-1"><Users size={12}/> Владелец: {safeString(proc.owner)}</p></div>{getStatusBadge(proc.status)}</div>
+            <div className="p-5 border-b border-slate-700/50 flex justify-between items-start bg-slate-900/20">
+              <div>
+                <h3 className="text-lg font-bold text-white mb-1">{safeString(proc.name)}</h3>
+                <p className="text-slate-500 text-xs flex items-center gap-1"><Users size={12}/> Владелец: {safeString(proc.owner)}</p>
+              </div>
+              {getStatusBadge(proc.status)}
+            </div>
             <div className="p-5 flex-1 space-y-4">
               <div><span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Цель</span><p className="text-sm text-slate-300">{safeString(proc.goal)}</p></div>
-              <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50"><span className="text-xs font-bold text-amber-400/80 uppercase tracking-wider mb-1 flex items-center gap-1"><FileSearch size={14}/> Симптом / Проблема</span><p className="text-sm text-slate-300">{safeString(proc.currentProblem)}</p></div>
+              <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                <span className="text-xs font-bold text-amber-400/80 uppercase tracking-wider mb-1 flex items-center gap-1"><FileSearch size={14}/> Симптом / Проблема</span>
+                <p className="text-sm text-slate-300">{safeString(proc.currentProblem)}</p>
+              </div>
             </div>
-            <div className="p-5 bg-slate-900/40 border-t border-slate-700/50"><span className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1 flex items-center gap-1"><ArrowRight size={14}/> Гипотеза (Что меняем)</span><p className="text-sm font-medium text-emerald-100">{safeString(proc.nextExperiment)}</p></div>
+            <div className="p-5 bg-slate-900/40 border-t border-slate-700/50">
+              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1 flex items-center gap-1"><ArrowRight size={14}/> Гипотеза (Что меняем)</span>
+              <p className="text-sm font-medium text-emerald-100">{safeString(proc.nextExperiment)}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -724,17 +804,56 @@ const AchievementsBoard = ({ achievements }) => {
 
   return (
     <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
-      <div className="flex justify-between items-end mb-8"><div><h1 className="text-3xl font-bold text-white mb-1">Достижения и Признание</h1><p className="text-slate-400 text-sm">Фокус на полезном поведении</p></div></div>
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Достижения и Признание</h1>
+          <p className="text-slate-400 text-sm">Фокус на полезном поведении, а не на количестве закрытых задач</p>
+        </div>
+      </div>
+
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm p-6 mb-8 flex items-start gap-4">
         <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><ThumbsUp size={24} /></div>
-        <div><h3 className="text-slate-200 font-medium mb-1">Почему здесь нет "Сотрудника месяца"?</h3><p className="text-slate-400 text-sm leading-relaxed">Рейтинги заставляют людей заниматься "черри-пикингом". Мы отмечаем конкретное <b>полезное поведение</b>.</p></div>
+        <div>
+          <h3 className="text-slate-200 font-medium mb-1">Почему здесь нет "Сотрудника месяца"?</h3>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            Рейтинги заставляют людей заниматься "черри-пикингом" и игнорировать сложные блокеры. 
+            Вместо этого мы отмечаем конкретное <b>полезное поведение</b>, которое делает команду и процессы сильнее.
+          </p>
+        </div>
       </div>
+
       <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Users size={20} className="text-blue-400" /> Командные победы</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {teamAchievements.map(a => (
-          <div key={a.id} className={`bg-slate-800 rounded-xl p-5 border-t-4 border-${a.color}-500 shadow-sm flex items-start gap-4`}><div className={`bg-${a.color}-500/10 p-3 rounded-lg border border-${a.color}-500/20 shrink-0`}>{getIcon(a.icon, a.color)}</div><div><h3 className="font-bold text-slate-200 mb-1">{safeString(a.title)}</h3><p className="text-slate-400 text-sm">{safeString(a.description)}</p></div></div>
+          <div key={a.id} className={`bg-slate-800 rounded-xl p-5 border-t-4 border-${a.color}-500 shadow-sm flex items-start gap-4`}>
+            <div className={`bg-${a.color}-500/10 p-3 rounded-lg border border-${a.color}-500/20 shrink-0`}>{getIcon(a.icon, a.color)}</div>
+            <div>
+              <h3 className="font-bold text-slate-200 mb-1">{safeString(a.title)}</h3>
+              <p className="text-slate-400 text-sm">{safeString(a.description)}</p>
+            </div>
+          </div>
         ))}
         {teamAchievements.length === 0 && <p className="text-slate-500 text-sm col-span-3">Пока нет командных побед на этой неделе.</p>}
+      </div>
+
+      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Star size={20} className="text-amber-400" /> Личный вклад (Полезное поведение)</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {individualAchievements.map(a => (
+          <div key={a.id} className="bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm flex flex-col relative overflow-hidden group">
+            <div className={`absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity`}>{getIcon(a.icon, 'slate')}</div>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-300 border border-slate-600 shrink-0">
+                {safeString(a.person).trim() ? safeString(a.person).split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??'}
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-sm">{safeString(a.person)}</h3>
+                <span className={`text-xs font-medium text-${a.color}-400 bg-${a.color}-500/10 px-2 py-0.5 rounded border border-${a.color}-500/20`}>{safeString(a.title)}</span>
+              </div>
+            </div>
+            <p className="text-slate-400 text-sm mt-2">{safeString(a.description)}</p>
+          </div>
+        ))}
+        {individualAchievements.length === 0 && <p className="text-slate-500 text-sm col-span-3">Пока нет личных достижений на этой неделе.</p>}
       </div>
     </div>
   );
@@ -743,28 +862,88 @@ const AchievementsBoard = ({ achievements }) => {
 // --- ВКЛАДКА: ПРОФИЛИ КОМАНДЫ ---
 
 const TeamProfilesBoard = ({ profiles }) => {
+  const getDelegationText = (level) => {
+    switch(Number(level)) {
+      case 1: return "Выполняет по детальной инструкции";
+      case 2: return "Выполняет с регулярной проверкой (ревью)";
+      case 3: return "Самостоятельно ведет типовые задачи";
+      case 4: return "Может быть владельцем процесса";
+      case 5: return "Обучает других и улучшает архитектуру";
+      default: return "Не определен";
+    }
+  };
+
   return (
     <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
-      <div className="flex justify-between items-end mb-8"><div><h1 className="text-3xl font-black text-white mb-1">Профили команды (AI Анализ)</h1><p className="text-slate-400 text-sm">Генерируется нейросетью на базе закрытых инцидентов 1-й линии</p></div></div>
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Профили команды (AI Анализ)</h1>
+          <p className="text-slate-400 text-sm">Генерируется нейросетью на базе закрытых инцидентов 1-й линии</p>
+        </div>
+      </div>
+
+      <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm p-6 mb-8 flex items-start gap-4">
+        <div className="bg-emerald-500/20 p-3 rounded-lg border border-emerald-500/30 text-emerald-400 shrink-0"><Users size={24} /></div>
+        <div>
+          <h3 className="text-slate-200 font-medium mb-1">Оценка работы на первой линии</h3>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            Система автоматически собирает профили активных инженеров за прошедшую неделю, учитывая их <b>уровни и грейды</b>.
+            Оценка строится строго на цифрах: CSAT, объем, скорость реакции и качество комментариев.
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {profiles.map(p => (
+        {profiles && profiles.map(p => (
           <div key={p.id} className="bg-slate-800 rounded-2xl border border-slate-700/50 overflow-hidden flex flex-col shadow-xl">
             <div className="p-6 border-b border-slate-700/50 bg-slate-900/30 flex gap-5 items-center">
               <div className={`w-16 h-16 rounded-2xl bg-${p.color || 'blue'}-500/20 flex items-center justify-center text-2xl font-black text-${p.color || 'blue'}-400 border-2 border-${p.color || 'blue'}-500/30 shrink-0`}>
                 {safeString(p.name).trim() ? safeString(p.name).split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??'}
               </div>
-              <div><h3 className="text-xl font-bold text-white">{safeString(p.name)}</h3><p className="text-slate-400 text-sm font-medium">{safeString(p.role)}</p></div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-white mb-0.5">{safeString(p.name)}</h3>
+                <p className="text-slate-400 text-sm font-medium flex items-center gap-1.5"><Award size={14}/> {safeString(p.role)}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Уровень делегирования:</span>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map(lvl => (
+                      <div key={lvl} className={`w-4 h-4 rounded-sm ${lvl <= Number(p.delegationLevel) ? `bg-${p.color || 'blue'}-500` : 'bg-slate-700'}`} title={`Уровень ${lvl}`}></div>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 italic">"{getDelegationText(p.delegationLevel)}"</p>
+              </div>
             </div>
-            <div className="p-6 space-y-5">
-              <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/30"><span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block mb-2">Сильные стороны</span><p className="text-sm text-slate-300 leading-relaxed font-medium">{safeString(p.strengths)}</p></div>
+            
+            <div className="p-6 space-y-5 flex-1">
+              <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/30">
+                <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5"><Star size={14}/> Сильные стороны (по фактам)</span>
+                <p className="text-sm text-slate-300 leading-relaxed font-medium">{safeString(p.strengths)}</p>
+              </div>
+              <div className="bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/10">
+                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5"><Target size={14}/> Зона применения на этой неделе</span>
+                <p className="text-sm text-slate-300 leading-relaxed">{safeString(p.bestTasks)}</p>
+              </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20"><span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block mb-1">Точка роста</span><p className="text-xs text-slate-400">{safeString(p.growthZone)}</p></div>
-                <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20"><span className="text-[10px] font-black text-red-400 uppercase tracking-widest block mb-1">Риск</span><p className="text-xs text-slate-400">{safeString(p.risks)}</p></div>
+                <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20">
+                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block mb-1 flex items-center gap-1.5"><TrendingUp size={12}/> Точка роста</span>
+                  <p className="text-xs text-slate-400">{safeString(p.growthZone)}</p>
+                </div>
+                <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20">
+                  <span className="text-[10px] font-black text-red-400 uppercase tracking-widest block mb-1 flex items-center gap-1.5"><ShieldAlert size={12}/> Управленческий риск</span>
+                  <p className="text-xs text-slate-400">{safeString(p.risks)}</p>
+                </div>
               </div>
             </div>
           </div>
         ))}
-        {(!profiles || profiles.length === 0) && <div className="col-span-2 flex flex-col items-center justify-center p-12 bg-slate-800/50 rounded-xl border border-slate-700/50 border-dashed"><Users size={48} className="text-slate-600 mb-4" /><p className="text-slate-400 text-sm">Профили не загружены.</p></div>}
+        {(!profiles || profiles.length === 0) && (
+          <div className="col-span-2 flex flex-col items-center justify-center p-12 bg-slate-800/50 rounded-xl border border-slate-700/50 border-dashed">
+            <Users size={48} className="text-slate-600 mb-4" />
+            <p className="text-slate-400 text-sm">Профили не загружены.</p>
+            <p className="text-slate-500 text-xs mt-1">Они появятся после импорта данных из AI-анализа.</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -774,10 +953,15 @@ const TeamProfilesBoard = ({ profiles }) => {
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('pulse'); 
-  
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [dbStatus, setDbStatus] = useState('loading'); // loading, connected, error, local
+  const isReadyToSave = useRef(false);
+  const [supabaseClient, setSupabaseClient] = useState(null);
+
+  // ИСТОРИЯ НЕДЕЛЬ (_v14 ключи для полного сброса старых данных и избежания крашей)
   const [weeksHistory, setWeeksHistory] = useState(() => {
     try {
-      const saved = localStorage.getItem('teamlead_history_data_v10');
+      const saved = localStorage.getItem('teamlead_history_data_v14');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return { [`${defaultWeekData.year}-${defaultWeekData.weekNumber}`]: defaultWeekData };
@@ -788,16 +972,95 @@ const App = () => {
     return keys.length > 0 ? keys.sort().pop() : `${defaultWeekData.year}-${defaultWeekData.weekNumber}`;
   });
 
-  const [processes, setProcesses] = useState(() => { try { const saved = localStorage.getItem('teamlead_processes_v10'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProcesses; });
-  const [achievements, setAchievements] = useState(() => { try { const saved = localStorage.getItem('teamlead_achievements_v10'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultAchievements; });
-  const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_profiles_v10'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProfiles; });
+  const [processes, setProcesses] = useState(() => { try { const saved = localStorage.getItem('teamlead_control_room_processes_v14'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProcesses; });
+  const [achievements, setAchievements] = useState(() => { try { const saved = localStorage.getItem('teamlead_control_room_achievements_v14'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultAchievements; });
+  const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_control_room_profiles_v14'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProfiles; });
+
+  // Инициализация (загрузка из облака или кэша)
+  useEffect(() => {
+    let mounted = true;
+    
+    const initData = async (client) => {
+      let cloudData = null;
+      if (client) {
+        try {
+          const { data, error } = await client.from('app_state').select('*');
+          if (data && !error) { cloudData = data; setDbStatus('connected'); } 
+          else { setDbStatus('error'); }
+        } catch (e) { setDbStatus('error'); }
+      } else { setDbStatus('local'); }
+
+      if (!mounted) return;
+
+      if (cloudData && cloudData.length > 0) {
+        const hRow = cloudData.find(r => r.key_name === 'history'); if (hRow) { setWeeksHistory(hRow.value_data); setSelectedWeekKey(Object.keys(hRow.value_data).sort().pop()); }
+        const procRow = cloudData.find(r => r.key_name === 'processes'); if (procRow) setProcesses(procRow.value_data);
+        const achRow = cloudData.find(r => r.key_name === 'achievements'); if (achRow) setAchievements(achRow.value_data);
+        const profRow = cloudData.find(r => r.key_name === 'profiles'); if (profRow) setProfiles(profRow.value_data);
+      }
+      setIsLoaded(true);
+      setTimeout(() => { if (mounted) isReadyToSave.current = true; }, 1000);
+    };
+
+    let url = '';
+    let key = '';
+    try {
+      url = import.meta.env.VITE_SUPABASE_URL || '';
+      key = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    } catch (e) {}
+
+    if (url && key) {
+      if (window.supabase) {
+        const client = window.supabase.createClient(url, key);
+        setSupabaseClient(client);
+        initData(client);
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js';
+        script.async = true;
+        script.onload = () => {
+          if (window.supabase) {
+            const client = window.supabase.createClient(url, key);
+            setSupabaseClient(client);
+            initData(client);
+          } else {
+            initData(null);
+          }
+        };
+        script.onerror = () => initData(null);
+        document.head.appendChild(script);
+      }
+    } else {
+      initData(null);
+    }
+
+    return () => { mounted = false; };
+  }, []);
+
+  // Синхронизация при изменениях (после загрузки)
+  useEffect(() => {
+    if (!isReadyToSave.current) return;
+    localStorage.setItem('teamlead_history_data_v14', JSON.stringify(weeksHistory));
+    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'history', value_data: weeksHistory });
+  }, [weeksHistory, dbStatus, supabaseClient]);
 
   useEffect(() => {
-    localStorage.setItem('teamlead_history_data_v10', JSON.stringify(weeksHistory));
-    localStorage.setItem('teamlead_processes_v10', JSON.stringify(processes));
-    localStorage.setItem('teamlead_achievements_v10', JSON.stringify(achievements));
-    localStorage.setItem('teamlead_profiles_v10', JSON.stringify(profiles));
-  }, [weeksHistory, processes, achievements, profiles]);
+    if (!isReadyToSave.current) return;
+    localStorage.setItem('teamlead_control_room_processes_v14', JSON.stringify(processes));
+    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'processes', value_data: processes });
+  }, [processes, dbStatus, supabaseClient]);
+  
+  useEffect(() => {
+    if (!isReadyToSave.current) return;
+    localStorage.setItem('teamlead_control_room_achievements_v14', JSON.stringify(achievements));
+    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'achievements', value_data: achievements });
+  }, [achievements, dbStatus, supabaseClient]);
+
+  useEffect(() => {
+    if (!isReadyToSave.current) return;
+    localStorage.setItem('teamlead_control_room_profiles_v14', JSON.stringify(profiles));
+    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'profiles', value_data: profiles });
+  }, [profiles, dbStatus, supabaseClient]);
 
   const activeWeekData = weeksHistory[selectedWeekKey] || defaultWeekData;
   const historyKeys = Object.keys(weeksHistory).sort().reverse(); 
@@ -809,14 +1072,36 @@ const App = () => {
     setActiveTab('pulse');
   };
 
+  const renderContent = () => {
+    switch(activeTab) {
+      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
+      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} />;
+      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
+      case 'processes': return <ProcessesMap processes={processes} />; 
+      case 'achievements': return <AchievementsBoard achievements={achievements} />;
+      case 'profiles': return <TeamProfilesBoard profiles={profiles} />;
+      default:
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 h-full mt-20">
+            <GitMerge size={64} className="mb-4 opacity-20" />
+            <h2 className="text-xl font-medium">Раздел в разработке</h2>
+          </div>
+        );
+    }
+  };
+
   const navItems = [
     { id: 'pulse', icon: Activity, label: 'Пульс команды' },
     { id: 'fill', icon: Edit, label: 'Заполнить неделю' },
     { id: 'reports', icon: FileText, label: 'Отчеты' },
     { id: 'processes', icon: GitMerge, label: 'Процессы' },
     { id: 'achievements', icon: Award, label: 'Достижения' },
-    { id: 'profiles', icon: Users, label: 'Профили AI' }
+    { id: 'profiles', icon: Users, label: 'Профили AI' },
+    { id: 'metrics', icon: BarChart2, label: 'Метрики (TBD)' },
+    { id: 'training', icon: BookOpen, label: 'Обучение (TBD)' },
   ];
+
+  if (!isLoaded) return <div className="h-screen bg-slate-900 flex items-center justify-center text-emerald-400"><Activity className="animate-spin mr-3"/> Загрузка Control Room...</div>;
 
   return (
     <div className="flex h-screen bg-slate-900 font-sans text-slate-200 overflow-hidden">
@@ -827,32 +1112,46 @@ const App = () => {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.8); }
       `}</style>
       
-      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col flex-shrink-0 z-20">
+      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col flex-shrink-0 z-20 relative">
         <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40"><LayoutDashboard size={20} className="text-emerald-400" /></div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40">
+            <LayoutDashboard size={20} className="text-emerald-400" />
+          </div>
           <div><h1 className="font-black text-white text-sm leading-tight uppercase tracking-tighter">Control Room</h1><p className="text-[10px] text-slate-500 uppercase font-bold">TeamLead Dashboard</p></div>
         </div>
+        
         <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2 custom-scrollbar">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
-              <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-900/10' : 'text-slate-400 hover:bg-slate-800/50'}`}>
-                <Icon size={20} />{item.label}
+              <button
+                key={item.id} onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200
+                  ${isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-900/10' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent'}`}
+              >
+                <Icon size={20} className={isActive ? 'text-emerald-400' : 'text-slate-500'} />
+                {item.label}
               </button>
             );
           })}
         </nav>
+        
+        <div className="p-4 border-t border-slate-800">
+          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 flex items-center gap-3 mb-3">
+             <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : (dbStatus === 'error' ? 'bg-red-500' : 'bg-slate-500')}`}></div>
+             <div className="text-xs text-slate-400 font-bold tracking-wider uppercase">{dbStatus === 'connected' ? 'Cloud Sync: ON' : 'Локальный режим'}</div>
+          </div>
+          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-black text-white">TL</div>
+            <div><p className="text-xs font-bold text-slate-200">Тимлид ОСО</p><p className="text-[10px] text-slate-500">Этап 3: Supabase</p></div>
+          </div>
+        </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-slate-900 p-8 custom-scrollbar">
+      <main className="flex-1 overflow-y-auto bg-slate-900 p-8 custom-scrollbar relative z-0">
         <div className="max-w-7xl mx-auto">
-          {activeTab === 'pulse' && <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />}
-          {activeTab === 'fill' && <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} />}
-          {activeTab === 'reports' && <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />}
-          {activeTab === 'processes' && <ProcessesMap processes={processes} />}
-          {activeTab === 'achievements' && <AchievementsBoard achievements={achievements} />}
-          {activeTab === 'profiles' && <TeamProfilesBoard profiles={profiles} />}
+          {renderContent()}
         </div>
       </main>
     </div>
