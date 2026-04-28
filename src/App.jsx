@@ -26,7 +26,7 @@ const USER_DICTIONARY = {
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const availableYears = Array.from({ length: 31 }, (_, i) => 2020 + i);
 
-// --- ХЕЛПЕРЫ БЕЗОПАСНОСТИ ---
+// --- ХЕЛПЕРЫ БЕЗОПАСНОСТИ (ШИФРОВАНИЕ) ---
 const hashPassword = async (password) => {
   const msgBuffer = new TextEncoder().encode(password + "super_secure_salt_2026");
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -34,7 +34,7 @@ const hashPassword = async (password) => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 };
 
-// --- ОСТАЛЬНЫЕ ХЕЛПЕРЫ ---
+// --- ХЕЛПЕРЫ ДАТ И ТЕКСТА ---
 
 const getISOWeekNumber = (d) => {
   const date = new Date(d.getTime());
@@ -107,7 +107,7 @@ const defaultProcesses = [
   { id: 3, name: "Недельный спринт (Планирование)", status: "working", goal: "Гарантированная поставка плановых задач.", owner: "Вся команда", currentProblem: "Ожидание аналитики", nextExperiment: "Ожидание данных" }
 ];
 
-// --- ЭКРАН ВХОДА ---
+// --- ЭКРАН АВТОРИЗАЦИИ ---
 const LoginScreen = ({ onLogin, error }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -130,18 +130,18 @@ const LoginScreen = ({ onLogin, error }) => {
           <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 mb-4 shadow-lg shadow-emerald-900/10">
             <Shield size={32} className="text-emerald-400" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Control Room</h1>
-          <p className="text-sm text-slate-400 mt-1">Авторизация в системе</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight uppercase">Центр управления</h1>
+          <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest opacity-60">Панель Тимлида</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5 text-left">
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">Пользователь</label>
             <div className="relative">
               <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input 
                 type="text" required value={username} onChange={e => setUsername(e.target.value)}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 outline-none transition-all"
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none transition-all"
                 placeholder="Логин"
               />
             </div>
@@ -152,23 +152,14 @@ const LoginScreen = ({ onLogin, error }) => {
               <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input 
                 type="password" required value={password} onChange={e => setPassword(e.target.value)}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 outline-none transition-all"
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none transition-all"
                 placeholder="••••••••"
               />
             </div>
           </div>
-
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-center gap-2 text-red-400 text-sm animate-in fade-in zoom-in-95">
-              <AlertTriangle size={16} /> {error}
-            </div>
-          )}
-
-          <button 
-            type="submit" disabled={isLoading}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
-          >
-            {isLoading ? <Activity size={20} className="animate-spin" /> : <><Key size={18} /> Войти в систему</>}
+          {error && <div className="text-red-400 text-xs flex items-center gap-1.5 px-1 animate-in fade-in zoom-in-95"><AlertTriangle size={14} /> {error}</div>}
+          <button type="submit" disabled={isLoading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50">
+            {isLoading ? "ЗАГРУЗКА..." : "ВОЙТИ В СИСТЕМУ"}
           </button>
         </form>
       </div>
@@ -183,8 +174,7 @@ const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData, weeksHis
     <div className="text-right hidden sm:block">
       <div className="text-sm font-bold text-slate-200">{monthNames[activeData.month] || ''} {activeData.year || ''}</div>
       <div className="text-slate-400 text-xs">
-        Неделя {activeData.weekNumber || ''}
-        {activeData.dates && activeData.dates !== "Текущая неделя" ? ` (${activeData.dates})` : ''}
+        Неделя {activeData.weekNumber || ''} {activeData.dates && activeData.dates !== "Текущая неделя" ? ` (${activeData.dates})` : ''}
       </div>
     </div>
     <div className="relative">
@@ -195,15 +185,16 @@ const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData, weeksHis
       >
         {historyKeys.map(k => {
           const parts = k.split('-');
-          const datesInfo = weeksHistory && weeksHistory[k] ? weeksHistory[k].dates : null;
-          const periodLabel = datesInfo && datesInfo !== "Текущая неделя" ? datesInfo : parts[0];
-          return <option key={k} value={k}>Неделя {parts[1]} ({periodLabel})</option>;
+          const datesInfo = weeksHistory && weeksHistory[k] ? weeksHistory[k].dates : parts[0];
+          return <option key={k} value={k}>Неделя {parts[1]} ({datesInfo})</option>;
         })}
       </select>
       <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
     </div>
   </div>
 );
+
+// --- ВКЛАДКА: ПУЛЬС КОМАНДЫ (БЕЗ ИЗМЕНЕНИЙ ДИЗАЙНА ЭТАЛОНА) ---
 
 const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect }) => {
   const chartData = [
@@ -232,41 +223,47 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
-          <p className="text-slate-400 text-sm">Оперативный статус технической поддержки</p>
+          <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
         </div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
+      <h2 className="text-lg font-medium text-white mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-slate-400" />Операционные показатели</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {[
-          { label: 'Индекс упр-сти', val: weekData.managementIndex, sub: 'SLA Качество', color: 'indigo' },
-          { label: '1-я линия', val: weekData.incidentsClosed, sub: 'Закрыто', color: 'emerald' },
-          { label: 'Спринт', val: weekData.sprintCompleted, sub: 'Выполнено', color: 'amber' },
-          { label: 'Срочная (Щит)', val: weekData.urgentCompleted, sub: 'Отбито', color: 'red' },
-          { label: 'Бэклог', val: weekData.backlog, sub: `${weekData.backlogOld30} старых`, color: 'blue' }
+          { label: 'Индекс упр-сти', val: weekData.managementIndex, sub: 'Оценка на базе SLA', color: 'indigo' },
+          { label: '1-я линия', val: weekData.incidentsClosed, sub: 'Закрыто за неделю', color: 'emerald' },
+          { label: 'Спринт (План)', val: weekData.sprintCompleted, sub: `Из ${weekData.sprintPlanned} задач`, color: 'amber' },
+          { label: 'Срочная (Щит)', val: weekData.urgentCompleted, sub: 'Внеплановый хаос', color: 'red' },
+          { label: 'Бэклог', val: weekData.backlog, sub: `Старше 30 дней: ${weekData.backlogOld30}`, color: 'blue' }
         ].map((item, i) => (
-          <div key={i} className={`bg-slate-800 p-5 rounded-xl border-t-4 border-${item.color}-500 shadow-sm flex flex-col justify-between`}>
-             <div className="text-slate-400 text-xs font-bold uppercase mb-2 tracking-wider">{item.label}</div>
-             <div className="text-4xl font-bold text-white mb-1">{Number(item.val) || 0}</div>
+          <div key={i} className={`bg-slate-800 rounded-xl p-5 border-t-4 border-${item.color}-500 shadow-sm flex flex-col justify-between`}>
+             <div className="flex items-center gap-2 mb-3">
+               <div className={`w-2 h-2 rounded-full bg-${item.color}-500`}></div>
+               <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">{item.label}</div>
+             </div>
+             <div className="flex items-baseline gap-2 mb-1">
+               <span className="text-4xl font-bold text-white">{Number(item.val) || 0}</span>
+               {item.label === 'Индекс упр-сти' && <span className="text-slate-500 text-sm">/ 100</span>}
+             </div>
              <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.sub}</div>
           </div>
         ))}
       </div>
 
-      {(weekData.taskComplexity?.length > 0) && (
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm mb-8">
-          <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><Layers size={20} className="text-indigo-400" /> Трудоемкость спринта (T-Shirt Sizing)</h2>
+      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm mb-8 animate-in fade-in">
+          <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><Layers size={20} className="text-indigo-400" /> Трудоемкость выполненных задач (T-Shirt Sizing)</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             {['S', 'M', 'L', 'XL'].map((size) => {
-              const taskInfo = weekData.taskComplexity.find(t => t.size === size);
+              const taskInfo = (weekData.taskComplexity || []).find(t => t.size === size);
               const count = taskInfo ? Number(taskInfo.count) : 0;
               return (
-                <div key={size} className={`p-4 rounded-xl border ${count > 0 ? 'bg-slate-900/80 border-slate-700/50' : 'bg-slate-900/30 opacity-40'}`}>
-                  <div className="flex justify-between items-center mb-2">
+                <div key={size} className={`relative p-4 rounded-xl border flex flex-col ${count > 0 ? 'bg-slate-900/80 border-slate-700/50 shadow-inner' : 'bg-slate-900/30 border-slate-800/50 opacity-40'}`}>
+                  <div className="flex justify-between items-start mb-2">
                     <span className={`text-2xl font-black px-2.5 py-0.5 rounded-lg border-2 border-b-4 ${count > 0 ? getSizeColor(size) : 'bg-slate-800 text-slate-600'}`}>{size}</span>
                     <span className="text-3xl font-bold text-slate-300">{count}</span>
                   </div>
-                  <div className="text-[10px] text-slate-400 leading-tight">{taskInfo ? safeString(taskInfo.description) : 'Задач не было'}</div>
+                  <div className="mt-2 text-xs text-slate-400 leading-relaxed">{taskInfo ? safeString(taskInfo.description) : 'Задач не было'}</div>
                 </div>
               );
             })}
@@ -276,8 +273,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
              <div className="bg-amber-500/5 p-4 rounded-lg border border-amber-500/20"><h4 className="text-xs font-bold text-amber-400 uppercase mb-2">Риск / Бэклог</h4><p className="text-sm text-slate-300">{safeString(weekData.sprintRisk)}</p></div>
              <div className="bg-indigo-500/5 p-4 rounded-lg border border-indigo-500/20"><h4 className="text-xs font-bold text-indigo-400 uppercase mb-2 flex items-center gap-1.5"><Shield size={14}/> Герой щита</h4><p className="text-sm text-slate-300">{safeString(replaceLoginsWithNames(weekData.shieldHero))}</p></div>
           </div>
-        </div>
-      )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm flex flex-col">
@@ -300,7 +296,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             })}
           </div>
         </div>
-
         <div className="flex flex-col gap-4">
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 h-56 shadow-sm flex flex-col">
             <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-2"><Activity size={16} className="text-blue-400"/> Загрузка: План vs Хаос</h3>
@@ -317,28 +312,62 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
       </div>
       
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
+          <h3 className="text-base font-medium text-slate-200 flex items-center gap-2 mb-5"><Timer size={18} className="text-red-400" /> Мониторинг SLA</h3>
+          <div className="space-y-4">
+            {weekData.slaMetrics && weekData.slaMetrics.map((sla, idx) => (
+              <div key={idx} className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 flex justify-between items-center">
+                <div><h4 className="text-sm font-medium text-slate-300">{safeString(sla.name)}</h4><p className="text-xs text-slate-500 mt-1">Ср. время просрочки: <span className="text-red-400 font-bold">{Number(sla.avgOverdueMin)} мин</span></p></div>
+                <div className="text-center bg-red-500/10 px-3 py-1.5 rounded border border-red-500/20"><span className="block text-lg font-bold text-red-400 leading-none">{Number(sla.violations)}</span><span className="text-[10px] text-red-400/80 uppercase">шт</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm xl:col-span-2 flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Users size={18} className="text-blue-400" /> Тимлид-аналитика: Качество и нагрузка</h3>
+            <span className="text-[10px] bg-slate-900 text-slate-500 px-2 py-1 rounded border border-slate-700/50 uppercase">Не для публичного рейтинга</span>
+          </div>
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left text-sm">
+              <thead><tr className="border-b border-slate-700 text-slate-500 text-xs uppercase tracking-widest"><th className="pb-3 font-bold">Исполнитель</th><th className="pb-3 font-bold text-center">Закрыто</th><th className="pb-3 font-bold text-center">Ср. Время</th><th className="pb-3 font-bold text-center">CSAT</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/50">
+                {weekData.topPerformers && weekData.topPerformers.map((perf, idx) => (
+                  <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
+                    <td className="py-3 font-medium text-slate-200">{safeString(perf.name)}</td>
+                    <td className="py-3 text-center text-white font-bold">{Number(perf.closed)}</td>
+                    <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin)} м</td>
+                    <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><Star size={14} className="text-amber-400 fill-amber-400" /><span className="text-slate-300">{formatCSAT(perf.csat)}</span></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8">
         <div className="bg-indigo-500/10 p-5 border-b border-indigo-500/20 flex items-center gap-3">
           <Sparkles size={24} className="text-indigo-400" />
           <div><h2 className="text-lg font-bold text-white">Управленческий AI-синтез недели</h2><p className="text-xs text-indigo-300/70">Качественные выводы на основе семантического анализа</p></div>
         </div>
         <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-400" /><h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Главный инсайт</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainInsight)}</p></div></div>
-          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><AlertTriangle size={18} className="text-amber-400" /><h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Критический риск</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainRisk)}</p></div></div>
-          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><Target size={18} className="text-blue-400" /><h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">План действий</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.nextFocus)}</p></div></div>
+          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-400" /><h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Инсайт</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainInsight)}</p></div></div>
+          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><AlertTriangle size={18} className="text-amber-400" /><h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Риск</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainRisk)}</p></div></div>
+          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><Target size={18} className="text-blue-400" /><h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">План</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.nextFocus)}</p></div></div>
         </div>
       </div>
     </div>
   );
 };
 
-// --- ВКЛАДКА: НАСТРОЙКИ (АДМИНКА) ---
+// --- ВКЛАДКА: НАСТРОЙКИ ДОСТУПА (АДМИНКА) ---
 
 const AdminSettings = ({ users, onAddUser, onUpdateUser, onDeleteUser }) => {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('viewer');
-  
   const [editId, setEditId] = useState(null);
   const [editPassword, setEditPassword] = useState('');
 
@@ -359,120 +388,56 @@ const AdminSettings = ({ users, onAddUser, onUpdateUser, onDeleteUser }) => {
   return (
     <div className="animate-in fade-in duration-500 max-w-4xl pb-10">
       <div className="flex justify-between items-end mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Настройки доступа</h1>
-          <p className="text-slate-400 text-sm">Управление пользователями и ролями</p>
-        </div>
+        <div><h1 className="text-3xl font-bold text-white tracking-tight mb-1">Настройки доступа</h1><p className="text-slate-400 text-sm">Управление пользователями</p></div>
       </div>
-
-      <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8">
-        <div className="p-5 border-b border-slate-700/50 bg-slate-900/30">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2"><UserPlus size={18} className="text-emerald-400"/> Добавить пользователя</h3>
-        </div>
+      <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8 text-left">
+        <div className="p-5 border-b border-slate-700/50 bg-slate-900/30"><h3 className="text-lg font-bold text-white flex items-center gap-2"><UserPlus size={18} className="text-emerald-400"/> Добавить пользователя</h3></div>
         <form onSubmit={handleAdd} className="p-6 flex flex-col md:flex-row gap-4 items-end">
-          <div className="w-full md:w-1/3">
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider">Логин</label>
-            <input type="text" required value={newUsername} onChange={e=>setNewUsername(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none" />
-          </div>
-          <div className="w-full md:w-1/3">
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider">Пароль</label>
-            <input type="password" required value={newPassword} onChange={e=>setNewPassword(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none" />
-          </div>
-          <div className="w-full md:w-1/4">
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider">Роль</label>
-            <select value={newRole} onChange={e=>setNewRole(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none">
-              <option value="admin">Администратор</option>
-              <option value="viewer">Просмотр</option>
-            </select>
-          </div>
-          <button type="submit" className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg font-bold transition-colors">Создать</button>
+          <div className="flex-1 w-full text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Логин</label><input type="text" required value={newUsername} onChange={e=>setNewUsername(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-emerald-500 transition-all" /></div>
+          <div className="flex-1 w-full text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Пароль</label><input type="password" required value={newPassword} onChange={e=>setNewPassword(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-emerald-500 transition-all" /></div>
+          <div className="w-full md:w-48 text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Роль</label><select value={newRole} onChange={e=>setNewRole(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-emerald-500 cursor-pointer"><option value="admin">Admin</option><option value="viewer">Viewer</option></select></div>
+          <button type="submit" className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-2.5 rounded-xl font-bold transition-all shadow-lg active:scale-95">СОЗДАТЬ</button>
         </form>
       </div>
-
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-slate-700/50 bg-slate-900/30">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2"><Users size={18} className="text-blue-400"/> Активные пользователи</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase bg-slate-900/50 tracking-widest">
-                <th className="p-4 font-bold">Логин</th>
-                <th className="p-4 font-bold">Роль</th>
-                <th className="p-4 font-bold text-right">Действия</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/50">
+        <div className="p-5 border-b border-slate-700/50 bg-slate-900/30"><h3 className="text-lg font-bold text-white flex items-center gap-2"><Users size={18} className="text-blue-400"/> Список пользователей</h3></div>
+        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-900/50 text-slate-500"><tr><th className="p-4 uppercase text-xs font-bold">Логин</th><th className="p-4 uppercase text-xs font-bold">Роль</th><th className="p-4 text-right">Действия</th></tr></thead><tbody className="divide-y divide-slate-700/50">
               {users.map((u) => (
                 <tr key={u.id} className="hover:bg-slate-900/20 transition-colors">
-                  <td className="p-4 text-white font-medium">{u.username}</td>
-                  <td className="p-4">
-                    <span className={`px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-widest ${u.role === 'admin' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-700/50 text-slate-300 border-slate-600'}`}>
-                      {u.role === 'admin' ? 'Admin' : 'Viewer'}
-                    </span>
-                  </td>
+                  <td className="p-4 text-white font-bold">{u.username}</td>
+                  <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold border ${u.role === 'admin' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-700/50 text-slate-300'}`}>{u.role}</span></td>
                   <td className="p-4 text-right">
                     {editId === u.id ? (
-                      <form onSubmit={(e) => handleUpdate(e, u.id)} className="flex items-center justify-end gap-2">
-                        <input type="password" placeholder="Пароль" required value={editPassword} onChange={e=>setEditPassword(e.target.value)} className="w-32 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none" />
-                        <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded text-xs font-bold">ОК</button>
-                        <button type="button" onClick={() => setEditId(null)} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs font-bold">X</button>
-                      </form>
+                      <form onSubmit={(e) => handleUpdate(e, u.id)} className="flex items-center justify-end gap-2"><input type="password" placeholder="Новый пароль" required value={editPassword} onChange={e=>setEditPassword(e.target.value)} className="w-32 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white" /><button type="submit" className="bg-emerald-600 text-white px-2 py-1 rounded text-xs font-bold">OK</button><button type="button" onClick={() => setEditId(null)} className="bg-slate-700 text-white px-2 py-1 rounded text-xs font-bold">X</button></form>
                     ) : (
-                      <div className="flex items-center justify-end gap-3">
-                        <button onClick={() => setEditId(u.id)} className="text-slate-400 hover:text-white text-xs font-bold transition-colors">Сменить пароль</button>
-                        {u.username !== 'admin' && (
-                          <button onClick={() => onDeleteUser(u.id)} className="text-red-400 hover:text-red-300 transition-colors p-1"><Trash2 size={16} /></button>
-                        )}
-                      </div>
+                      <div className="flex items-center justify-end gap-3"><button onClick={() => setEditId(u.id)} className="text-slate-400 hover:text-white text-xs font-bold">Смена пароля</button>{u.username !== 'admin' && <button onClick={() => onDeleteUser(u.id)} className="text-red-400 hover:text-red-300 transition-colors"><Trash2 size={16} /></button>}</div>
                     )}
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </tbody></table></div>
       </div>
     </div>
   );
 };
 
-// --- ВКЛАДКА: ПРОФИЛИ AI ---
+// --- ОСТАЛЬНЫЕ ВКЛАДКИ (ФАКТИЧЕСКИ КАРКАС ИЗ ЭТАЛОНА) ---
 
 const TeamProfilesBoard = ({ profiles }) => (
-  <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
-    <div className="flex justify-between items-end mb-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Профили команды (AI)</h1>
-        <p className="text-slate-400 text-sm">Генерируется нейросетью на базе инцидентов</p>
-      </div>
-    </div>
+  <div className="animate-in fade-in max-w-6xl pb-10 text-left">
+    <div className="flex justify-between items-end mb-8"><div><h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">Профили команды (AI)</h1><p className="text-slate-400 text-sm">Компетенции на базе закрытых инцидентов</p></div></div>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {profiles && profiles.map(p => (
         <div key={p.id} className="bg-slate-800 rounded-2xl border border-slate-700/50 overflow-hidden flex flex-col shadow-xl">
           <div className="p-6 border-b border-slate-700/50 bg-slate-900/30 flex gap-5 items-center">
-            <div className={`w-16 h-16 rounded-2xl bg-${p.color || 'blue'}-500/20 flex items-center justify-center text-2xl font-black text-${p.color || 'blue'}-400 border-2 border-${p.color || 'blue'}-500/30 shrink-0`}>
-              {safeString(p.name).trim() ? safeString(p.name).split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??'}
-            </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-bold text-white mb-0.5">{safeString(p.name)}</h3>
-              <p className="text-slate-400 text-sm font-medium flex items-center gap-1.5"><Award size={14}/> {safeString(p.role)}</p>
-            </div>
+            <div className={`w-16 h-16 rounded-2xl bg-${p.color || 'blue'}-500/20 flex items-center justify-center text-2xl font-black text-${p.color || 'blue'}-400 border-2 border-${p.color || 'blue'}-500/30 shrink-0`}>{safeString(p.name).substring(0,2).toUpperCase()}</div>
+            <div><h3 className="text-xl font-bold text-white">{safeString(p.name)}</h3><p className="text-slate-400 text-sm font-medium uppercase tracking-widest opacity-60">{safeString(p.role)}</p></div>
           </div>
           <div className="p-6 space-y-5 flex-1">
-            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/30">
-              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5"><Star size={14}/> Сильные стороны</span>
-              <p className="text-sm text-slate-300 leading-relaxed font-medium">{safeString(p.strengths)}</p>
-            </div>
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/30"><span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest block mb-2">Сильные стороны</span><p className="text-sm text-slate-300 leading-relaxed font-medium">{safeString(p.strengths)}</p></div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20">
-                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">Точка роста</span>
-                <p className="text-xs text-slate-400">{safeString(p.growthZone)}</p>
-              </div>
-              <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20">
-                <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest block mb-1">Риск</span>
-                <p className="text-xs text-slate-400">{safeString(p.risks)}</p>
-              </div>
+              <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20"><span className="text-[10px] font-bold text-blue-400 uppercase block mb-1">Точка роста</span><p className="text-xs text-slate-400">{safeString(p.growthZone)}</p></div>
+              <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20"><span className="text-[10px] font-bold text-red-400 uppercase block mb-1">Риск</span><p className="text-xs text-slate-400">{safeString(p.risks)}</p></div>
             </div>
           </div>
         </div>
@@ -481,28 +446,19 @@ const TeamProfilesBoard = ({ profiles }) => (
   </div>
 );
 
-// --- ВКЛАДКА: ПРОЦЕССЫ ---
 const ProcessesMap = ({ processes }) => (
-  <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
-    <div className="flex justify-between items-end mb-8">
-      <div><h1 className="text-3xl font-bold text-white tracking-tight mb-1">Карта процессов</h1><p className="text-slate-400 text-sm">Управление операционной моделью</p></div>
-    </div>
+  <div className="animate-in fade-in duration-500 max-w-6xl pb-10 text-left">
+    <div className="flex justify-between items-end mb-8"><div><h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">Карта процессов</h1><p className="text-slate-400 text-sm">Операционная модель команды</p></div></div>
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       {processes.map(proc => (
         <div key={proc.id} className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden flex flex-col transition-all hover:border-slate-600">
           <div className="p-5 border-b border-slate-700/50 flex justify-between items-start bg-slate-900/20">
-            <div>
-              <h3 className="text-lg font-bold text-white mb-1">{safeString(proc.name)}</h3>
-              <p className="text-slate-500 text-xs flex items-center gap-1"><Users size={12}/> Владелец: {safeString(proc.owner)}</p>
-            </div>
-            <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded text-xs font-bold border border-emerald-500/20">Работает</span>
+            <div><h3 className="text-lg font-bold text-white mb-1 uppercase tracking-tighter">{safeString(proc.name)}</h3><p className="text-slate-500 text-xs flex items-center gap-1"><Users size={12}/> Владелец: {safeString(proc.owner)}</p></div>
+            <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded text-xs font-bold border border-emerald-500/20 uppercase">Работает</span>
           </div>
           <div className="p-5 flex-1 space-y-4">
             <div><span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Цель</span><p className="text-sm text-slate-300 font-medium">{safeString(proc.goal)}</p></div>
-            <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
-              <span className="text-xs font-bold text-amber-400/80 uppercase tracking-wider mb-1 flex items-center gap-1"><FileSearch size={14}/> Проблема</span>
-              <p className="text-sm text-slate-300 font-medium">{safeString(proc.currentProblem)}</p>
-            </div>
+            <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50"><span className="text-xs font-bold text-amber-400/80 uppercase mb-1 flex items-center gap-1"><FileSearch size={14}/> Проблема</span><p className="text-sm text-slate-300 font-medium">{safeString(proc.currentProblem)}</p></div>
           </div>
         </div>
       ))}
@@ -510,7 +466,7 @@ const ProcessesMap = ({ processes }) => (
   </div>
 );
 
-// --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
+// --- ГЛАВНЫЙ КОМПОНЕНТ ПРИЛОЖЕНИЯ ---
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('pulse'); 
@@ -519,27 +475,15 @@ const App = () => {
   const isReadyToSave = useRef(false);
   const [supabaseClient, setSupabaseClient] = useState(null);
 
-  // AUTH STATE
   const [currentUser, setCurrentUser] = useState(null);
   const [authUsers, setAuthUsers] = useState([]);
   const [loginError, setLoginError] = useState('');
 
-  // ИСТОРИЯ НЕДЕЛЬ (_v15 ключи)
-  const [weeksHistory, setWeeksHistory] = useState(() => {
-    try { const saved = localStorage.getItem('teamlead_history_v15'); if (saved) return JSON.parse(saved); } catch (e) {}
-    return { [`${defaultWeekData.year}-${defaultWeekData.weekNumber}`]: defaultWeekData };
-  });
+  const [weeksHistory, setWeeksHistory] = useState({ [`${defaultWeekData.year}-${defaultWeekData.weekNumber}`]: defaultWeekData });
+  const [selectedWeekKey, setSelectedWeekKey] = useState(`${defaultWeekData.year}-${defaultWeekData.weekNumber}`);
+  const [processes, setProcesses] = useState(defaultProcesses);
+  const [profiles, setProfiles] = useState([]);
 
-  const [selectedWeekKey, setSelectedWeekKey] = useState(() => {
-    const keys = Object.keys(weeksHistory);
-    return keys.length > 0 ? keys.sort().pop() : `${defaultWeekData.year}-${defaultWeekData.weekNumber}`;
-  });
-
-  const [processes, setProcesses] = useState(() => { try { const saved = localStorage.getItem('teamlead_processes_v15'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProcesses; });
-  const [achievements, setAchievements] = useState([]);
-  const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_profiles_v15'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
-
-  // Инициализация
   useEffect(() => {
     let mounted = true;
     const initData = async (client) => {
@@ -557,7 +501,6 @@ const App = () => {
       if (cloudData && cloudData.length > 0) {
         const hRow = cloudData.find(r => r.key_name === 'history'); if (hRow) { setWeeksHistory(hRow.value_data); setSelectedWeekKey(Object.keys(hRow.value_data).sort().pop()); }
         const procRow = cloudData.find(r => r.key_name === 'processes'); if (procRow) setProcesses(procRow.value_data);
-        const achRow = cloudData.find(r => r.key_name === 'achievements'); if (achRow) setAchievements(achRow.value_data);
         const profRow = cloudData.find(r => r.key_name === 'profiles'); if (profRow) setProfiles(profRow.value_data);
       }
 
@@ -593,20 +536,23 @@ const App = () => {
     } catch (e) {}
 
     if (url && key) {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js';
-      script.async = true;
-      script.onload = () => {
-        if (window.supabase) {
-          const client = window.supabase.createClient(url, key); setSupabaseClient(client); initData(client);
-        } else { initData(null); }
-      };
-      document.head.appendChild(script);
+      if (window.supabase) {
+        const client = window.supabase.createClient(url, key); setSupabaseClient(client); initData(client);
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js';
+        script.async = true;
+        script.onload = () => {
+          if (window.supabase) {
+            const client = window.supabase.createClient(url, key); setSupabaseClient(client); initData(client);
+          } else { initData(null); }
+        };
+        document.head.appendChild(script);
+      }
     } else { initData(null); }
     return () => { mounted = false; };
   }, []);
 
-  // Синхронизация
   useEffect(() => {
     if (!isReadyToSave.current || !supabaseClient || dbStatus !== 'connected') return;
     const save = async () => {
@@ -616,10 +562,7 @@ const App = () => {
       await supabaseClient.from('app_state').upsert({ key_name: 'auth_users', value_data: authUsers });
     };
     save();
-    localStorage.setItem('teamlead_history_v15', JSON.stringify(weeksHistory));
-    localStorage.setItem('teamlead_processes_v15', JSON.stringify(processes));
-    localStorage.setItem('teamlead_profiles_v15', JSON.stringify(profiles));
-  }, [weeksHistory, processes, profiles, authUsers, dbStatus, supabaseClient]);
+  }, [weeksHistory, processes, profiles, authUsers]);
 
   const handleLogin = async (username, password) => {
     const inputHash = await hashPassword(password);
@@ -639,57 +582,56 @@ const App = () => {
     setSelectedWeekKey(key); setActiveTab('pulse');
   };
 
-  const renderContent = () => {
-    switch(activeTab) {
-      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
-      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} />;
-      case 'processes': return <ProcessesMap processes={processes} />; 
-      case 'profiles': return <TeamProfilesBoard profiles={profiles} />;
-      case 'settings': return <AdminSettings users={authUsers} onAddUser={u=>setAuthUsers([...authUsers, u])} onUpdateUser={(id,p)=>hashPassword(p).then(h=>setAuthUsers(authUsers.map(u=>u.id===id?{...u,passwordHash:h}:u)))} onDeleteUser={id=>setAuthUsers(authUsers.filter(u=>u.id!==id))} />;
-      default: return <div className="flex-1 flex flex-col items-center justify-center text-slate-600 h-full mt-20 uppercase font-bold"><Target size={64} className="mb-4 opacity-20" /><h2 className="text-xl tracking-tighter">Раздел в разработке</h2></div>;
-    }
-  };
-
   if (!isLoaded) return <div className="h-screen bg-slate-900 flex items-center justify-center text-emerald-400 font-bold"><Activity className="animate-spin mr-3"/> Загрузка Центра Управления...</div>;
   if (!currentUser) return <LoginScreen onLogin={handleLogin} error={loginError} />;
 
   const navItems = [
     { id: 'pulse', icon: Activity, label: 'Пульс команды', roles: ['admin', 'viewer'] },
     { id: 'fill', icon: Edit, label: 'Заполнить неделю', roles: ['admin'] },
-    { id: 'reports', icon: FileText, label: 'Отчеты (TBD)', roles: ['admin', 'viewer'] },
+    { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
     { id: 'processes', icon: GitMerge, label: 'Процессы', roles: ['admin', 'viewer'] },
+    { id: 'achievements', icon: Award, label: 'Достижения', roles: ['admin', 'viewer'] },
     { id: 'profiles', icon: Users, label: 'Профили AI', roles: ['admin', 'viewer'] },
     { id: 'metrics', icon: BarChart2, label: 'Метрики (TBD)', roles: ['admin', 'viewer'] },
     { id: 'training', icon: BookOpen, label: 'Обучение (TBD)', roles: ['admin', 'viewer'] },
     { id: 'settings', icon: Settings, label: 'Доступ', roles: ['admin'] },
   ].filter(item => item.roles.includes(currentUser.role));
 
+  const renderContent = () => {
+    switch(activeTab) {
+      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
+      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} />;
+      case 'processes': return <ProcessesMap processes={processes} />; 
+      case 'profiles': return <TeamProfilesBoard profiles={profiles} />;
+      case 'settings': return <AdminSettings users={authUsers} onAddUser={u=>setAuthUsers([...authUsers, {id:Date.now(), ...u}])} onUpdateUser={(id,p)=>hashPassword(p).then(h=>setAuthUsers(authUsers.map(u=>u.id===id?{...u,passwordHash:h}:u)))} onDeleteUser={id=>setAuthUsers(authUsers.filter(u=>u.id!==id))} />;
+      default: return <div className="flex-1 flex flex-col items-center justify-center text-slate-500 h-full mt-20 uppercase tracking-widest"><Sparkles size={64} className="mb-4 opacity-20" /><h2 className="text-xl font-medium">Раздел в разработке</h2></div>;
+    }
+  };
+
   return (
     <div className="flex h-screen bg-slate-900 font-sans text-slate-200 overflow-hidden">
-      <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.4); border-radius: 10px; }`}</style>
-      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col z-20">
+      <style>{`.custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.1); } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.6); border-radius: 8px; }`}</style>
+      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col flex-shrink-0 z-20">
         <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40">
-            <LayoutDashboard size={20} className="text-emerald-400" />
-          </div>
-          <div><h1 className="font-bold text-white text-sm leading-tight uppercase tracking-tight">Центр управления</h1><p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Панель Тимлида</p></div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40 shadow-lg"><LayoutDashboard size={20} className="text-emerald-400" /></div>
+          <div><h1 className="font-black text-white text-sm leading-tight uppercase tracking-tighter">Центр управления</h1><p className="text-[10px] text-slate-500 uppercase font-bold">Панель Тимлида</p></div>
         </div>
-        <nav className="flex-1 py-6 px-4 space-y-1 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto custom-scrollbar">
           {navItems.map(item => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === item.id ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-900/10' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent'}`}><item.icon size={20} className={activeTab === item.id ? 'text-emerald-400' : 'text-slate-500'} />{item.label}</button>
+            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === item.id ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-900/10' : 'text-slate-400 hover:bg-slate-800/50'}`}><item.icon size={20} className={activeTab === item.id ? 'text-emerald-400' : 'text-slate-500'} />{item.label}</button>
           ))}
         </nav>
         <div className="p-4 border-t border-slate-800 space-y-3">
-          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800/50 flex items-center gap-3">
+          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800/50 flex items-center gap-3">
              <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500'}`}></div>
-             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{dbStatus === 'connected' ? 'Синхронизация: ОК' : 'Локальный режим'}</div>
+             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{dbStatus === 'connected' ? 'СИНХРОНИЗАЦИЯ: ОК' : 'ЛОКАЛЬНЫЙ РЕЖИМ'}</div>
           </div>
-          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 flex items-center justify-between">
+          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 flex items-center justify-between shadow-inner">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-[10px] font-bold text-white uppercase">{currentUser.username.substring(0, 2)}</div>
-              <div className="overflow-hidden leading-tight"><p className="text-xs font-bold text-slate-200 truncate w-24">{currentUser.username}</p><p className="text-[10px] text-slate-500 capitalize">{currentUser.role === 'admin' ? 'Админ' : 'Просмотр'}</p></div>
+              <div className="overflow-hidden leading-tight"><p className="text-xs font-bold text-slate-200 truncate w-24">{currentUser.username}</p><p className="text-[10px] text-slate-500 capitalize">{currentUser.role === 'admin' ? 'Админ' : 'Зритель'}</p></div>
             </div>
-            <button onClick={handleLogout} className="text-slate-500 hover:text-red-400 transition-colors"><LogOut size={16} /></button>
+            <button onClick={handleLogout} className="text-slate-500 hover:text-red-400 transition-colors" title="Выход"><LogOut size={16} /></button>
           </div>
         </div>
       </aside>
@@ -700,7 +642,7 @@ const App = () => {
   );
 };
 
-// --- ФОРМА ЗАПОЛНЕНИЯ НЕДЕЛИ ---
+// --- ФОРМА ЗАПОЛНЕНИЯ (РАСШИРЕННАЯ ИЗ ЭТАЛОНА) ---
 const FillWeekForm = ({ historyKeys, weeksHistory, selectedKey, onWeekSelect, weekData, onSaveWeek, setProfiles }) => {
   const [formData, setFormData] = useState(weekData);
   const [isSaved, setIsSaved] = useState(false);
@@ -720,6 +662,14 @@ const FillWeekForm = ({ historyKeys, weeksHistory, selectedKey, onWeekSelect, we
   }, [selectedYear, selectedMonth]);
 
   const handleChange = (e) => { const val = e.target.type === 'number' ? Number(e.target.value) : e.target.value; setFormData({ ...formData, [e.target.name]: val }); setIsSaved(false); };
+  const handleIncidentChange = (idx, field, val) => {
+    const newInc = [...(formData.topIncidents || [])];
+    newInc[idx] = { ...newInc[idx], [field]: field === 'count' ? Number(val) : val };
+    setFormData({ ...formData, topIncidents: newInc });
+  };
+  const addRow = () => setFormData({ ...formData, topIncidents: [...(formData.topIncidents || []), { name: '', count: 0, analysis: '' }] });
+  const delRow = (idx) => setFormData({ ...formData, topIncidents: formData.topIncidents.filter((_, i) => i !== idx) });
+
   const handleImportData = () => {
     try {
       let raw = importJson;
@@ -735,32 +685,106 @@ const FillWeekForm = ({ historyKeys, weeksHistory, selectedKey, onWeekSelect, we
   };
 
   return (
-    <div className="max-w-4xl pb-24 animate-in fade-in duration-500">
-      <div className="flex justify-between items-end mb-8 gap-4">
-        <div><h1 className="text-3xl font-bold text-white">Заполнить неделю</h1><p className="text-slate-400 text-sm">Ввод метрик или AI-импорт из Jira</p></div>
+    <div className="animate-in fade-in duration-500 max-w-4xl pb-24 text-left">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+        <div><h1 className="text-3xl font-bold text-white tracking-tight mb-1">Заполнить неделю</h1><p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов AI-анализа Jira</p></div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
-      <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 mb-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10"><Sparkles size={80} className="text-indigo-400" /></div>
-        <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> Умный импорт (AI)</h3>
-        <textarea value={importJson} onChange={e=>setImportJson(e.target.value)} placeholder='Вставь JSON...' className="w-full h-32 bg-slate-900/80 border border-indigo-500/30 rounded-xl p-4 text-indigo-100 text-xs font-mono focus:border-indigo-400 outline-none resize-none custom-scrollbar" />
+
+      <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 mb-8 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
+        <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> 🤖 Умный импорт (AI Parsing)</h3>
+        <textarea value={importJson} onChange={(e) => setImportJson(e.target.value)} placeholder='Вставь сюда JSON-код...' className="w-full h-24 bg-slate-900/80 border border-indigo-500/30 rounded-lg p-3 text-indigo-100 text-sm font-mono focus:border-indigo-400 outline-none resize-none custom-scrollbar" />
         <div className="flex items-center gap-4 mt-4 relative z-10">
-          <button onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all"><DownloadCloud size={16} /> Загрузить JSON</button>
-          {importStatus === 'success' && <span className="text-emerald-400 text-sm font-bold flex items-center gap-1"><Check size={18}/> Готово! Сохрани внизу.</span>}
-          {importStatus === 'error' && <span className="text-red-400 text-sm font-bold flex items-center gap-1"><AlertTriangle size={18}/> Ошибка в JSON</span>}
+          <button type="button" onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg"><DownloadCloud size={16} /> Загрузить JSON</button>
+          {importStatus === 'success' && <span className="text-emerald-400 text-sm font-medium flex items-center gap-1"><Check size={16}/> Готово! Нажми "Сохранить" внизу</span>}
+          {importStatus === 'error' && <span className="text-red-400 text-sm font-medium flex items-center gap-1"><AlertTriangle size={16}/> Ошибка в JSON</span>}
         </div>
       </div>
-      <form onSubmit={e=>{e.preventDefault(); onSaveWeek(formData); setIsSaved(true); setTimeout(()=>setIsSaved(false),3000);}} className="space-y-6">
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 flex flex-col md:flex-row gap-6">
-          <div className="flex-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Год</label><select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500">{availableYears.map(y=><option key={y} value={y}>{y}</option>)}</select></div>
-          <div className="flex-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Месяц</label><select value={selectedMonth} onChange={e=>setSelectedMonth(parseInt(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500">{monthNames.map((n,i)=><option key={i} value={i}>{n}</option>)}</select></div>
-          <div className="flex-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">Неделя</label><select value={formData.weekNumber || ''} onChange={e=>{const w=weeksOptions.find(o=>o.weekNumber===parseInt(e.target.value)); setFormData({...formData, weekNumber:w.weekNumber, dates:w.dates});}} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500">{weeksOptions.map(w=><option key={w.weekNumber} value={w.weekNumber}>{w.label}</option>)}</select></div>
+
+      <form onSubmit={(e)=>{e.preventDefault(); onSaveWeek(formData); setIsSaved(true); setTimeout(()=>setIsSaved(false), 3000);}} className="space-y-6">
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm relative overflow-hidden text-left">
+          <div className="absolute top-0 right-0 p-4 opacity-5"><Calendar size={80} /></div>
+          <h3 className="text-lg font-medium text-white mb-4 relative z-10">Отчетный период</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+            <div className="text-left"><label className="block text-xs font-medium text-slate-400 mb-1">Год</label><select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-emerald-500">{availableYears.map(y=><option key={y} value={y}>{y}</option>)}</select></div>
+            <div className="text-left"><label className="block text-xs font-medium text-slate-400 mb-1">Месяц</label><select value={selectedMonth} onChange={e=>setSelectedMonth(parseInt(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-emerald-500">{monthNames.map((n,i)=><option key={i} value={i}>{n}</option>)}</select></div>
+            <div className="text-left"><label className="block text-xs font-medium text-slate-400 mb-1">Учетная неделя (ISO)</label><select value={formData.weekNumber || ''} onChange={e=>{const w=weeksOptions.find(o=>o.weekNumber===parseInt(e.target.value)); setFormData({...formData, weekNumber:w.weekNumber, dates:w.dates});}} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-emerald-500">{weeksOptions.map(w=><option key={w.weekNumber} value={w.weekNumber}>{w.label}</option>)}</select></div>
+          </div>
         </div>
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-3"><h4 className="font-bold text-emerald-400 uppercase text-xs tracking-widest">1-я линия</h4><input type="number" name="incidentsClosed" placeholder="Закрыто" value={formData.incidentsClosed||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white" /></div>
-          <div className="space-y-3"><h4 className="font-bold text-amber-400 uppercase text-xs tracking-widest">Спринт</h4><input type="number" name="sprintCompleted" placeholder="Выполнено" value={formData.sprintCompleted||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white" /></div>
+
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
+          <h3 className="text-lg font-medium text-white mb-4 flex justify-between">Метрики потоков (Jira) 
+            <span className="flex items-center gap-2 text-xs font-bold text-slate-400">Индекс управляемости: 
+              <input type="number" name="managementIndex" value={formData.managementIndex} onChange={handleChange} className="w-14 bg-slate-900 border border-slate-700 rounded text-center text-white" />
+            </span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-emerald-500/20"><h4 className="text-sm font-bold text-emerald-400">1-я линия (Инциденты)</h4>
+              <div><label className="block text-xs text-slate-400 mb-1">Закрыто за неделю</label><input type="number" name="incidentsClosed" value={formData.incidentsClosed||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-xs text-slate-400 mb-1">Остаток в очереди</label><input type="number" name="incidentsQueue" value={formData.incidentsQueue||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+            </div>
+            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-amber-500/20"><h4 className="text-sm font-bold text-amber-400">Спринт (Задачи)</h4>
+              <div><label className="block text-xs text-slate-400 mb-1">Запланировали</label><input type="number" name="sprintPlanned" value={formData.sprintPlanned||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-xs text-slate-400 mb-1">Выполнили</label><input type="number" name="sprintCompleted" value={formData.sprintCompleted||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-xs text-slate-400 mb-1">Перенесли</label><input type="number" name="sprintCarriedOver" value={formData.sprintCarriedOver||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+            </div>
+            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-red-500/20"><h4 className="text-sm font-bold text-red-400">Срочная (Щит)</h4>
+              <div><label className="block text-xs text-slate-400 mb-1">Отбито срочных</label><input type="number" name="urgentCompleted" value={formData.urgentCompleted||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-xs text-slate-400 mb-1">Активно в моменте</label><input type="number" name="urgentQueue" value={formData.urgentQueue||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+            </div>
+            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-blue-500/20"><h4 className="text-sm font-bold text-blue-400">Бэклог / Долг</h4>
+              <div><label className="block text-xs text-slate-400 mb-1">Всего в очереди</label><input type="number" name="backlog" value={formData.backlog||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-xs text-slate-400 mb-1">Старых ({'>'}30д)</label><input type="number" name="backlogOld30" value={formData.backlogOld30||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-red-400" /></div>
+            </div>
+          </div>
         </div>
-        <div className="fixed bottom-0 left-64 right-0 p-4 bg-slate-950/90 backdrop-blur-md border-t border-slate-800 flex justify-center z-10"><button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-xl active:scale-95"><Save size={20} /> {isSaved ? 'СОХРАНЕНО!' : 'СОХРАНИТЬ В ОБЛАКО'}</button></div>
+
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
+          <div className="flex justify-between items-center mb-4">
+            <div><h3 className="text-lg font-medium text-white">Топ драйверов инцидентов (1-я линия)</h3><p className="text-xs text-slate-400 mt-1">AI-парсинг или ручной ввод.</p></div>
+            <button type="button" onClick={addRow} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1 transition"><Plus size={16} /> Добавить строку</button>
+          </div>
+          <div className="space-y-3">
+            {(formData.topIncidents || []).map((inc, idx) => (
+              <div key={idx} className="flex gap-2 items-start bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 group text-left">
+                <span className="text-slate-500 font-bold mt-2">{idx + 1}.</span>
+                <div className="flex-1 space-y-2">
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="Смысловая проблема" value={inc.name} onChange={e=>handleIncidentChange(idx,'name',e.target.value)} className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none" />
+                    <input type="number" placeholder="Кол-во" value={inc.count||''} onChange={e=>handleIncidentChange(idx,'count',e.target.value)} className="w-24 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none" />
+                    <button type="button" onClick={()=>delRow(idx)} className="text-slate-600 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18} /></button>
+                  </div>
+                  <textarea placeholder="AI-анализ: была ли авария, как решали..." value={inc.analysis} onChange={e=>handleIncidentChange(idx,'analysis',e.target.value)} rows={2} className="w-full bg-slate-950/50 border border-slate-800 rounded p-2 text-xs text-slate-400 outline-none custom-scrollbar" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
+          <h3 className="text-lg font-medium text-white mb-4">Управленческие выводы и обучение</h3>
+          <div className="space-y-4 text-left">
+            <div className="text-left"><label className="block text-sm font-medium text-emerald-400 mb-1">Главный вывод (Что сработало?)</label><textarea name="mainInsight" value={safeString(formData.mainInsight)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none custom-scrollbar" /></div>
+            <div className="text-left"><label className="block text-sm font-medium text-amber-400 mb-1">Главный риск (Где сбоит процесс?)</label><textarea name="mainRisk" value={safeString(formData.mainRisk)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none custom-scrollbar" /></div>
+            <div className="text-left"><label className="block text-sm font-medium text-blue-400 mb-1">Фокус следующей недели</label><textarea name="nextFocus" value={safeString(formData.nextFocus)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none custom-scrollbar" /></div>
+            <div className="pt-4 border-t border-slate-700/50 text-left"><label className="block text-sm font-bold text-indigo-400 mb-1 flex items-center gap-2"><BookOpen size={16} /> Какую гипотезу проверяли?</label><textarea name="trainingHypothesis" value={safeString(formData.trainingHypothesis)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-indigo-500/30 rounded-lg p-2.5 text-white outline-none custom-scrollbar" /></div>
+          </div>
+        </div>
+
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
+          <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2"><Star size={18} className="text-amber-400" /> Победы и благодарности</h3>
+          <div className="space-y-4 text-left">
+            <div className="text-left"><label className="block text-sm font-medium text-slate-400 mb-1">Главная командная победа</label><input type="text" name="mainWin" value={safeString(formData.mainWin)} onChange={handleChange} placeholder="Например: Справились с аномальным потоком" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none" /></div>
+            <div className="text-left"><label className="block text-sm font-medium text-slate-400 mb-1">Кого хотим отметить лично и за что?</label><textarea name="thanks" value={safeString(formData.thanks)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none custom-scrollbar" /></div>
+          </div>
+        </div>
+
+        <div className="fixed bottom-0 left-64 right-0 p-4 bg-slate-950/90 backdrop-blur-md border-t border-slate-800 flex justify-center z-10 shadow-2xl">
+          <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all active:scale-95 shadow-xl shadow-emerald-900/20">
+            <Save size={20} /> {isSaved ? 'СОХРАНЕНО!' : 'СОХРАНИТЬ В ОБЛАКО'}
+          </button>
+        </div>
       </form>
     </div>
   );
