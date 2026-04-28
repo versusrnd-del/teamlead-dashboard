@@ -168,7 +168,7 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
-          <p className="text-slate-400 text-sm">Оперативный статус направления техни поддержки</p>
+          <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
         </div>
         <WeekSelector historyKeys={historyKeys} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
@@ -179,7 +179,7 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-indigo-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> Индекс управляемости</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.managementIndex) || 0}</span><span className="text-slate-500 text-sm font-medium">/ 100</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{weekData.managementIndex || 0}</span><span className="text-slate-500 text-sm font-medium">/ 100</span></div>
             <p className="text-xs text-slate-500 mt-1">Оценка на базе SLA</p>
           </div>
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center">
@@ -193,37 +193,37 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-emerald-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> 1-я линия</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.incidentsClosed) || 0}</span><span className="text-slate-500 text-sm font-medium">закрыто</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{weekData.incidentsClosed || 0}</span><span className="text-slate-500 text-sm font-medium">закрыто</span></div>
             <p className="text-xs text-slate-500 mt-1">Инциденты за неделю</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">В очереди:</span><span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-sm border border-emerald-500/20">{Number(weekData.incidentsQueue) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">В очереди:</span><span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-sm border border-emerald-500/20">{weekData.incidentsQueue || 0}</span></div>
         </div>
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-amber-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Спринт (План)</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.sprintCompleted) || 0}</span><span className="text-slate-500 text-sm font-medium">выполнено</span></div>
-            <p className="text-xs text-amber-400 mt-1">Из {Number(weekData.sprintPlanned) || 0} запланированных</p>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{weekData.sprintCompleted || 0}</span><span className="text-slate-500 text-sm font-medium">выполнено</span></div>
+            <p className="text-xs text-amber-400 mt-1">Из {weekData.sprintPlanned || 0} запланированных</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Перенесено:</span><span className="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded font-bold text-sm border border-orange-500/20">{Number(weekData.sprintCarriedOver) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Перенесено:</span><span className="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded font-bold text-sm border border-orange-500/20">{weekData.sprintCarriedOver || 0}</span></div>
         </div>
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-red-500 shadow-sm relative overflow-hidden bg-gradient-to-b from-slate-800 to-slate-800/80 flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500"></div> Срочная (Щит)</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.urgentCompleted) || 0}</span><span className="text-slate-500 text-sm font-medium">отбито</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{weekData.urgentCompleted || 0}</span><span className="text-slate-500 text-sm font-medium">отбито</span></div>
             <p className="text-xs text-slate-500 mt-1">Внеплановый хаос</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(weekData.urgentQueue) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{weekData.urgentQueue || 0}</span></div>
         </div>
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Бэклог</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.backlog) || 0}</span><span className="text-slate-500 text-sm font-medium">всего</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{weekData.backlog || 0}</span><span className="text-slate-500 text-sm font-medium">всего</span></div>
             <p className="text-xs text-slate-500 mt-1">Очередь Support</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {Number(weekData.backlogOld30) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {weekData.backlogOld30 || 0}</span></div>
         </div>
       </div>
 
@@ -236,8 +236,8 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {['S', 'M', 'L', 'XL'].map((size) => {
                   const taskInfo = weekData.taskComplexity.find(t => t.size === size);
-                  const count = taskInfo ? Number(taskInfo.count) : 0;
-                  const desc = taskInfo ? safeString(taskInfo.description) : 'Задач такого размера не было';
+                  const count = taskInfo ? taskInfo.count : 0;
+                  const desc = taskInfo ? taskInfo.description : 'Задач такого размера не было';
                   
                   return (
                     <div key={size} className={`relative p-4 rounded-xl border flex flex-col ${count > 0 ? 'bg-slate-900/80 border-slate-700/50 shadow-inner' : 'bg-slate-900/30 border-slate-800/50 opacity-50'}`}>
@@ -245,7 +245,7 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
                         <span className={`text-2xl font-black px-2.5 py-0.5 rounded-lg border-2 border-b-4 ${count > 0 ? getSizeColor(size) : 'bg-slate-800 text-slate-600 border-slate-700'}`}>{size}</span>
                         <span className="text-3xl font-bold text-slate-300">{count}</span>
                       </div>
-                      <div className="mt-2 text-xs text-slate-400 leading-relaxed">{desc}</div>
+                      <div className="mt-2 text-xs text-slate-400 leading-relaxed">{safeString(desc)}</div>
                     </div>
                   );
                 })}
@@ -389,7 +389,7 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8">
         <div className="bg-indigo-500/10 p-5 border-b border-indigo-500/20 flex items-center gap-3">
-          <Sparkles size={24} className="text-indigo-400" />
+          <div className="bg-indigo-500/20 p-2 rounded-lg"><Sparkles size={24} className="text-indigo-400" /></div>
           <div><h2 className="text-lg font-bold text-white">Управленческий AI-синтез недели</h2><p className="text-xs text-indigo-300/70">Качественные выводы на основе семантического NLP-анализа инцидентов</p></div>
         </div>
         <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1041,25 +1041,37 @@ const App = () => {
   useEffect(() => {
     if (!isReadyToSave.current) return;
     localStorage.setItem('teamlead_history_data_v14', JSON.stringify(weeksHistory));
-    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'history', value_data: weeksHistory });
+    if (supabaseClient && dbStatus === 'connected') {
+      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'history', value_data: weeksHistory }); };
+      save();
+    }
   }, [weeksHistory, dbStatus, supabaseClient]);
 
   useEffect(() => {
     if (!isReadyToSave.current) return;
     localStorage.setItem('teamlead_control_room_processes_v14', JSON.stringify(processes));
-    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'processes', value_data: processes });
+    if (supabaseClient && dbStatus === 'connected') {
+      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'processes', value_data: processes }); };
+      save();
+    }
   }, [processes, dbStatus, supabaseClient]);
   
   useEffect(() => {
     if (!isReadyToSave.current) return;
     localStorage.setItem('teamlead_control_room_achievements_v14', JSON.stringify(achievements));
-    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'achievements', value_data: achievements });
+    if (supabaseClient && dbStatus === 'connected') {
+      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'achievements', value_data: achievements }); };
+      save();
+    }
   }, [achievements, dbStatus, supabaseClient]);
 
   useEffect(() => {
     if (!isReadyToSave.current) return;
     localStorage.setItem('teamlead_control_room_profiles_v14', JSON.stringify(profiles));
-    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'profiles', value_data: profiles });
+    if (supabaseClient && dbStatus === 'connected') {
+      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'profiles', value_data: profiles }); };
+      save();
+    }
   }, [profiles, dbStatus, supabaseClient]);
 
   const activeWeekData = weeksHistory[selectedWeekKey] || defaultWeekData;
