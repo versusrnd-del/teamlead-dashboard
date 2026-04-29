@@ -3,10 +3,10 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend 
 } from 'recharts';
 import { 
-  Activity, AlertTriangle, CheckCircle, Clock, Server, Shield, 
-  LayoutDashboard, Edit, BarChart2, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, PieChart,
-  Settings, CheckCircle2, HelpCircle, FileSearch, ArrowRight, Target, Calendar,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, ShieldAlert, Sparkles, DownloadCloud, Timer, MessageSquare, Tags, ChevronDown, Layers, Lock, Key, LogOut, UserPlus
+  Activity, ShieldAlert, CircleCheck, Clock, Server, Shield, 
+  LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
+  Settings, CircleHelp, FileSearch, ArrowRight, Target, Calendar,
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, CloudDownload, Timer, Tags, ChevronDown, Layers, Lock, Key, LogOut, UserPlus
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -96,13 +96,13 @@ const defaultWeekData = {
   nextFocus: "Ожидание данных AI-анализа...", trainingHypothesis: "Ожидание данных AI-анализа...",
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0,
-  mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "",
+  mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных AI-анализа...",
   topIncidents: [], slaMetrics: [], topPerformers: [], taskComplexity: []
 };
 
 const defaultProcesses = [
   { id: 1, name: "Первая линия (Маршрутизация)", status: "working", goal: "Быстрая классификация обращений.", owner: "Дежурный 1-й линии", currentProblem: "Ожидание аналитики", nextExperiment: "Ожидание данных" },
-  { id: 4, name: "Работа с бэклогом (Техдолг)", status: "working", goal: "Не давать старым задачам протухать (> 30 дней).", owner: "Тимлид", currentProblem: "Ожидание аналитики", nextExperiment: "Ожидание данных" },
+  { id: 4, name: "Работа с бэклогом (Техдолг)", status: "working", goal: "Не давать старым задач протухать (> 30 дней).", owner: "Тимлид", currentProblem: "Ожидание аналитики", nextExperiment: "Ожидание данных" },
   { id: 2, name: "Срочная линия (Роль 'Щит')", status: "working", goal: "Один дежурный забирает внезапный хаос.", owner: "Выделенный дежурный", currentProblem: "Ожидание аналитики", nextExperiment: "Ожидание данных" },
   { id: 3, name: "Недельный спринт (Планирование)", status: "working", goal: "Гарантированная поставка плановых задач.", owner: "Вся команда", currentProblem: "Ожидание аналитики", nextExperiment: "Ожидание данных" }
 ];
@@ -160,7 +160,7 @@ const LoginScreen = ({ onLogin, error }) => {
               />
             </div>
           </div>
-          {error && <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-center gap-2 text-red-400 text-sm animate-in fade-in zoom-in-95"><AlertTriangle size={16} /> {error}</div>}
+          {error && <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-center gap-2 text-red-400 text-sm animate-in fade-in zoom-in-95"><ShieldAlert size={14} /> {error}</div>}
           <button type="submit" disabled={isLoading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 flex justify-center items-center gap-2">
             {isLoading ? <Activity size={20} className="animate-spin" /> : <><Key size={18} /> ВОЙТИ В СИСТЕМУ</>}
           </button>
@@ -198,7 +198,7 @@ const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData, weeksHis
   </div>
 );
 
-// --- ВКЛАДКА: ПУЛЬС КОМАНДЫ (ИЗ ЭТАЛОНА) ---
+// --- ВКЛАДКА: ПУЛЬС КОМАНДЫ ---
 
 const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect }) => {
   const chartData = [
@@ -234,24 +234,24 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
-          <p className="text-slate-400 text-sm">Оперативный статус направления техни поддержки</p>
+          <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
         </div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
-      <h2 className="text-lg font-medium text-white mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-slate-400" />Операционные показатели</h2>
+      <h2 className="text-lg font-medium text-white mb-4 flex items-center gap-2"><PieChart size={20} className="text-slate-400" />Операционные показатели</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-indigo-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> Индекс управляемости</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.managementIndex)) || 0}</span><span className="text-slate-500 text-sm font-medium">/ 100</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.managementIndex) || 0}</span><span className="text-slate-500 text-sm font-medium">/ 100</span></div>
             <p className="text-xs text-slate-500 mt-1">Оценка на базе SLA</p>
           </div>
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center">
             <span className="text-slate-400 text-xs">Статус:</span>
-            <span className={`${Number(safeString(weekData.managementIndex)) > 70 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'} px-2 py-0.5 rounded font-bold text-xs border`}>
-              {Number(safeString(weekData.managementIndex)) > 70 ? 'Управляемо' : (Number(safeString(weekData.managementIndex)) === 0 ? 'Нет данных' : 'Зона риска')}
+            <span className={`${Number(weekData.managementIndex) >= 70 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : (Number(weekData.managementIndex) === 0 ? 'bg-slate-500/10 text-slate-400 border-slate-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20')} px-2 py-0.5 rounded font-bold text-xs border`}>
+              {Number(weekData.managementIndex) >= 70 ? 'Управляемо' : (Number(weekData.managementIndex) === 0 ? 'Нет данных' : 'Зона риска')}
             </span>
           </div>
         </div>
@@ -259,37 +259,37 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-emerald-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> 1-я линия</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.incidentsClosed)) || 0}</span><span className="text-slate-500 text-sm font-medium">закрыто</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.incidentsClosed) || 0}</span><span className="text-slate-500 text-sm font-medium">закрыто</span></div>
             <p className="text-xs text-slate-500 mt-1">Инциденты за неделю</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">В очереди:</span><span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-sm border border-emerald-500/20">{Number(safeString(weekData.incidentsQueue)) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">В очереди:</span><span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-sm border border-emerald-500/20">{Number(weekData.incidentsQueue) || 0}</span></div>
         </div>
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-amber-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Спринт (План)</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.sprintCompleted)) || 0}</span><span className="text-slate-500 text-sm font-medium">выполнено</span></div>
-            <p className="text-xs text-amber-400 mt-1">Из {Number(safeString(weekData.sprintPlanned)) || 0} запланированных</p>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.sprintCompleted) || 0}</span><span className="text-slate-500 text-sm font-medium">выполнено</span></div>
+            <p className="text-xs text-amber-400 mt-1">Из {Number(weekData.sprintPlanned) || 0} запланированных</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Перенесено:</span><span className="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded font-bold text-sm border border-orange-500/20">{Number(safeString(weekData.sprintCarriedOver)) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Перенесено:</span><span className="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded font-bold text-sm border border-orange-500/20">{Number(weekData.sprintCarriedOver) || 0}</span></div>
         </div>
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-red-500 shadow-sm relative overflow-hidden bg-gradient-to-b from-slate-800 to-slate-800/80 flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500"></div> Срочная (Щит)</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.urgentCompleted)) || 0}</span><span className="text-slate-500 text-sm font-medium">отбито</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.urgentCompleted) || 0}</span><span className="text-slate-500 text-sm font-medium">отбито</span></div>
             <p className="text-xs text-slate-500 mt-1">Внеплановый хаос</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(safeString(weekData.urgentQueue)) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(weekData.urgentQueue) || 0}</span></div>
         </div>
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Бэклог</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.backlog)) || 0}</span><span className="text-slate-500 text-sm font-medium">всего</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.backlog) || 0}</span><span className="text-slate-500 text-sm font-medium">всего</span></div>
             <p className="text-xs text-slate-500 mt-1">Очередь Support</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {Number(safeString(weekData.backlogOld30)) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {Number(weekData.backlogOld30) || 0}</span></div>
         </div>
       </div>
 
@@ -323,13 +323,13 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 ${weekData.taskComplexity?.length > 0 ? 'pt-6 border-t border-slate-700/50' : ''}`}>
                {weekData.sprintWin && (
                  <div className="bg-emerald-500/5 p-4 rounded-lg border border-emerald-500/20">
-                   <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><CheckCircle2 size={14}/> Победа спринта</h4>
+                   <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><CircleCheck size={14}/> Победа спринта</h4>
                    <p className="text-sm text-slate-300">{safeString(weekData.sprintWin)}</p>
                  </div>
                )}
                {weekData.sprintRisk && (
                  <div className="bg-amber-500/5 p-4 rounded-lg border border-amber-500/20">
-                   <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><AlertTriangle size={14}/> Риск / Бэклог</h4>
+                   <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><ShieldAlert size={14}/> Риск / Бэклог</h4>
                    <p className="text-sm text-slate-300">{safeString(weekData.sprintRisk)}</p>
                  </div>
                )}
@@ -457,16 +457,31 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div><h2 className="text-lg font-bold text-white">Управленческий AI-синтез недели</h2><p className="text-xs text-indigo-300/70">Качественные выводы на основе семантического NLP-анализа инцидентов</p></div>
         </div>
         <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-400" /><h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Главный инсайт</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainInsight)}</p></div></div>
-          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><AlertTriangle size={18} className="text-amber-400" /><h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Критический риск</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainRisk)}</p></div></div>
+          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><CircleCheck size={18} className="text-emerald-400" /><h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Главный инсайт</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainInsight)}</p></div></div>
+          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><ShieldAlert size={18} className="text-amber-400" /><h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Критический риск</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainRisk)}</p></div></div>
           <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><Target size={18} className="text-blue-400" /><h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">План действий</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.nextFocus)}</p></div></div>
         </div>
       </div>
+
+      {weekData.blockersAndWaste && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8">
+          <div className="bg-fuchsia-500/10 p-5 border-b border-fuchsia-500/20 flex items-center gap-3">
+            <div className="bg-fuchsia-500/20 p-2 rounded-lg"><Trash2 size={24} className="text-fuchsia-400" /></div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Аудит затыков и неактуальных задач</h2>
+              <p className="text-xs text-fuchsia-300/70">Выявление блокеров по комментариям и применение Матрицы Эйзенхауэра</p>
+            </div>
+          </div>
+          <div className="p-6">
+            <p className="text-slate-300 leading-relaxed text-sm whitespace-pre-wrap">{safeString(weekData.blockersAndWaste)}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-// --- ВКЛАДКА: ЗАПОЛНИТЬ НЕДЕЛЮ (ЭТАЛОН) ---
+// --- ВКЛАДКА: ЗАПОЛНИТЬ НЕДЕЛЮ ---
 
 const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSaveWeek, setProfiles, weeksHistory }) => {
   const [formData, setFormData] = useState(weekData);
@@ -508,8 +523,8 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     setIsSaved(false);
   };
 
-  const addIncident = () => { setFormData({ ...formData, topIncidents: [...(formData.topIncidents||[]), { name: '', count: 0, analysis: '' }] }); setIsSaved(false); };
-  const removeIncident = (index) => { const newIncidents = (formData.topIncidents||[]).filter((_, i) => i !== index); setFormData({ ...formData, topIncidents: newIncidents }); setIsSaved(false); };
+  const addRow = () => { setFormData({ ...formData, topIncidents: [...(formData.topIncidents||[]), { name: '', count: 0, analysis: '' }] }); setIsSaved(false); };
+  const delRow = (index) => { const newIncidents = (formData.topIncidents||[]).filter((_, i) => i !== index); setFormData({ ...formData, topIncidents: newIncidents }); setIsSaved(false); };
 
   const handleImportData = () => {
     try {
@@ -519,12 +534,16 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
       if (firstIdx !== -1 && lastIdx !== -1) {
         cleanJson = cleanJson.substring(firstIdx, lastIdx + 1);
       }
+      
+      // Исправление для путей Windows (например, m:\localnet) и других неэкранированных слешей
+      cleanJson = cleanJson.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+      
       cleanJson = cleanJson.replace(/,\s*([\]}])/g, '$1');
       cleanJson = cleanJson.replace(/[\n\r\t]+/g, ' ');
 
       const parsedData = JSON.parse(cleanJson);
       
-      let newIndex = formData.managementIndex || 100;
+      let newIndex = formData.managementIndex !== undefined ? formData.managementIndex : 100;
       if (parsedData.slaMetrics && Array.isArray(parsedData.slaMetrics)) {
         const totalViolations = parsedData.slaMetrics.reduce((sum, sla) => sum + (Number(sla.violations) || 0), 0);
         if (totalViolations > 50) newIndex -= 30;
@@ -538,7 +557,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         }));
       }
 
-      ['mainInsight', 'mainRisk', 'nextFocus', 'trainingHypothesis', 'mainWin', 'thanks', 'sprintWin', 'sprintRisk', 'shieldHero'].forEach(field => {
+      ['mainInsight', 'mainRisk', 'nextFocus', 'trainingHypothesis', 'mainWin', 'thanks', 'sprintWin', 'sprintRisk', 'shieldHero', 'blockersAndWaste'].forEach(field => {
         if (parsedData[field] !== undefined && parsedData[field] !== null) {
           let textVal = parsedData[field];
           if (Array.isArray(textVal)) textVal = textVal.join(' ');
@@ -582,18 +601,15 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
   };
 
   return (
-    <div className="animate-in fade-in duration-500 max-w-4xl pb-24">
+    <div className="animate-in fade-in duration-500 max-w-4xl pb-24 text-left">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Заполнить неделю</h1>
-          <p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов AI-анализа Jira</p>
-        </div>
+        <div><h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">Заполнить неделю</h1><p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов AI-анализа Jira</p></div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
-      <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 shadow-sm relative overflow-hidden mb-8 group transition-all">
+      <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 mb-8 relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
-        <h3 className="text-lg font-medium text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> 🤖 Умный импорт (AI Parsing)</h3>
+        <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> 🤖 Умный импорт (AI Parsing)</h3>
         <p className="text-sm text-indigo-200/70 mb-4 relative z-10">Скормил CSV-выгрузку из Jira нейросети? Вставь полученный от неё JSON-код сюда. Если у тебя два JSON (инциденты и задачи), загружай их по очереди.</p>
         
         <div className="relative z-10 space-y-3">
@@ -603,117 +619,99 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             className="w-full h-24 bg-slate-900/80 border border-indigo-500/30 rounded-lg p-3 text-indigo-100 text-sm font-mono focus:border-indigo-400 outline-none resize-none placeholder:text-indigo-400/30 custom-scrollbar"
           ></textarea>
           <div className="flex items-center gap-4">
-            <button type="button" onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><DownloadCloud size={16} /> Загрузить данные из JSON</button>
+            <button type="button" onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg"><CloudDownload size={16} /> Загрузить JSON</button>
             {importStatus === 'success' && <span className="text-emerald-400 text-sm font-medium flex items-center gap-1"><Check size={16}/> Успешно! Нажми "Сохранить" внизу 👇</span>}
-            {importStatus === 'error' && <span className="text-red-400 text-sm font-medium flex items-center gap-1"><AlertTriangle size={16}/> Ошибка! Неверный формат JSON.</span>}
+            {importStatus === 'error' && <span className="text-red-400 text-sm font-medium flex items-center gap-1"><ShieldAlert size={16}/> Ошибка! Неверный формат JSON.</span>}
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm relative overflow-hidden">
+      <form onSubmit={(e)=>{e.preventDefault(); onSaveWeek(formData); setIsSaved(true); setTimeout(()=>setIsSaved(false), 3000);}} className="space-y-6">
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm relative overflow-hidden text-left">
           <div className="absolute top-0 right-0 p-4 opacity-5"><Calendar size={80} /></div>
-          <h3 className="text-lg font-medium text-white mb-4 relative z-10">Отчетный период</h3>
+          <h3 className="text-lg font-medium text-white mb-4 relative z-10 uppercase tracking-tighter">Отчетный период</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Год</label>
-              <select value={selectedYear} onChange={(e) => { setSelectedYear(parseInt(e.target.value, 10)); setIsSaved(false); }} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none appearance-none cursor-pointer">
-                {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Месяц</label>
-              <select value={selectedMonth} onChange={(e) => { setSelectedMonth(parseInt(e.target.value, 10)); setIsSaved(false); }} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none appearance-none cursor-pointer">
-                {monthNames.map((name, index) => <option key={index} value={index}>{name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Учетная неделя (ISO)</label>
-              <select value={formData.weekNumber || ''} onChange={(e) => { const w = weeksOptions.find(o => o.weekNumber === parseInt(e.target.value)); setFormData({...formData, weekNumber: w.weekNumber, dates: w.dates}); }} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none appearance-none cursor-pointer">
-                {weeksOptions.map(week => <option key={week.weekNumber} value={week.weekNumber}>{week.label}</option>)}
-              </select>
-            </div>
+            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60">Год</label><select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-emerald-500">{availableYears.map(y=><option key={y} value={y}>{y}</option>)}</select></div>
+            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60">Месяц</label><select value={selectedMonth} onChange={e=>setSelectedMonth(parseInt(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-emerald-500">{monthNames.map((n,i)=><option key={i} value={i}>{n}</option>)}</select></div>
+            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60">Неделя (ISO)</label><select value={formData.weekNumber || ''} onChange={e=>{const w=weeksOptions.find(o=>o.weekNumber===parseInt(e.target.value)); setFormData({...formData, weekNumber:w.weekNumber, dates:w.dates});}} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-emerald-500">{weeksOptions.map(w=><option key={w.weekNumber} value={w.weekNumber}>{w.label}</option>)}</select></div>
           </div>
         </div>
 
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm">
-          <h3 className="text-lg font-medium text-white mb-4 flex justify-between items-center">
-            Метрики потоков (Jira)
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Индекс упр-сти:</span>
-              <input type="number" name="managementIndex" value={formData.managementIndex} onChange={handleChange} className="w-16 bg-slate-900 border border-slate-700 rounded p-1 text-center text-white text-sm focus:border-emerald-500 outline-none" />
-            </div>
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
+          <h3 className="text-lg font-medium text-white mb-4 flex justify-between uppercase tracking-tighter">Метрики потоков (Jira) 
+            <span className="flex items-center gap-2 text-xs font-bold text-slate-400 tracking-normal normal-case">Индекс управляемости: 
+              <input type="number" name="managementIndex" value={formData.managementIndex} onChange={handleChange} className="w-14 bg-slate-900 border border-slate-700 rounded text-center text-white p-1" />
+            </span>
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-emerald-500/20">
-              <h4 className="text-sm font-bold text-emerald-400">1-я линия (Инциденты)</h4>
-              <div><label className="block text-xs text-slate-400 mb-1">Закрыто за неделю</label><input type="number" name="incidentsClosed" value={formData.incidentsClosed || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
-              <div><label className="block text-xs text-slate-400 mb-1">Остаток в очереди</label><input type="number" name="incidentsQueue" value={formData.incidentsQueue || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-emerald-500/20"><h4 className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2">1-я линия</h4>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Закрыто</label><input type="number" name="incidentsClosed" value={formData.incidentsClosed||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">В очереди</label><input type="number" name="incidentsQueue" value={formData.incidentsQueue||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
             </div>
-            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-amber-500/20">
-              <h4 className="text-sm font-bold text-amber-400">Спринт (Задачи)</h4>
-              <div><label className="block text-xs text-slate-400 mb-1">Запланировали</label><input type="number" name="sprintPlanned" value={formData.sprintPlanned || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
-              <div className="flex gap-2">
-                <div className="w-1/2"><label className="block text-xs text-slate-400 mb-1">Выполнили</label><input type="number" name="sprintCompleted" value={formData.sprintCompleted || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
-                <div className="w-1/2"><label className="block text-xs text-slate-400 mb-1">Перенесли</label><input type="number" name="sprintCarriedOver" value={formData.sprintCarriedOver || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-orange-400" /></div>
-              </div>
+            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-amber-500/20"><h4 className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-2">Спринт</h4>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Запланировано</label><input type="number" name="sprintPlanned" value={formData.sprintPlanned||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Выполнено</label><input type="number" name="sprintCompleted" value={formData.sprintCompleted||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Перенесли</label><input type="number" name="sprintCarriedOver" value={formData.sprintCarriedOver||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
             </div>
-            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-red-500/20">
-              <h4 className="text-sm font-bold text-red-400">Срочная (Щит)</h4>
-              <div><label className="block text-xs text-slate-400 mb-1">Закрыто срочных за неделю</label><input type="number" name="urgentCompleted" value={formData.urgentCompleted || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
-              <div><label className="block text-xs text-slate-400 mb-1">Активно в моменте</label><input type="number" name="urgentQueue" value={formData.urgentQueue || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-red-500/20"><h4 className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2">Срочная (Щит)</h4>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Отбито</label><input type="number" name="urgentCompleted" value={formData.urgentCompleted||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">В моменте</label><input type="number" name="urgentQueue" value={formData.urgentQueue||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
             </div>
-            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-blue-500/20">
-              <h4 className="text-sm font-bold text-blue-400">Бэклог / Долг</h4>
-              <div><label className="block text-xs text-slate-400 mb-1">Всего в очереди</label><input type="number" name="backlog" value={formData.backlog || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
-              <div><label className="block text-xs text-slate-400 mb-1">Из них старше 30 дней</label><input type="number" name="backlogOld30" value={formData.backlogOld30 || ''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-red-400" /></div>
+            <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-blue-500/20"><h4 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">Бэклог</h4>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Всего</label><input type="number" name="backlog" value={formData.backlog||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Старых ({'>'}30д)</label><input type="number" name="backlogOld30" value={formData.backlogOld30||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-red-400 font-bold" /></div>
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm">
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
           <div className="flex justify-between items-center mb-4">
-            <div><h3 className="text-lg font-medium text-white">Топ драйверов инцидентов (1-я линия)</h3><p className="text-xs text-slate-400 mt-1">AI-парсинг или ручной ввод.</p></div>
-            <button type="button" onClick={addIncident} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1 transition"><Plus size={16} /> Добавить строку</button>
+            <div><h3 className="text-lg font-medium text-white uppercase tracking-tighter">Топ драйверов инцидентов</h3><p className="text-xs text-slate-500 mt-1">AI-парсинг или ручной ввод.</p></div>
+            <button type="button" onClick={addRow} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1 transition-all"><Plus size={14} /> Добавить строку</button>
           </div>
           <div className="space-y-3">
-            {(formData.topIncidents || []).map((incident, index) => (
-              <div key={index} className="flex flex-col gap-2 bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 relative group">
-                <div className="flex gap-3 items-center">
-                  <span className="text-slate-500 font-medium w-5 text-right text-sm">{index + 1}.</span>
-                  <input type="text" placeholder="Смысловая проблема (Парето)" value={safeString(incident.name)} onChange={(e) => handleIncidentChange(index, 'name', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none transition font-medium" />
-                  <input type="number" placeholder="Кол-во" value={incident.count !== undefined ? incident.count : ''} onChange={(e) => handleIncidentChange(index, 'count', e.target.value)} className="w-24 bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none transition" />
-                  <button type="button" onClick={() => removeIncident(index)} className="text-slate-500 hover:text-red-400 p-1.5 rounded transition opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button>
-                </div>
-                <div className="pl-11 pr-11">
-                  <textarea placeholder="AI-Микроанализ: была ли авария, как решали..." value={safeString(incident.analysis)} onChange={(e) => handleIncidentChange(index, 'analysis', e.target.value)} rows={2} className="w-full bg-slate-950/50 border border-slate-700/50 rounded p-2 text-xs text-slate-400 focus:border-emerald-500 outline-none transition resize-none custom-scrollbar"></textarea>
+            {(formData.topIncidents || []).map((inc, idx) => (
+              <div key={idx} className="flex gap-2 items-start bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 group text-left">
+                <span className="text-slate-600 font-bold mt-2 text-xs">{idx + 1}.</span>
+                <div className="flex-1 space-y-2">
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="Смысловая проблема" value={inc.name} onChange={e=>handleIncidentChange(idx,'name',e.target.value)} className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none" />
+                    <input type="number" placeholder="Кол-во" value={inc.count||''} onChange={e=>handleIncidentChange(idx,'count',e.target.value)} className="w-20 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none" />
+                    <button type="button" onClick={()=>delRow(idx)} className="text-slate-600 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
+                  </div>
+                  <textarea placeholder="AI-анализ причины и решения..." value={inc.analysis} onChange={e=>handleIncidentChange(idx,'analysis',e.target.value)} rows={2} className="w-full bg-slate-950/50 border border-slate-800 rounded p-2 text-[11px] text-slate-500 outline-none custom-scrollbar" />
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm">
-          <h3 className="text-lg font-medium text-white mb-4">Управленческие выводы и обучение</h3>
-          <div className="space-y-4">
-            <div><label className="block text-sm font-medium text-emerald-400 mb-1">Главный вывод (Что сработало?)</label><textarea name="mainInsight" value={safeString(formData.mainInsight)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none resize-none custom-scrollbar"></textarea></div>
-            <div><label className="block text-sm font-medium text-amber-400 mb-1">Главный риск (Где сбоит процесс?)</label><textarea name="mainRisk" value={safeString(formData.mainRisk)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none resize-none custom-scrollbar"></textarea></div>
-            <div><label className="block text-sm font-medium text-blue-400 mb-1">Фокус следующей недели</label><textarea name="nextFocus" value={safeString(formData.nextFocus)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none resize-none custom-scrollbar"></textarea></div>
-            <div className="pt-4 border-t border-slate-700/50"><label className="block text-sm font-bold text-indigo-400 mb-1 flex items-center gap-2"><BookOpen size={16} /> Какую гипотезу проверяли? (Для трекера/обучения)</label><textarea name="trainingHypothesis" value={safeString(formData.trainingHypothesis)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-indigo-500/30 rounded-lg p-2.5 text-white focus:border-indigo-500 outline-none resize-none custom-scrollbar"></textarea></div>
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
+          <h3 className="text-lg font-medium text-white uppercase tracking-tighter mb-4">Управленческие выводы и обучение</h3>
+          <div className="space-y-4 text-left">
+            <div className="text-left"><label className="block text-xs font-bold text-emerald-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Главный вывод (Что сработало?)</label><textarea name="mainInsight" value={safeString(formData.mainInsight)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none custom-scrollbar" /></div>
+            <div className="text-left"><label className="block text-xs font-bold text-amber-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Главный риск (Где сбоит процесс?)</label><textarea name="mainRisk" value={safeString(formData.mainRisk)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none custom-scrollbar" /></div>
+            <div className="text-left"><label className="block text-xs font-bold text-blue-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Фокус следующей недели</label><textarea name="nextFocus" value={safeString(formData.nextFocus)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none custom-scrollbar" /></div>
+            <div className="pt-4 border-t border-slate-700/50 text-left"><label className="block text-xs font-bold text-indigo-400 uppercase mb-1 flex items-center gap-2 tracking-wider ml-1"><BookOpen size={14} /> Какую гипотезу проверяли?</label><textarea name="trainingHypothesis" value={safeString(formData.trainingHypothesis)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-indigo-500/30 rounded-lg p-2.5 text-white outline-none custom-scrollbar" /></div>
+            
+            <div className="pt-4 border-t border-slate-700/50 text-left">
+               <label className="block text-xs font-bold text-fuchsia-400 uppercase mb-1 flex items-center gap-2 tracking-wider ml-1"><Trash2 size={14} /> Блокеры и неактуальные задачи (Матрица Эйзенхауэра)</label>
+               <textarea name="blockersAndWaste" value={safeString(formData.blockersAndWaste)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-fuchsia-500/30 rounded-lg p-2.5 text-white outline-none custom-scrollbar focus:border-fuchsia-500" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm">
-          <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2"><Star size={18} className="text-amber-400" /> Победы и благодарности (Для команды)</h3>
-          <div className="space-y-4">
-            <div><label className="block text-sm font-medium text-slate-400 mb-1">Главная командная победа</label><input type="text" name="mainWin" value={safeString(formData.mainWin)} onChange={handleChange} placeholder="Например: Справились с аномальным потоком" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none transition" /></div>
-            <div><label className="block text-sm font-medium text-slate-400 mb-1">Кого хотим отметить лично и за что?</label><textarea name="thanks" value={safeString(formData.thanks)} onChange={handleChange} rows={2} placeholder="Например: Петру за FAQ по принтерам" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none resize-none transition custom-scrollbar"></textarea></div>
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
+          <h3 className="text-lg font-medium text-white uppercase tracking-tighter mb-4 flex items-center gap-2"><Star size={18} className="text-amber-400" /> Победы и благодарности</h3>
+          <div className="space-y-4 text-left">
+            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Главная командная победа</label><input type="text" name="mainWin" value={safeString(formData.mainWin)} onChange={handleChange} placeholder="Например: Справились с аномальным потоком" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-amber-500" /></div>
+            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Кого хотим отметить лично и за что?</label><textarea name="thanks" value={safeString(formData.thanks)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none custom-scrollbar focus:border-amber-500" /></div>
           </div>
         </div>
 
-        <div className="fixed bottom-0 left-64 right-0 p-4 bg-slate-950/90 backdrop-blur-md border-t border-slate-800 flex justify-center z-10">
-          <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors shadow-lg shadow-emerald-900/20">
-            <Save size={20} /> {isSaved ? 'Сохранено в базу портала!' : 'Сохранить данные недели'}
+        <div className="fixed bottom-0 left-64 right-0 p-4 bg-slate-950/90 backdrop-blur-md border-t border-slate-800 flex justify-center z-10 shadow-2xl">
+          <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all active:scale-95 shadow-xl shadow-emerald-900/20">
+            <Save size={20} /> {isSaved ? 'СОХРАНЕНО!' : 'СОХРАНИТЬ В ОБЛАКО'}
           </button>
         </div>
       </form>
@@ -790,9 +788,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 const ProcessesMap = ({ processes }) => {
   const getStatusBadge = (status) => {
     switch(status) {
-      case 'working': return <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-md text-xs font-bold border border-emerald-500/20"><CheckCircle2 size={14}/> Работает</span>;
-      case 'needs_review': return <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-md text-xs font-bold border border-amber-500/20"><AlertTriangle size={14}/> Требует пересмотра</span>;
-      default: return <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-md text-xs font-bold border border-slate-600"><HelpCircle size={14}/> В работе</span>;
+      case 'working': return <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-md text-xs font-bold border border-emerald-500/20"><CircleCheck size={14}/> Работает</span>;
+      case 'needs_review': return <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-md text-xs font-bold border border-amber-500/20"><ShieldAlert size={14}/> Требует пересмотра</span>;
+      default: return <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-md text-xs font-bold border border-slate-600"><CircleHelp size={14}/> В работе</span>;
     }
   };
 
@@ -1358,12 +1356,12 @@ const App = () => {
   // Меню в зависимости от роли
   const navItems = [
     { id: 'pulse', icon: Activity, label: 'Пульс команды', roles: ['admin', 'viewer'] },
-    { id: 'fill', icon: Edit, label: 'Заполнить неделю', roles: ['admin'] },
+    { id: 'fill', icon: Pencil, label: 'Заполнить неделю', roles: ['admin'] },
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
     { id: 'processes', icon: GitMerge, label: 'Процессы', roles: ['admin', 'viewer'] },
     { id: 'achievements', icon: Award, label: 'Достижения', roles: ['admin', 'viewer'] },
     { id: 'profiles', icon: Users, label: 'Профили AI', roles: ['admin', 'viewer'] },
-    { id: 'metrics', icon: BarChart2, label: 'Метрики (TBD)', roles: ['admin', 'viewer'] },
+    { id: 'metrics', icon: PieChart, label: 'Метрики (TBD)', roles: ['admin', 'viewer'] },
     { id: 'training', icon: BookOpen, label: 'Обучение (TBD)', roles: ['admin', 'viewer'] },
     { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
   ].filter(item => item.roles.includes(currentUser.role));
