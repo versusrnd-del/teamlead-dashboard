@@ -6,7 +6,7 @@ import {
   Activity, AlertTriangle, CheckCircle, Clock, Server, Shield, 
   LayoutDashboard, Edit, BarChart2, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, PieChart,
   Settings, CheckCircle2, HelpCircle, FileSearch, ArrowRight, Target, Calendar,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, ShieldAlert, Sparkles, DownloadCloud, Timer, MessageSquare, Tags, ChevronDown, Layers
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, ShieldAlert, Sparkles, DownloadCloud, Timer, MessageSquare, Tags, ChevronDown, Layers, Lock, Key, LogOut, UserPlus
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -26,7 +26,15 @@ const USER_DICTIONARY = {
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const availableYears = Array.from({ length: 31 }, (_, i) => 2020 + i);
 
-// --- ХЕЛПЕРЫ И ЗАЩИТА ДАННЫХ ---
+// --- ХЕЛПЕРЫ БЕЗОПАСНОСТИ ---
+const hashPassword = async (password) => {
+  const msgBuffer = new TextEncoder().encode(password + "super_secure_salt_2026");
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+// --- ОСТАЛЬНЫЕ ХЕЛПЕРЫ ---
 
 const getISOWeekNumber = (d) => {
   const date = new Date(d.getTime());
@@ -66,7 +74,6 @@ const replaceLoginsWithNames = (text) => {
   return result;
 };
 
-// Броня от падений React (Objects are not valid as a React child)
 const safeString = (val) => {
   if (val === null || val === undefined) return '';
   if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(' ');
@@ -80,20 +87,16 @@ const formatCSAT = (val) => {
   return isNaN(num) ? '0.0' : num.toFixed(1);
 };
 
-// --- НАЧАЛЬНЫЕ ДАННЫЕ ДЛЯ СБРОСА ---
+// --- НАЧАЛЬНЫЕ ДАННЫЕ ---
 
 const defaultWeekData = {
   year: new Date().getFullYear(), month: new Date().getMonth(), weekNumber: getISOWeekNumber(new Date()), dates: "Текущая неделя", 
-  status: "green", managementIndex: 0,
-  
+  status: "green", managementIndex: 100,
   mainInsight: "Ожидание данных AI-анализа...", mainRisk: "Ожидание данных AI-анализа...",
   nextFocus: "Ожидание данных AI-анализа...", trainingHypothesis: "Ожидание данных AI-анализа...",
-  
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0,
-  
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "",
-  
   topIncidents: [], slaMetrics: [], topPerformers: [], taskComplexity: []
 };
 
@@ -107,13 +110,75 @@ const defaultProcesses = [
 const defaultAchievements = [];
 const defaultProfiles = [];
 
-// --- ПЕРЕИСПОЛЬЗУЕМЫЕ КОМПОНЕНТЫ ---
+// --- ЭКРАН ВХОДА ---
+const LoginScreen = ({ onLogin, error }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData }) => (
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    await onLogin(username, password);
+    setIsLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+      <div className="w-full max-w-md bg-slate-800/80 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl p-8 relative z-10 text-center">
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 mb-4 shadow-lg shadow-emerald-900/10">
+            <LayoutDashboard size={32} className="text-emerald-400" />
+          </div>
+          <h1 className="text-2xl font-black text-white tracking-tight uppercase">ЦЕНТР УПРАВЛЕНИЯ</h1>
+          <p className="text-sm text-slate-400 mt-1 uppercase tracking-widest opacity-60">Панель Тимлида</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5 text-left">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">Пользователь</label>
+            <div className="relative">
+              <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input 
+                type="text" required value={username} onChange={e => setUsername(e.target.value)}
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none transition-all"
+                placeholder="Логин"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">Пароль</label>
+            <div className="relative">
+              <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input 
+                type="password" required value={password} onChange={e => setPassword(e.target.value)}
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none transition-all"
+                placeholder="••••••••"
+              />
+            </div>
+          </div>
+          {error && <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-center gap-2 text-red-400 text-sm animate-in fade-in zoom-in-95"><AlertTriangle size={16} /> {error}</div>}
+          <button type="submit" disabled={isLoading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 flex justify-center items-center gap-2">
+            {isLoading ? <Activity size={20} className="animate-spin" /> : <><Key size={18} /> ВОЙТИ В СИСТЕМУ</>}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// --- КОМПОНЕНТЫ ИНТЕРФЕЙСА ---
+
+const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData, weeksHistory }) => (
   <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/50 flex items-center gap-3">
     <div className="text-right hidden sm:block">
       <div className="text-sm font-bold text-slate-200">{monthNames[activeData.month] || ''} {activeData.year || ''}</div>
-      <div className="text-slate-400 text-xs">Неделя {activeData.weekNumber || ''}</div>
+      <div className="text-slate-400 text-xs">
+        Неделя {activeData.weekNumber || ''} {activeData.dates && activeData.dates !== "Текущая неделя" ? `(${activeData.dates})` : ''}
+      </div>
     </div>
     <div className="relative">
       <select 
@@ -124,7 +189,8 @@ const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData }) => (
         {historyKeys.map(k => {
           const parts = k.split('-');
           if(parts.length !== 2) return null;
-          return <option key={k} value={k}>Неделя {parts[1]} ({parts[0]})</option>;
+          const datesInfo = weeksHistory && weeksHistory[k] ? weeksHistory[k].dates : parts[0];
+          return <option key={k} value={k}>Неделя {parts[1]} ({datesInfo})</option>;
         })}
       </select>
       <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
@@ -132,9 +198,9 @@ const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData }) => (
   </div>
 );
 
-// --- ВКЛАДКА: ПУЛЬС КОМАНДЫ ---
+// --- ВКЛАДКА: ПУЛЬС КОМАНДЫ (ИЗ ЭТАЛОНА) ---
 
-const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }) => {
+const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect }) => {
   const chartData = [
     { name: 'Пн', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.2), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.25) },
     { name: 'Вт', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.3), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.2) },
@@ -170,7 +236,7 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
           <p className="text-slate-400 text-sm">Оперативный статус направления техни поддержки</p>
         </div>
-        <WeekSelector historyKeys={historyKeys} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
+        <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
       <h2 className="text-lg font-medium text-white mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-slate-400" />Операционные показатели</h2>
@@ -179,13 +245,13 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-indigo-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> Индекс управляемости</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.managementIndex) || 0}</span><span className="text-slate-500 text-sm font-medium">/ 100</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.managementIndex)) || 0}</span><span className="text-slate-500 text-sm font-medium">/ 100</span></div>
             <p className="text-xs text-slate-500 mt-1">Оценка на базе SLA</p>
           </div>
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center">
             <span className="text-slate-400 text-xs">Статус:</span>
-            <span className={`${Number(weekData.managementIndex) > 70 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'} px-2 py-0.5 rounded font-bold text-xs border`}>
-              {Number(weekData.managementIndex) > 70 ? 'Управляемо' : (Number(weekData.managementIndex) === 0 ? 'Нет данных' : 'Зона риска')}
+            <span className={`${Number(safeString(weekData.managementIndex)) > 70 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'} px-2 py-0.5 rounded font-bold text-xs border`}>
+              {Number(safeString(weekData.managementIndex)) > 70 ? 'Управляемо' : (Number(safeString(weekData.managementIndex)) === 0 ? 'Нет данных' : 'Зона риска')}
             </span>
           </div>
         </div>
@@ -193,37 +259,37 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-emerald-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> 1-я линия</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.incidentsClosed) || 0}</span><span className="text-slate-500 text-sm font-medium">закрыто</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.incidentsClosed)) || 0}</span><span className="text-slate-500 text-sm font-medium">закрыто</span></div>
             <p className="text-xs text-slate-500 mt-1">Инциденты за неделю</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">В очереди:</span><span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-sm border border-emerald-500/20">{Number(weekData.incidentsQueue) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">В очереди:</span><span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-sm border border-emerald-500/20">{Number(safeString(weekData.incidentsQueue)) || 0}</span></div>
         </div>
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-amber-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Спринт (План)</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.sprintCompleted) || 0}</span><span className="text-slate-500 text-sm font-medium">выполнено</span></div>
-            <p className="text-xs text-amber-400 mt-1">Из {Number(weekData.sprintPlanned) || 0} запланированных</p>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.sprintCompleted)) || 0}</span><span className="text-slate-500 text-sm font-medium">выполнено</span></div>
+            <p className="text-xs text-amber-400 mt-1">Из {Number(safeString(weekData.sprintPlanned)) || 0} запланированных</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Перенесено:</span><span className="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded font-bold text-sm border border-orange-500/20">{Number(weekData.sprintCarriedOver) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Перенесено:</span><span className="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded font-bold text-sm border border-orange-500/20">{Number(safeString(weekData.sprintCarriedOver)) || 0}</span></div>
         </div>
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-red-500 shadow-sm relative overflow-hidden bg-gradient-to-b from-slate-800 to-slate-800/80 flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500"></div> Срочная (Щит)</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.urgentCompleted) || 0}</span><span className="text-slate-500 text-sm font-medium">отбито</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.urgentCompleted)) || 0}</span><span className="text-slate-500 text-sm font-medium">отбито</span></div>
             <p className="text-xs text-slate-500 mt-1">Внеплановый хаос</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(weekData.urgentQueue) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(safeString(weekData.urgentQueue)) || 0}</span></div>
         </div>
         
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Бэклог</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.backlog) || 0}</span><span className="text-slate-500 text-sm font-medium">всего</span></div>
+            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(safeString(weekData.backlog)) || 0}</span><span className="text-slate-500 text-sm font-medium">всего</span></div>
             <p className="text-xs text-slate-500 mt-1">Очередь Support</p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {Number(weekData.backlogOld30) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {Number(safeString(weekData.backlogOld30)) || 0}</span></div>
         </div>
       </div>
 
@@ -378,15 +444,13 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
               </ResponsiveContainer>
             </div>
           </div>
-          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm flex-1">
-            <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 h-full flex flex-col justify-center">
-              <span className="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-2"><BookOpen size={16}/> Гипотеза недели (Обучение)</span>
-              <p className="text-sm text-emerald-400 font-medium leading-relaxed">{safeString(weekData.trainingHypothesis)}</p>
-            </div>
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 flex-1 flex flex-col justify-center shadow-sm">
+             <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-2"><BookOpen size={16}/> Гипотеза недели (Обучение)</span>
+             <p className="text-sm text-emerald-400 font-medium leading-relaxed">{safeString(weekData.trainingHypothesis)}</p>
           </div>
         </div>
       </div>
-
+      
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8">
         <div className="bg-indigo-500/10 p-5 border-b border-indigo-500/20 flex items-center gap-3">
           <Sparkles size={24} className="text-indigo-400" />
@@ -402,9 +466,9 @@ const PulseDashboard = ({ weekData, historyKeys, selectedWeekKey, onWeekSelect }
   );
 };
 
-// --- ВКЛАДКА: ЗАПОЛНИТЬ НЕДЕЛЮ ---
+// --- ВКЛАДКА: ЗАПОЛНИТЬ НЕДЕЛЮ (ЭТАЛОН) ---
 
-const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSaveWeek, setProfiles }) => {
+const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSaveWeek, setProfiles, weeksHistory }) => {
   const [formData, setFormData] = useState(weekData);
   const [isSaved, setIsSaved] = useState(false);
   const [importJson, setImportJson] = useState('');
@@ -449,63 +513,42 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
   const handleImportData = () => {
     try {
-      let raw = importJson;
-      const f = raw.indexOf('{'); const l = raw.lastIndexOf('}');
-      if (f !== -1 && l !== -1) raw = raw.substring(f, l + 1);
-      
-      let parsedData;
-      try {
-        // Попытка 1: Парсинг оригинального JSON (работает в большинстве случаев)
-        parsedData = JSON.parse(raw);
-      } catch (err1) {
-        try {
-          // Попытка 2: Очистка от висячих запятых и буквальных переносов строк
-          let cleaned = raw.replace(/,\s*([\]}])/g, '$1').replace(/[\n\r\t]+/g, ' ');
-          parsedData = JSON.parse(cleaned);
-        } catch (err2) {
-          // Попытка 3: Безопасное удаление битых обратных слешей (вызывающих ошибку "Bad escaped character")
-          let superCleaned = raw.replace(/,\s*([\]}])/g, '$1').replace(/[\n\r\t]+/g, ' ');
-          // Удаляем обратные слеши, которые не являются частью валидной escape-последовательности JSON
-          superCleaned = superCleaned.replace(/\\([^"\\/bfnrtu])/g, '$1');
-          parsedData = JSON.parse(superCleaned);
-        }
+      let cleanJson = importJson;
+      const firstIdx = cleanJson.indexOf('{');
+      const lastIdx = cleanJson.lastIndexOf('}');
+      if (firstIdx !== -1 && lastIdx !== -1) {
+        cleanJson = cleanJson.substring(firstIdx, lastIdx + 1);
       }
+      cleanJson = cleanJson.replace(/,\s*([\]}])/g, '$1');
+      cleanJson = cleanJson.replace(/[\n\r\t]+/g, ' ');
 
-      const data = parsedData;
-      const merged = { ...formData, ...data };
+      const parsedData = JSON.parse(cleanJson);
       
       let newIndex = formData.managementIndex || 100;
-      if (data.slaMetrics && Array.isArray(data.slaMetrics)) {
-        const totalViolations = data.slaMetrics.reduce((sum, sla) => sum + (Number(sla.violations) || 0), 0);
+      if (parsedData.slaMetrics && Array.isArray(parsedData.slaMetrics)) {
+        const totalViolations = parsedData.slaMetrics.reduce((sum, sla) => sum + (Number(sla.violations) || 0), 0);
         if (totalViolations > 50) newIndex -= 30;
         else if (totalViolations > 20) newIndex -= 15;
       }
-      merged.managementIndex = newIndex;
       
-      ['topIncidents', 'slaMetrics', 'topPerformers', 'taskComplexity'].forEach(key => {
-        if (!data[key] && formData[key]) merged[key] = formData[key];
-      });
-
-      if (data.topPerformers && Array.isArray(data.topPerformers)) {
-        merged.topPerformers = data.topPerformers.map(perf => ({
+      if (parsedData.topPerformers && Array.isArray(parsedData.topPerformers)) {
+        parsedData.topPerformers = parsedData.topPerformers.map(perf => ({
           ...perf,
           name: USER_DICTIONARY[safeString(perf.name).trim()] || safeString(perf.name)
         }));
       }
 
       ['mainInsight', 'mainRisk', 'nextFocus', 'trainingHypothesis', 'mainWin', 'thanks', 'sprintWin', 'sprintRisk', 'shieldHero'].forEach(field => {
-        if (data[field] !== undefined && data[field] !== null) {
-          let textVal = data[field];
+        if (parsedData[field] !== undefined && parsedData[field] !== null) {
+          let textVal = parsedData[field];
           if (Array.isArray(textVal)) textVal = textVal.join(' ');
           else if (typeof textVal === 'object') textVal = JSON.stringify(textVal);
-          merged[field] = replaceLoginsWithNames(String(textVal));
-        } else if (formData[field]) {
-          merged[field] = formData[field];
+          parsedData[field] = replaceLoginsWithNames(String(textVal));
         }
       });
 
-      if (data.teamProfiles && Array.isArray(data.teamProfiles) && setProfiles) {
-         const newProfiles = data.teamProfiles.map((p, i) => {
+      if (parsedData.teamProfiles && Array.isArray(parsedData.teamProfiles) && setProfiles) {
+         const newProfiles = parsedData.teamProfiles.map((p, i) => {
            const lvl = Number(p.delegationLevel) || 1;
            const color = lvl <= 2 ? 'blue' : (lvl === 3 ? 'emerald' : (lvl === 4 ? 'amber' : 'indigo'));
            return {
@@ -515,7 +558,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
          setProfiles(newProfiles);
       }
       
-      setFormData(merged);
+      setFormData(prev => ({ ...prev, ...parsedData, managementIndex: newIndex }));
       setImportStatus('success');
       setImportJson(''); 
       setTimeout(() => setImportStatus(null), 3000);
@@ -545,7 +588,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Заполнить неделю</h1>
           <p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов AI-анализа Jira</p>
         </div>
-        <WeekSelector historyKeys={historyKeys} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
+        <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
       <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 shadow-sm relative overflow-hidden mb-8 group transition-all">
@@ -594,7 +637,13 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         </div>
 
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm">
-          <h3 className="text-lg font-medium text-white mb-4">Метрики потоков (Jira)</h3>
+          <h3 className="text-lg font-medium text-white mb-4 flex justify-between items-center">
+            Метрики потоков (Jira)
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Индекс упр-сти:</span>
+              <input type="number" name="managementIndex" value={formData.managementIndex} onChange={handleChange} className="w-16 bg-slate-900 border border-slate-700 rounded p-1 text-center text-white text-sm focus:border-emerald-500 outline-none" />
+            </div>
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-emerald-500/20">
               <h4 className="text-sm font-bold text-emerald-400">1-я линия (Инциденты)</h4>
@@ -674,7 +723,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
 // --- ВКЛАДКА: ОТЧЕТЫ ---
 
-const ReportsGenerator = ({ weekData, historyKeys, selectedKey, onWeekSelect }) => {
+const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect }) => {
   const [copiedId, setCopiedId] = useState(null);
   const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
   const top3 = sortedIncidents.slice(0, 3);
@@ -712,7 +761,7 @@ const ReportsGenerator = ({ weekData, historyKeys, selectedKey, onWeekSelect }) 
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Генератор отчетов</h1>
           <p className="text-slate-400 text-sm">Умная сборка метрик для коммуникации с разными ролями</p>
         </div>
-        <WeekSelector historyKeys={historyKeys} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
+        <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {reports.map((report) => {
@@ -949,21 +998,129 @@ const TeamProfilesBoard = ({ profiles }) => {
   );
 };
 
+// --- ВКЛАДКА: НАСТРОЙКИ ДОСТУПА (АДМИНКА) ---
+
+const AdminSettings = ({ users, onAddUser, onUpdateUser, onDeleteUser }) => {
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState('viewer');
+  
+  const [editId, setEditId] = useState(null);
+  const [editPassword, setEditPassword] = useState('');
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!newUsername || !newPassword) return;
+    await onAddUser({ username: newUsername, password: newPassword, role: newRole });
+    setNewUsername(''); setNewPassword('');
+  };
+
+  const handleUpdate = async (e, id) => {
+    e.preventDefault();
+    if (!editPassword) return;
+    await onUpdateUser(id, editPassword);
+    setEditId(null); setEditPassword('');
+  };
+
+  return (
+    <div className="animate-in fade-in duration-500 max-w-4xl pb-10">
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Настройки доступа</h1>
+          <p className="text-slate-400 text-sm">Управление пользователями и ролями</p>
+        </div>
+      </div>
+
+      <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8">
+        <div className="p-5 border-b border-slate-700/50 bg-slate-900/30">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2"><UserPlus size={18} className="text-emerald-400"/> Добавить пользователя</h3>
+        </div>
+        <form onSubmit={handleAdd} className="p-6 flex flex-col md:flex-row gap-4 items-end">
+          <div className="w-full md:w-1/3">
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Логин</label>
+            <input type="text" required value={newUsername} onChange={e=>setNewUsername(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none" />
+          </div>
+          <div className="w-full md:w-1/3">
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Пароль</label>
+            <input type="password" required value={newPassword} onChange={e=>setNewPassword(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none" />
+          </div>
+          <div className="w-full md:w-1/4">
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Роль</label>
+            <select value={newRole} onChange={e=>setNewRole(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none">
+              <option value="admin">Администратор</option>
+              <option value="viewer">Просмотр</option>
+            </select>
+          </div>
+          <button type="submit" className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg font-bold transition-colors">Создать</button>
+        </form>
+      </div>
+
+      <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-700/50 bg-slate-900/30">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2"><Users size={18} className="text-blue-400"/> Список пользователей</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase bg-slate-900/50">
+                <th className="p-4 font-medium">Логин</th>
+                <th className="p-4 font-medium">Роль</th>
+                <th className="p-4 font-medium text-right">Действия</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {users.map((u) => (
+                <tr key={u.id} className="hover:bg-slate-900/20 transition-colors">
+                  <td className="p-4 text-white font-medium">{u.username}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded text-xs font-bold border ${u.role === 'admin' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-700/50 text-slate-300 border-slate-600'}`}>
+                      {u.role === 'admin' ? 'Admin' : 'Viewer'}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    {editId === u.id ? (
+                      <form onSubmit={(e) => handleUpdate(e, u.id)} className="flex items-center justify-end gap-2">
+                        <input type="password" placeholder="Новый пароль" required value={editPassword} onChange={e=>setEditPassword(e.target.value)} className="w-32 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none" />
+                        <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded text-xs font-bold">Сохр.</button>
+                        <button type="button" onClick={() => setEditId(null)} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs font-bold">Отмена</button>
+                      </form>
+                    ) : (
+                      <div className="flex items-center justify-end gap-3">
+                        <button onClick={() => setEditId(u.id)} className="text-slate-400 hover:text-white text-xs font-bold transition-colors">Сменить пароль</button>
+                        {u.username !== 'admin' && (
+                          <button onClick={() => onDeleteUser(u.id)} className="text-red-400 hover:text-red-300 transition-colors p-1"><Trash2 size={16} /></button>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 // --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('pulse'); 
   const [isLoaded, setIsLoaded] = useState(false);
-  const [dbStatus, setDbStatus] = useState('loading'); // loading, connected, error, local
+  const [dbStatus, setDbStatus] = useState('loading'); 
   const isReadyToSave = useRef(false);
   const [supabaseClient, setSupabaseClient] = useState(null);
 
-  // ИСТОРИЯ НЕДЕЛЬ (_v14 ключи для полного сброса старых данных и избежания крашей)
+  // AUTH STATE
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authUsers, setAuthUsers] = useState([]);
+  const [loginError, setLoginError] = useState('');
+
+  // ИСТОРИЯ НЕДЕЛЬ (_v8 ключи)
   const [weeksHistory, setWeeksHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('teamlead_history_data_v14');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
+    try { const saved = localStorage.getItem('teamlead_history_data_v8'); if (saved) return JSON.parse(saved); } catch (e) {}
     return { [`${defaultWeekData.year}-${defaultWeekData.weekNumber}`]: defaultWeekData };
   });
 
@@ -972,9 +1129,9 @@ const App = () => {
     return keys.length > 0 ? keys.sort().pop() : `${defaultWeekData.year}-${defaultWeekData.weekNumber}`;
   });
 
-  const [processes, setProcesses] = useState(() => { try { const saved = localStorage.getItem('teamlead_control_room_processes_v14'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProcesses; });
-  const [achievements, setAchievements] = useState(() => { try { const saved = localStorage.getItem('teamlead_control_room_achievements_v14'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultAchievements; });
-  const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_control_room_profiles_v14'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProfiles; });
+  const [processes, setProcesses] = useState(() => { try { const saved = localStorage.getItem('teamlead_processes_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProcesses; });
+  const [achievements, setAchievements] = useState(() => { try { const saved = localStorage.getItem('teamlead_achievements_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultAchievements; });
+  const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_profiles_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProfiles; });
 
   // Инициализация (загрузка из облака или кэша)
   useEffect(() => {
@@ -992,12 +1149,47 @@ const App = () => {
 
       if (!mounted) return;
 
+      // 1. ЗАГРУЗКА ДАННЫХ
       if (cloudData && cloudData.length > 0) {
         const hRow = cloudData.find(r => r.key_name === 'history'); if (hRow) { setWeeksHistory(hRow.value_data); setSelectedWeekKey(Object.keys(hRow.value_data).sort().pop()); }
         const procRow = cloudData.find(r => r.key_name === 'processes'); if (procRow) setProcesses(procRow.value_data);
         const achRow = cloudData.find(r => r.key_name === 'achievements'); if (achRow) setAchievements(achRow.value_data);
         const profRow = cloudData.find(r => r.key_name === 'profiles'); if (profRow) setProfiles(profRow.value_data);
       }
+
+      // 2. ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ (АВТОРИЗАЦИЯ)
+      let loadedAuthUsers = [];
+      if (cloudData) {
+        const authRow = cloudData.find(r => r.key_name === 'auth_users');
+        if (authRow) loadedAuthUsers = authRow.value_data;
+      } else {
+        try { const localAuth = localStorage.getItem('teamlead_auth_v8'); if (localAuth) loadedAuthUsers = JSON.parse(localAuth); } catch (e) {}
+      }
+
+      // Если в базе вообще нет пользователей, создаем админа с паролем по умолчанию
+      if (!loadedAuthUsers || loadedAuthUsers.length === 0) {
+        const defaultHash = await hashPassword('Wmg82bpe'); // Тот самый дефолтный пароль
+        loadedAuthUsers = [{ id: Date.now(), username: 'admin', passwordHash: defaultHash, role: 'admin' }];
+        
+        // Сохраняем свежесозданного админа в базу
+        if (client && dbStatus !== 'error') {
+           await client.from('app_state').upsert({ key_name: 'auth_users', value_data: loadedAuthUsers });
+        } else {
+           localStorage.setItem('teamlead_auth_v8', JSON.stringify(loadedAuthUsers));
+        }
+      }
+      setAuthUsers(loadedAuthUsers);
+
+      // Проверка сохраненной локально сессии
+      try {
+        const session = localStorage.getItem('teamlead_session');
+        if (session) {
+          const { u, h } = JSON.parse(session);
+          const foundUser = loadedAuthUsers.find(user => user.username === u && user.passwordHash === h);
+          if (foundUser) setCurrentUser(foundUser);
+        }
+      } catch(e) {}
+
       setIsLoaded(true);
       setTimeout(() => { if (mounted) isReadyToSave.current = true; }, 1000);
     };
@@ -1005,8 +1197,9 @@ const App = () => {
     let url = '';
     let key = '';
     try {
-      url = import.meta.env.VITE_SUPABASE_URL || '';
-      key = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      const env = typeof import.meta !== 'undefined' ? import.meta.env : {};
+      url = env.VITE_SUPABASE_URL || '';
+      key = env.VITE_SUPABASE_ANON_KEY || '';
     } catch (e) {}
 
     if (url && key) {
@@ -1037,30 +1230,95 @@ const App = () => {
     return () => { mounted = false; };
   }, []);
 
-  // Синхронизация при изменениях (после загрузки)
+  // Синхронизация при изменениях
   useEffect(() => {
     if (!isReadyToSave.current) return;
-    localStorage.setItem('teamlead_history_data_v14', JSON.stringify(weeksHistory));
-    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'history', value_data: weeksHistory });
+    localStorage.setItem('teamlead_history_data_v8', JSON.stringify(weeksHistory));
+    if (supabaseClient && dbStatus === 'connected') {
+      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'history', value_data: weeksHistory }); };
+      save();
+    }
   }, [weeksHistory, dbStatus, supabaseClient]);
 
   useEffect(() => {
     if (!isReadyToSave.current) return;
-    localStorage.setItem('teamlead_control_room_processes_v14', JSON.stringify(processes));
-    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'processes', value_data: processes });
+    localStorage.setItem('teamlead_processes_v8', JSON.stringify(processes));
+    if (supabaseClient && dbStatus === 'connected') {
+      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'processes', value_data: processes }); };
+      save();
+    }
   }, [processes, dbStatus, supabaseClient]);
   
   useEffect(() => {
     if (!isReadyToSave.current) return;
-    localStorage.setItem('teamlead_control_room_achievements_v14', JSON.stringify(achievements));
-    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'achievements', value_data: achievements });
+    localStorage.setItem('teamlead_achievements_v8', JSON.stringify(achievements));
+    if (supabaseClient && dbStatus === 'connected') {
+      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'achievements', value_data: achievements }); };
+      save();
+    }
   }, [achievements, dbStatus, supabaseClient]);
 
   useEffect(() => {
     if (!isReadyToSave.current) return;
-    localStorage.setItem('teamlead_control_room_profiles_v14', JSON.stringify(profiles));
-    if (supabaseClient && dbStatus === 'connected') supabaseClient.from('app_state').upsert({ key_name: 'profiles', value_data: profiles });
+    localStorage.setItem('teamlead_profiles_v8', JSON.stringify(profiles));
+    if (supabaseClient && dbStatus === 'connected') {
+      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'profiles', value_data: profiles }); };
+      save();
+    }
   }, [profiles, dbStatus, supabaseClient]);
+
+  // Сохранение пользователей в базу при изменении
+  useEffect(() => {
+    if (!isReadyToSave.current || authUsers.length === 0) return;
+    localStorage.setItem('teamlead_auth_v8', JSON.stringify(authUsers));
+    if (supabaseClient && dbStatus === 'connected') {
+      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'auth_users', value_data: authUsers }); };
+      save();
+    }
+  }, [authUsers, dbStatus, supabaseClient]);
+
+  // ФУНКЦИИ АВТОРИЗАЦИИ
+  const handleLogin = async (username, password) => {
+    setLoginError('');
+    const inputHash = await hashPassword(password);
+    const user = authUsers.find(u => u.username === username && u.passwordHash === inputHash);
+    
+    if (user) {
+      setCurrentUser(user);
+      localStorage.setItem('teamlead_session', JSON.stringify({ u: user.username, h: user.passwordHash }));
+    } else {
+      setLoginError('Неверный логин или пароль');
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('teamlead_session');
+    setActiveTab('pulse');
+  };
+
+  // УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ (АДМИНКА)
+  const handleAddUser = async (newUser) => {
+    const hash = await hashPassword(newUser.password);
+    const newEntry = { id: Date.now(), username: newUser.username, passwordHash: hash, role: newUser.role };
+    setAuthUsers([...authUsers, newEntry]);
+  };
+
+  const handleUpdatePassword = async (id, newPassword) => {
+    const hash = await hashPassword(newPassword);
+    setAuthUsers(authUsers.map(u => u.id === id ? { ...u, passwordHash: hash } : u));
+    
+    // Если меняем пароль себе, обновляем сессию в браузере, чтобы не выкинуло
+    if (currentUser && currentUser.id === id) {
+      localStorage.setItem('teamlead_session', JSON.stringify({ u: currentUser.username, h: hash }));
+      setCurrentUser({ ...currentUser, passwordHash: hash });
+    }
+  };
+
+  const handleDeleteUser = (id) => {
+    setAuthUsers(authUsers.filter(u => u.id !== id));
+  };
+
 
   const activeWeekData = weeksHistory[selectedWeekKey] || defaultWeekData;
   const historyKeys = Object.keys(weeksHistory).sort().reverse(); 
@@ -1074,12 +1332,13 @@ const App = () => {
 
   const renderContent = () => {
     switch(activeTab) {
-      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
-      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} />;
-      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
+      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
+      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} />;
+      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
       case 'achievements': return <AchievementsBoard achievements={achievements} />;
       case 'profiles': return <TeamProfilesBoard profiles={profiles} />;
+      case 'settings': return <AdminSettings users={authUsers} onAddUser={handleAddUser} onUpdateUser={handleUpdatePassword} onDeleteUser={handleDeleteUser} />;
       default:
         return (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-500 h-full mt-20">
@@ -1090,18 +1349,24 @@ const App = () => {
     }
   };
 
-  const navItems = [
-    { id: 'pulse', icon: Activity, label: 'Пульс команды' },
-    { id: 'fill', icon: Edit, label: 'Заполнить неделю' },
-    { id: 'reports', icon: FileText, label: 'Отчеты' },
-    { id: 'processes', icon: GitMerge, label: 'Процессы' },
-    { id: 'achievements', icon: Award, label: 'Достижения' },
-    { id: 'profiles', icon: Users, label: 'Профили AI' },
-    { id: 'metrics', icon: BarChart2, label: 'Метрики (TBD)' },
-    { id: 'training', icon: BookOpen, label: 'Обучение (TBD)' },
-  ];
-
+  // Экран загрузки
   if (!isLoaded) return <div className="h-screen bg-slate-900 flex items-center justify-center text-emerald-400"><Activity className="animate-spin mr-3"/> Загрузка Control Room...</div>;
+
+  // Экран входа, если нет активной сессии
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} error={loginError} />;
+
+  // Меню в зависимости от роли
+  const navItems = [
+    { id: 'pulse', icon: Activity, label: 'Пульс команды', roles: ['admin', 'viewer'] },
+    { id: 'fill', icon: Edit, label: 'Заполнить неделю', roles: ['admin'] },
+    { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
+    { id: 'processes', icon: GitMerge, label: 'Процессы', roles: ['admin', 'viewer'] },
+    { id: 'achievements', icon: Award, label: 'Достижения', roles: ['admin', 'viewer'] },
+    { id: 'profiles', icon: Users, label: 'Профили AI', roles: ['admin', 'viewer'] },
+    { id: 'metrics', icon: BarChart2, label: 'Метрики (TBD)', roles: ['admin', 'viewer'] },
+    { id: 'training', icon: BookOpen, label: 'Обучение (TBD)', roles: ['admin', 'viewer'] },
+    { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
+  ].filter(item => item.roles.includes(currentUser.role));
 
   return (
     <div className="flex h-screen bg-slate-900 font-sans text-slate-200 overflow-hidden">
@@ -1117,7 +1382,10 @@ const App = () => {
           <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40">
             <LayoutDashboard size={20} className="text-emerald-400" />
           </div>
-          <div><h1 className="font-black text-white text-sm leading-tight uppercase tracking-tighter">Control Room</h1><p className="text-[10px] text-slate-500 uppercase font-bold">TeamLead Dashboard</p></div>
+          <div>
+            <h1 className="font-black text-white text-lg leading-tight uppercase tracking-tighter">ЦЕНТР УПРАВЛЕНИЯ</h1>
+            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">ПАНЕЛЬ ТИМЛИДА</p>
+          </div>
         </div>
         
         <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2 custom-scrollbar">
@@ -1137,14 +1405,22 @@ const App = () => {
           })}
         </nav>
         
-        <div className="p-4 border-t border-slate-800">
-          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 flex items-center gap-3 mb-3">
+        <div className="p-4 border-t border-slate-800 space-y-3">
+          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800/50 flex items-center gap-3 shadow-inner">
              <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : (dbStatus === 'error' ? 'bg-red-500' : 'bg-slate-500')}`}></div>
-             <div className="text-xs text-slate-400 font-bold tracking-wider uppercase">{dbStatus === 'connected' ? 'Cloud Sync: ON' : 'Локальный режим'}</div>
+             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{dbStatus === 'connected' ? 'СИНХРОНИЗАЦИЯ: ОК' : 'ЛОКАЛЬНЫЙ РЕЖИМ'}</div>
           </div>
-          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-black text-white">TL</div>
-            <div><p className="text-xs font-bold text-slate-200">Тимлид ОСО</p><p className="text-[10px] text-slate-500">Этап 3: Supabase</p></div>
+          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 flex items-center justify-between shadow-inner">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white uppercase flex-shrink-0">
+                {currentUser.username.substring(0, 2).toUpperCase()}
+              </div>
+              <div className="overflow-hidden leading-tight">
+                 <p className="text-sm font-bold text-slate-200 truncate">{currentUser.username}</p>
+                 <p className="text-[10px] text-slate-500 capitalize">{currentUser.role === 'admin' ? 'Админ' : 'Просмотр'}</p>
+              </div>
+            </div>
+            <button onClick={handleLogout} className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0" title="Выход"><LogOut size={18} /></button>
           </div>
         </div>
       </aside>
