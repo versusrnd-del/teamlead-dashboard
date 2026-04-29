@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend 
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  LineChart, Line, AreaChart, Area
 } from 'recharts';
 import { 
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Server, Shield, 
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
-  Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar,
+  Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame,
   Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, Tags, ChevronDown, Layers, Lock, Key, LogOut, UserPlus
 } from 'lucide-react';
 
@@ -22,6 +23,8 @@ const USER_DICTIONARY = {
   "u0608": "Максим Гуртов",
   "u0607": "Максим Отрошко"
 };
+
+const BASE_CAPACITY = 50; // Эталонная мощность команды в неделю (для расчета нагрузки)
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const availableYears = Array.from({ length: 31 }, (_, i) => 2020 + i);
@@ -207,6 +210,38 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   const prevWeekData = prevWeekKey ? weeksHistory[prevWeekKey] : null;
   const backlogTrend = prevWeekData ? (Number(weekData.backlog) || 0) - (Number(prevWeekData.backlog) || 0) : 0;
 
+  // Расчет нагрузки (Capacity)
+  const totalClosed = (Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0);
+  const loadPercentage = Math.min(Math.round((totalClosed / BASE_CAPACITY) * 100), 150);
+  
+  let loadStatus = 'Норма';
+  let loadColor = 'bg-emerald-500';
+  let loadTextColor = 'text-emerald-400';
+  let loadBgMuted = 'bg-emerald-500/10';
+
+  if (totalClosed >= BASE_CAPACITY) {
+    loadStatus = 'Оверперформ (На пределе)';
+    loadColor = 'bg-red-500';
+    loadTextColor = 'text-red-400';
+    loadBgMuted = 'bg-red-500/10';
+  } else if (loadPercentage >= 80) {
+    loadStatus = 'Высокая нагрузка';
+    loadColor = 'bg-orange-500';
+    loadTextColor = 'text-orange-400';
+    loadBgMuted = 'bg-orange-500/10';
+  }
+
+  // Данные для исторического тренда (Линейный график)
+  const trendData = sortedKeys.map(key => {
+    const w = weeksHistory[key];
+    return {
+      name: `Нед. ${w.weekNumber}`,
+      'Бэклог (Остаток)': Number(w.backlog) || 0,
+      'Выполнено': (Number(w.sprintCompleted) || 0) + (Number(w.urgentCompleted) || 0),
+      'Приток': Number(w.inflowThisWeek) || 0
+    };
+  });
+
   const chartData = [
     { name: 'Пн', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.2), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.25) },
     { name: 'Вт', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.3), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.2) },
@@ -238,14 +273,35 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   return (
     <div className="animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
-        <div>
+        <div className="w-full sm:w-auto">
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
           <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
+          
+          {/* Индикатор нагрузки (Team Capacity) */}
+          <div className="mt-4 bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 w-full max-w-md">
+             <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-slate-300 flex items-center gap-2"><Flame className={loadTextColor} size={16}/> Общая загрузка (Capacity)</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded border border-${loadColor.replace('bg-', '')}/30 ${loadBgMuted} ${loadTextColor}`}>
+                  {loadStatus} ({Math.round((totalClosed / BASE_CAPACITY) * 100)}%)
+                </span>
+             </div>
+             <div className="w-full bg-slate-900/80 rounded-full h-3.5 border border-slate-700 overflow-hidden flex shadow-inner">
+                <div className={`h-full ${loadColor} transition-all duration-1000 relative`} style={{ width: `${Math.min(loadPercentage, 100)}%` }}>
+                  {totalClosed >= BASE_CAPACITY && <div className="absolute inset-0 bg-white/20 w-full animate-[pulse_2s_ease-in-out_infinite]"></div>}
+                </div>
+                {loadPercentage > 100 && <div className="h-full bg-red-600 animate-pulse border-l border-red-800" style={{ width: `${loadPercentage - 100}%` }}></div>}
+             </div>
+             <div className="flex justify-between text-[10px] text-slate-500 mt-1.5 font-medium px-1">
+                <span>0</span>
+                <span>Норма (~{BASE_CAPACITY * 0.8})</span>
+                <span className={totalClosed >= BASE_CAPACITY ? 'text-red-400 font-bold' : ''}>Предел ({BASE_CAPACITY}+)</span>
+             </div>
+          </div>
         </div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4 mt-8">
         <h2 className="text-lg font-medium text-white flex items-center gap-2"><PieChart size={20} className="text-slate-400" />Операционные показатели</h2>
         <div className="bg-indigo-500/10 text-indigo-400 px-4 py-1.5 rounded-lg border border-indigo-500/20 text-sm font-bold flex items-center gap-2 shadow-inner">
           <DownloadCloud size={16} /> Приток за неделю: {Number(weekData.inflowThisWeek) || 0} новых задач
@@ -304,7 +360,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
               </div>
               {prevWeekData && backlogTrend !== 0 && (
                 <div className={`text-xs font-bold flex items-center gap-1 ${backlogTrend > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                   {backlogTrend > 0 ? <TrendingUp size={12} /> : <TrendingUp size={12} className="rotate-180" />}
+                   {backlogTrend > 0 ? <TrendingUp size={14} /> : <TrendingUp size={14} className="rotate-180" />}
                    {backlogTrend > 0 ? '+' : '-'}{Math.abs(backlogTrend)} к прошлой нед.
                 </div>
               )}
@@ -314,6 +370,34 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {Number(weekData.backlogOld30) || 0}</span></div>
         </div>
       </div>
+
+      {/* ИСТОРИЧЕСКИЙ ТРЕНД ЗА МЕСЯЦ */}
+      {sortedKeys.length > 1 && (
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Activity size={18} className="text-indigo-400" /> Динамика потока и Бэклога (Тренд)</h3>
+              <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">Исторические данные: {sortedKeys.length} нед.</span>
+            </div>
+            <div className="w-full h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData} margin={{ top: 5, right: 20, left: -25, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                  <XAxis dataKey="name" stroke="#64748b" tickLine={false} axisLine={false} fontSize={11} dy={10} />
+                  <YAxis stroke="#64748b" tickLine={false} axisLine={false} fontSize={11} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc', fontSize: '12px' }} 
+                    itemStyle={{ fontWeight: 'bold' }}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
+                  <Line type="monotone" dataKey="Бэклог (Остаток)" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#0f172a' }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="Выполнено" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#0f172a' }} />
+                  <Line type="monotone" dataKey="Приток" stroke="#a855f7" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: '#a855f7' }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-xs text-slate-500 mt-4 text-center italic">Если Выполнено больше Притока — бэклог сокращается. Идеальная картина — когда синяя линия идет вниз.</p>
+        </div>
+      )}
 
       {/* ТРУДОЕМКОСТЬ СПРИНТА (T-Shirt Sizing) и АНАЛИТИКА СПРИНТА */}
       {(weekData.taskComplexity?.length > 0 || weekData.sprintWin || weekData.sprintRisk || weekData.shieldHero) && (
@@ -811,7 +895,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 const ProcessesMap = ({ processes }) => {
   const getStatusBadge = (status) => {
     switch(status) {
-      case 'working': return <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-md text-xs font-bold border border-emerald-500/20"><CheckCircle2 size={14}/> Работает</span>;
+      case 'working': return <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-md text-xs font-bold border border-emerald-500/20"><CheckCircle size={14}/> Работает</span>;
       case 'needs_review': return <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-md text-xs font-bold border border-amber-500/20"><AlertTriangle size={14}/> Требует пересмотра</span>;
       default: return <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-md text-xs font-bold border border-slate-600"><HelpCircle size={14}/> В работе</span>;
     }
