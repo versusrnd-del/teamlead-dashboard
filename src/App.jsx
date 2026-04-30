@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
-  LineChart, Line, AreaChart, Area
+  LineChart, Line
 } from 'recharts';
 import { 
-  Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Server, Shield, 
+  Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
-  Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, Tags, ChevronDown, Layers, Lock, Key, LogOut, UserPlus
+  Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -24,7 +24,7 @@ const USER_DICTIONARY = {
   "u0607": "Максим Отрошко"
 };
 
-const BASE_CAPACITY = 50; // Эталонная мощность команды в неделю (для расчета нагрузки)
+const BASE_CAPACITY = 50; 
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const availableYears = Array.from({ length: 31 }, (_, i) => 2020 + i);
@@ -38,7 +38,6 @@ const hashPassword = async (password) => {
 };
 
 // --- ОСТАЛЬНЫЕ ХЕЛПЕРЫ ---
-
 const getISOWeekNumber = (d) => {
   const date = new Date(d.getTime());
   date.setHours(0, 0, 0, 0);
@@ -91,10 +90,10 @@ const formatCSAT = (val) => {
 };
 
 // --- НАЧАЛЬНЫЕ ДАННЫЕ ---
-
 const defaultWeekData = {
   year: new Date().getFullYear(), month: new Date().getMonth(), weekNumber: getISOWeekNumber(new Date()), dates: "Текущая неделя", 
   status: "green", managementIndex: 100, inflowThisWeek: 0,
+  avgCycleTime: 0, reopenRate: 0, techDebtCategories: [],
   mainInsight: "Ожидание данных AI-анализа...", mainRisk: "Ожидание данных AI-анализа...",
   nextFocus: "Ожидание данных AI-анализа...", trainingHypothesis: "Ожидание данных AI-анализа...",
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
@@ -174,7 +173,6 @@ const LoginScreen = ({ onLogin, error }) => {
 };
 
 // --- КОМПОНЕНТЫ ИНТЕРФЕЙСА ---
-
 const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData, weeksHistory }) => (
   <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/50 flex items-center gap-3">
     <div className="text-right hidden sm:block">
@@ -210,7 +208,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   const prevWeekData = prevWeekKey ? weeksHistory[prevWeekKey] : null;
   const backlogTrend = prevWeekData ? (Number(weekData.backlog) || 0) - (Number(prevWeekData.backlog) || 0) : 0;
 
-  // Расчет нагрузки (Capacity)
   const totalClosed = (Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0);
   const loadPercentage = Math.min(Math.round((totalClosed / BASE_CAPACITY) * 100), 150);
   
@@ -231,7 +228,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     loadBgMuted = 'bg-orange-500/10';
   }
 
-  // Данные для исторического тренда (Линейный график)
   const trendData = sortedKeys.map(key => {
     const w = weeksHistory[key];
     return {
@@ -270,6 +266,12 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     }
   };
 
+  const reopenVal = Number(weekData.reopenRate) || 0;
+  const reopenColor = reopenVal > 5 ? 'text-red-400' : (reopenVal > 0 ? 'text-amber-400' : 'text-emerald-400');
+  
+  const cycleVal = Number(weekData.avgCycleTime) || 0;
+  const cycleColor = cycleVal > 14 ? 'text-red-400' : (cycleVal > 7 ? 'text-amber-400' : 'text-emerald-400');
+
   return (
     <div className="animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
@@ -277,7 +279,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
           <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
           
-          {/* Индикатор нагрузки (Team Capacity) */}
           <div className="mt-4 bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 w-full max-w-md">
              <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-slate-300 flex items-center gap-2"><Flame className={loadTextColor} size={16}/> Общая загрузка (Capacity)</span>
@@ -308,7 +309,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-        
+        {/* КАРТОЧКА 1 - Индекс */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-indigo-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> Индекс управляемости</h3>
@@ -323,6 +324,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           </div>
         </div>
 
+        {/* КАРТОЧКА 2 - 1-я линия */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-emerald-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> 1-я линия</h3>
@@ -332,6 +334,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">В очереди:</span><span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-sm border border-emerald-500/20">{Number(weekData.incidentsQueue) || 0}</span></div>
         </div>
         
+        {/* КАРТОЧКА 3 - Спринт */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-amber-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Спринт (План)</h3>
@@ -341,7 +344,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Перенесено:</span><span className="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded font-bold text-sm border border-orange-500/20">{Number(weekData.sprintCarriedOver) || 0}</span></div>
         </div>
         
-        <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-red-500 shadow-sm relative overflow-hidden bg-gradient-to-b from-slate-800 to-slate-800/80 flex flex-col justify-between">
+        {/* КАРТОЧКА 4 - Щит */}
+        <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-red-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500"></div> Срочная (Щит)</h3>
             <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.urgentCompleted) || 0}</span><span className="text-slate-500 text-sm font-medium">отбито</span></div>
@@ -350,6 +354,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(weekData.urgentQueue) || 0}</span></div>
         </div>
         
+        {/* КАРТОЧКА 5 - Бэклог */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Бэклог</h3>
@@ -369,6 +374,55 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           </div>
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {Number(weekData.backlogOld30) || 0}</span></div>
         </div>
+      </div>
+
+      {/* НОВЫЙ БЛОК: КАЧЕСТВО И СКОРОСТЬ (FLOW METRICS) */}
+      <h2 className="text-lg font-medium text-white mb-4 mt-8 flex items-center gap-2"><GitMerge size={20} className="text-indigo-400" />Качество и Скорость (Flow Metrics)</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        
+        {/* CYCLE TIME */}
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm flex flex-col relative overflow-hidden">
+          <div className="absolute right-0 top-0 opacity-5 -mt-2 -mr-2"><Clock size={100} /></div>
+          <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2"><Clock size={14} className="text-blue-400"/> Cycle Time (Время цикла)</h3>
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className={`text-4xl font-black ${cycleColor}`}>{Number(weekData.avgCycleTime) || 0}</span>
+              <span className="text-slate-500 text-sm font-medium">дней</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">Среднее время от взятия задачи в работу до ее закрытия. Если Capacity высокое, а Cycle Time растет — мы плодим WIP (Work in Progress).</p>
+          </div>
+        </div>
+
+        {/* REOPEN RATE */}
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm flex flex-col relative overflow-hidden">
+          <div className="absolute right-0 top-0 opacity-5 -mt-2 -mr-2"><RefreshCcw size={100} /></div>
+          <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2"><RefreshCcw size={14} className="text-amber-400"/> Reopen Rate (Возвраты)</h3>
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className={`text-4xl font-black ${reopenColor}`}>{Number(weekData.reopenRate) || 0}</span>
+              <span className="text-slate-500 text-sm font-medium">%</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">Доля задач, которые вернулись на доработку после статуса "Закрыто" или "Готово". Высокий процент бьет по CSAT и съедает время.</p>
+          </div>
+        </div>
+
+        {/* КАТЕГОРИИ ТЕХДОЛГА */}
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm flex flex-col">
+          <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2"><Archive size={14} className="text-fuchsia-400"/> Структура техдолга (Backlog)</h3>
+          <div className="flex-1 flex flex-col space-y-3 overflow-y-auto custom-scrollbar max-h-48 pr-2">
+             {weekData.techDebtCategories && weekData.techDebtCategories.length > 0 ? (
+               weekData.techDebtCategories.map((c, i) => (
+                 <div key={i} className="flex justify-between items-center text-sm border-b border-slate-700/50 pb-2 last:border-0 last:pb-0">
+                    <span className="text-slate-300 font-medium truncate pr-2 whitespace-pre-wrap">{safeString(c.name)}</span>
+                    <span className="bg-fuchsia-500/10 text-fuchsia-400 px-2 py-0.5 rounded font-bold text-xs border border-fuchsia-500/20">{Number(c.count) || 0}</span>
+                 </div>
+               ))
+             ) : (
+               <p className="text-xs text-slate-500 italic my-auto text-center">Нет данных о категориях техдолга</p>
+             )}
+          </div>
+        </div>
+
       </div>
 
       {/* ИСТОРИЧЕСКИЙ ТРЕНД ЗА МЕСЯЦ */}
@@ -417,7 +471,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                         <span className={`text-2xl font-black px-2.5 py-0.5 rounded-lg border-2 border-b-4 ${count > 0 ? getSizeColor(size) : 'bg-slate-800 text-slate-600 border-slate-700'}`}>{size}</span>
                         <span className="text-3xl font-bold text-slate-300">{count}</span>
                       </div>
-                      <div className="mt-2 text-xs text-slate-400 leading-relaxed">{desc}</div>
+                      <div className="mt-2 text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">{desc}</div>
                     </div>
                   );
                 })}
@@ -426,21 +480,21 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           )}
 
           {(weekData.sprintWin || weekData.sprintRisk || weekData.shieldHero) && (
-            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 ${weekData.taskComplexity?.length > 0 ? 'pt-6 border-t border-slate-700/50' : ''}`}>
+            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch ${weekData.taskComplexity?.length > 0 ? 'pt-6 border-t border-slate-700/50' : ''}`}>
                {weekData.sprintWin && (
-                 <div className="bg-emerald-500/5 p-4 rounded-lg border border-emerald-500/20">
+                 <div className="bg-emerald-500/5 p-4 rounded-lg border border-emerald-500/20 h-full flex flex-col">
                    <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><CheckCircle size={14}/> Победа спринта</h4>
-                   <p className="text-sm text-slate-300">{safeString(weekData.sprintWin)}</p>
+                   <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{safeString(weekData.sprintWin)}</p>
                  </div>
                )}
                {weekData.sprintRisk && (
-                 <div className="bg-amber-500/5 p-4 rounded-lg border border-amber-500/20">
+                 <div className="bg-amber-500/5 p-4 rounded-lg border border-amber-500/20 h-full flex flex-col">
                    <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><ShieldAlert size={14}/> Риск / Бэклог</h4>
-                   <p className="text-sm text-slate-300">{safeString(weekData.sprintRisk)}</p>
+                   <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{safeString(weekData.sprintRisk)}</p>
                  </div>
                )}
                {weekData.shieldHero && (
-                 <div className="bg-indigo-500/5 p-4 rounded-lg border border-indigo-500/20">
+                 <div className="bg-indigo-500/5 p-4 rounded-lg border border-indigo-500/20 h-full flex flex-col">
                    <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Shield size={14}/> Герой щита (Срочная линия)</h4>
                    <p className="text-sm text-slate-300">{safeString(replaceLoginsWithNames(weekData.shieldHero))}</p>
                  </div>
@@ -467,8 +521,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm xl:col-span-2 flex flex-col">
           <div className="flex justify-between items-start mb-4">
-            <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Users size={18} className="text-blue-400" /> Тимлид-аналитика: Качество и нагрузка</h3>
-            <span className="text-[10px] bg-slate-900 text-slate-500 px-2 py-1 rounded border border-slate-700/50 uppercase tracking-wider">Не для публичного рейтинга</span>
+            <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Users size={18} className="text-blue-400" /> Матрица эффективности (Аудит нагрузки)</h3>
+            <span className="text-[10px] bg-slate-900 text-slate-500 px-2 py-1 rounded border border-slate-700/50 uppercase tracking-wider">Аналитика для Этапа 2</span>
           </div>
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left text-sm">
@@ -520,7 +574,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     <div className="flex items-center gap-3 shrink-0 mt-0.5"><span className="text-slate-500 text-xs w-8 text-right">{percent}%</span><span className={`font-bold w-8 text-right ${textColor}`}>{count}</span></div>
                   </div>
                   {inc.analysis && (
-                    <div className="relative z-10 text-xs text-slate-400 bg-slate-950/40 p-2.5 rounded border border-slate-700/50 leading-relaxed border-l-2 shadow-inner" style={{borderLeftColor: accentColor}}>
+                    <div className="relative z-10 text-xs text-slate-400 bg-slate-950/40 p-2.5 rounded border border-slate-700/50 leading-relaxed border-l-2 shadow-inner whitespace-pre-wrap">
                       <div className="font-bold text-slate-300 mb-1 flex items-center gap-1.5"><FileSearch size={12} className="opacity-70" /> AI-Анализ</div>{safeString(inc.analysis)}
                     </div>
                   )}
@@ -551,8 +605,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             </div>
           </div>
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 flex-1 flex flex-col justify-center shadow-sm">
-             <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-2"><BookOpen size={16}/> Гипотеза недели (Обучение)</span>
-             <p className="text-sm text-emerald-400 font-medium leading-relaxed">{safeString(weekData.trainingHypothesis)}</p>
+             <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-2"><BookOpen size={16}/> Обучение и корректировка процесса</span>
+             <p className="text-sm text-emerald-400 font-medium leading-relaxed whitespace-pre-wrap">{safeString(weekData.trainingHypothesis)}</p>
           </div>
         </div>
       </div>
@@ -560,12 +614,12 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8">
         <div className="bg-indigo-500/10 p-5 border-b border-indigo-500/20 flex items-center gap-3">
           <Sparkles size={24} className="text-indigo-400" />
-          <div><h2 className="text-lg font-bold text-white">Управленческий AI-синтез недели</h2><p className="text-xs text-indigo-300/70">Качественные выводы на основе семантического NLP-анализа инцидентов</p></div>
+          <div><h2 className="text-lg font-bold text-white">Управленческий AI-синтез недели</h2><p className="text-xs text-indigo-300/70">Выявление системных узких мест на основе NLP-анализа инцидентов</p></div>
         </div>
-        <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-400" /><h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Главный инсайт</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainInsight)}</p></div></div>
-          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><AlertTriangle size={18} className="text-amber-400" /><h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Критический риск</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.mainRisk)}</p></div></div>
-          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><Target size={18} className="text-blue-400" /><h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">План действий</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1"><p className="text-slate-300 leading-relaxed text-sm">{safeString(weekData.nextFocus)}</p></div></div>
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-400" /><h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Главный инсайт потока</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1 h-full"><p className="text-slate-300 leading-relaxed text-sm whitespace-pre-wrap">{safeString(weekData.mainInsight)}</p></div></div>
+          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><AlertTriangle size={18} className="text-amber-400" /><h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Критический риск SLA</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1 h-full"><p className="text-slate-300 leading-relaxed text-sm whitespace-pre-wrap">{safeString(weekData.mainRisk)}</p></div></div>
+          <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><Target size={18} className="text-blue-400" /><h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">План расшивки горлышка</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1 h-full"><p className="text-slate-300 leading-relaxed text-sm whitespace-pre-wrap">{safeString(weekData.nextFocus)}</p></div></div>
         </div>
       </div>
 
@@ -574,8 +628,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="bg-fuchsia-500/10 p-5 border-b border-fuchsia-500/20 flex items-center gap-3">
             <div className="bg-fuchsia-500/20 p-2 rounded-lg"><Trash2 size={24} className="text-fuchsia-400" /></div>
             <div>
-              <h2 className="text-lg font-bold text-white">Аудит затыков и неактуальных задач</h2>
-              <p className="text-xs text-fuchsia-300/70">Выявление блокеров по комментариям и применение Матрицы Эйзенхауэра</p>
+              <h2 className="text-lg font-bold text-white">Аудит затыков (Матрица Эйзенхауэра)</h2>
+              <p className="text-xs text-fuchsia-300/70">Выявление неактуальных задач и блокеров в процессе Delivery</p>
             </div>
           </div>
           <div className="p-6">
@@ -589,7 +643,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
 // --- ВКЛАДКА: ЗАПОЛНИТЬ НЕДЕЛЮ ---
 
-const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSaveWeek, setProfiles, weeksHistory }) => {
+const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSaveWeek, setProfiles, setTasksArchive, weeksHistory }) => {
   const [formData, setFormData] = useState(weekData);
   const [isSaved, setIsSaved] = useState(false);
   const [importJson, setImportJson] = useState('');
@@ -641,9 +695,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         cleanJson = cleanJson.substring(firstIdx, lastIdx + 1);
       }
       
-      // Исправление для путей Windows (например, m:\localnet) и других неэкранированных слешей
       cleanJson = cleanJson.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
-      
       cleanJson = cleanJson.replace(/,\s*([\]}])/g, '$1');
       cleanJson = cleanJson.replace(/[\n\r\t]+/g, ' ');
 
@@ -661,6 +713,16 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
           ...perf,
           name: USER_DICTIONARY[safeString(perf.name).trim()] || safeString(perf.name)
         }));
+      }
+
+      // СОХРАНЕНИЕ ДЕТАЛЬНЫХ ЗАДАЧ (ТЕХДОЛГ / АРХИВ)
+      if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
+         setTasksArchive(prev => {
+            const existingIds = new Set(prev.map(t => t.id));
+            // Исключаем дубликаты по id (Ключ проблемы)
+            const newTasks = parsedData.detailedTasks.filter(t => t.id && !existingIds.has(t.id));
+            return [...newTasks, ...prev]; // Новые сверху
+         });
       }
 
       ['mainInsight', 'mainRisk', 'nextFocus', 'trainingHypothesis', 'mainWin', 'thanks', 'sprintWin', 'sprintRisk', 'shieldHero', 'blockersAndWaste'].forEach(field => {
@@ -716,7 +778,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
       <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 mb-8 relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
         <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> 🤖 Умный импорт (AI Parsing)</h3>
-        <p className="text-sm text-indigo-200/70 mb-4 relative z-10">Скормил CSV-выгрузку из Jira нейросети? Вставь полученный от неё JSON-код сюда. Если у тебя два JSON (инциденты и задачи), загружай их по очереди.</p>
+        <p className="text-sm text-indigo-200/70 mb-4 relative z-10">Скормил CSV-выгрузку из Jira нейросети? Вставь полученный от неё JSON-код сюда. Если в JSON есть массив `detailedTasks`, он автоматически уйдет во вкладку "Архив/Техдолг".</p>
         
         <div className="relative z-10 space-y-3">
           <textarea 
@@ -768,6 +830,21 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
               <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Всего</label><input type="number" name="backlog" value={formData.backlog||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
               <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Старых ({'>'}30д)</label><input type="number" name="backlogOld30" value={formData.backlogOld30||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-red-400 font-bold" /></div>
             </div>
+
+            {/* НОВЫЕ ПОЛЯ: КАЧЕСТВО ПОТОКА */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 pt-4 border-t border-slate-700/50">
+               <div>
+                 <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Clock size={12}/> Cycle Time (Дней)</label>
+                 <input type="number" step="0.1" name="avgCycleTime" value={formData.avgCycleTime||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" />
+               </div>
+               <div>
+                 <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><RefreshCcw size={12}/> Reopen Rate (%)</label>
+                 <input type="number" step="0.1" name="reopenRate" value={formData.reopenRate||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" />
+               </div>
+               <div className="col-span-2 hidden md:flex items-center text-xs text-slate-500 italic mt-4">
+                  Эти метрики рассчитываются AI-агентом из "Cоздано" и "Дата решения".
+               </div>
+            </div>
           </div>
         </div>
 
@@ -794,25 +871,25 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         </div>
 
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
-          <h3 className="text-lg font-medium text-white uppercase tracking-tighter mb-4">Управленческие выводы и обучение</h3>
+          <h3 className="text-lg font-medium text-white uppercase tracking-tighter mb-4">Аудит узких мест процесса</h3>
           <div className="space-y-4 text-left">
-            <div className="text-left"><label className="block text-xs font-bold text-emerald-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Главный вывод (Что сработало?)</label><textarea name="mainInsight" value={safeString(formData.mainInsight)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none custom-scrollbar" /></div>
-            <div className="text-left"><label className="block text-xs font-bold text-amber-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Главный риск (Где сбоит процесс?)</label><textarea name="mainRisk" value={safeString(formData.mainRisk)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none custom-scrollbar" /></div>
-            <div className="text-left"><label className="block text-xs font-bold text-blue-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Фокус следующей недели</label><textarea name="nextFocus" value={safeString(formData.nextFocus)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none custom-scrollbar" /></div>
-            <div className="pt-4 border-t border-slate-700/50 text-left"><label className="block text-xs font-bold text-indigo-400 uppercase mb-1 flex items-center gap-2 tracking-wider ml-1"><BookOpen size={14} /> Какую гипотезу проверяли?</label><textarea name="trainingHypothesis" value={safeString(formData.trainingHypothesis)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-indigo-500/30 rounded-lg p-2.5 text-white outline-none custom-scrollbar" /></div>
+            <div className="text-left"><label className="block text-xs font-bold text-emerald-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Успешный процесс (Что сработало?)</label><textarea name="mainInsight" value={safeString(formData.mainInsight)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-emerald-500 outline-none custom-scrollbar" /></div>
+            <div className="text-left"><label className="block text-xs font-bold text-amber-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Критическое узкое горлышко (Где сбоит?)</label><textarea name="mainRisk" value={safeString(formData.mainRisk)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-amber-500 outline-none custom-scrollbar" /></div>
+            <div className="text-left"><label className="block text-xs font-bold text-blue-400 uppercase mb-1 tracking-wider opacity-60 ml-1">План расшивки горлышка (Фокус)</label><textarea name="nextFocus" value={safeString(formData.nextFocus)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none custom-scrollbar" /></div>
+            <div className="pt-4 border-t border-slate-700/50 text-left"><label className="block text-xs font-bold text-indigo-400 uppercase mb-1 flex items-center gap-2 tracking-wider ml-1"><BookOpen size={14} /> Процессная гипотеза недели</label><textarea name="trainingHypothesis" value={safeString(formData.trainingHypothesis)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-indigo-500/30 rounded-lg p-2.5 text-white outline-none custom-scrollbar" /></div>
             
             <div className="pt-4 border-t border-slate-700/50 text-left">
                <label className="block text-xs font-bold text-fuchsia-400 uppercase mb-1 flex items-center gap-2 tracking-wider ml-1"><Trash2 size={14} /> Блокеры и неактуальные задачи (Матрица Эйзенхауэра)</label>
-               <textarea name="blockersAndWaste" value={safeString(formData.blockersAndWaste)} onChange={handleChange} rows={3} className="w-full bg-slate-900 border border-fuchsia-500/30 rounded-lg p-2.5 text-white outline-none custom-scrollbar focus:border-fuchsia-500" />
+               <textarea name="blockersAndWaste" value={safeString(formData.blockersAndWaste)} onChange={handleChange} rows={5} className="w-full bg-slate-900 border border-fuchsia-500/30 rounded-lg p-2.5 text-white outline-none custom-scrollbar focus:border-fuchsia-500" />
             </div>
           </div>
         </div>
 
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
-          <h3 className="text-lg font-medium text-white uppercase tracking-tighter mb-4 flex items-center gap-2"><Star size={18} className="text-amber-400" /> Победы и благодарности</h3>
+          <h3 className="text-lg font-medium text-white uppercase tracking-tighter mb-4 flex items-center gap-2"><Star size={18} className="text-amber-400" /> Кайдзен и победы потока</h3>
           <div className="space-y-4 text-left">
-            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Главная командная победа</label><input type="text" name="mainWin" value={safeString(formData.mainWin)} onChange={handleChange} placeholder="Например: Справились с аномальным потоком" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-amber-500" /></div>
-            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Кгово хотим отметить лично и за что?</label><textarea name="thanks" value={safeString(formData.thanks)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none custom-scrollbar focus:border-amber-500" /></div>
+            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Главная системная победа</label><input type="text" name="mainWin" value={safeString(formData.mainWin)} onChange={handleChange} placeholder="Например: Справились с аномальным потоком" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-amber-500" /></div>
+            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Кого хотим отметить за процессное улучшение?</label><textarea name="thanks" value={safeString(formData.thanks)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none custom-scrollbar focus:border-amber-500" /></div>
           </div>
         </div>
 
@@ -825,6 +902,100 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     </div>
   );
 };
+
+// --- ВКЛАДКА: АРХИВ / ТЕХДОЛГ ---
+
+const TasksArchiveBoard = ({ tasksArchive }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredTasks = tasksArchive.filter(t => {
+    const text = `${t.id} ${t.title} ${t.assignee} ${t.status} ${t.comments}`.toLowerCase();
+    return text.includes(searchTerm.toLowerCase());
+  });
+
+  return (
+    <div className="animate-in fade-in duration-500 max-w-7xl pb-10">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1 flex items-center gap-3">
+            <Archive size={28} className="text-indigo-400" /> Техдолг и Архив задач
+          </h1>
+          <p className="text-slate-400 text-sm">Сырые данные из Jira для глубокого анализа, сохраненные нейросетью</p>
+        </div>
+        <div className="bg-indigo-500/10 text-indigo-400 px-4 py-2 rounded-lg border border-indigo-500/20 text-sm font-bold flex items-center gap-2">
+          <Database size={16} /> Всего в базе: {tasksArchive.length} задач
+        </div>
+      </div>
+
+      <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden flex flex-col h-[70vh]">
+        <div className="p-4 border-b border-slate-700/50 bg-slate-900/30 flex justify-between items-center">
+          <div className="relative w-full max-w-md">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input 
+              type="text" 
+              placeholder="Поиск по ключу, теме, исполнителю..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto custom-scrollbar p-0">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="sticky top-0 bg-slate-900 border-b border-slate-700 shadow-sm z-10">
+              <tr className="text-slate-400 text-xs uppercase tracking-wider">
+                <th className="p-4 font-medium">Ключ</th>
+                <th className="p-4 font-medium w-full min-w-[300px]">Тема задачи</th>
+                <th className="p-4 font-medium">Создано</th>
+                <th className="p-4 font-medium">Статус</th>
+                <th className="p-4 font-medium">Исполнитель</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {filteredTasks.length > 0 ? filteredTasks.map((task, idx) => (
+                <React.Fragment key={task.id || idx}>
+                  <tr className="hover:bg-slate-900/20 transition-colors group">
+                    <td className="p-4 text-indigo-400 font-bold text-xs">{task.id}</td>
+                    <td className="p-4 text-slate-200 whitespace-normal min-w-[300px]">
+                      <span className="font-medium">{task.title || 'Без названия'}</span>
+                      {task.comments && (
+                         <div className="mt-1 text-xs text-slate-500 italic bg-slate-900/50 p-2 rounded border border-slate-700/30 whitespace-pre-wrap max-h-12 overflow-hidden group-hover:max-h-none transition-all duration-300">
+                           <span className="text-slate-400 font-bold not-italic mr-1">Лог:</span>{task.comments}
+                         </div>
+                      )}
+                    </td>
+                    <td className="p-4 text-slate-400 text-xs">{task.created || '-'}</td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                        task.status === 'Закрыт' || task.status === 'Готово' || task.status === 'Resolved' || task.status === 'Завершен'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      }`}>
+                        {task.status || 'Открыто'}
+                      </span>
+                    </td>
+                    <td className="p-4 text-slate-300 font-medium">
+                      {replaceLoginsWithNames(task.assignee) || 'Не назначен'}
+                    </td>
+                  </tr>
+                </React.Fragment>
+              )) : (
+                <tr>
+                  <td colSpan="5" className="p-12 text-center text-slate-500">
+                    <Archive size={48} className="mx-auto mb-4 opacity-20" />
+                    Задачи не найдены. <br/>Добавь массив `detailedTasks` в импорт JSON на вкладке "Заполнить неделю".
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 // --- ВКЛАДКА: ОТЧЕТЫ ---
 
@@ -840,15 +1011,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const reports = [
     {
       id: 'team', title: 'Отчет для команды (Telegram / Чат)', icon: Users, color: 'emerald',
-      content: `Привет, команда! Итоги ${weekData.weekNumber || ''} недели (${safeString(weekData.dates)}):\n\n✅ 1-я линия круто отработала: закрыто ${weekData.incidentsClosed || 0} инцидентов (в очереди всего ${weekData.incidentsQueue || 0}).\n🔥 Топ-3 проблемы: ${top3Text}.\n🚀 Дежурный "Щит" отбил ${weekData.urgentCompleted || 0} срочных задач, дав остальным поработать.\n⚙️ Спринт: выполнили ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0} плановых. Перенесли ${weekData.sprintCarriedOver || 0}.\n\n🏆 Главная победа: ${safeString(weekData.mainWin) || 'Выдержали темп и не сдались!'}\n🙏 Отдельное спасибо: ${safeString(weekData.thanks) || 'Всей команде за крутую работу!'}\n\n🎯 Вывод: ${safeString(weekData.mainInsight)}\nФокус на след. неделю: ${safeString(weekData.nextFocus)}`
+      content: `Привет, команда! Итоги ${weekData.weekNumber || ''} недели (${safeString(weekData.dates)}):\n\n✅ 1-я линия отработала поток: закрыто ${weekData.incidentsClosed || 0} инцидентов (в очереди ${weekData.incidentsQueue || 0}).\n🔥 Топ-3 проблемы: ${top3Text}.\n🚀 Выделенный "Щит" отбил ${weekData.urgentCompleted || 0} внеплановых задач.\n⚙️ Delivery спринта: выполнили ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0} плановых. Перенесли ${weekData.sprintCarriedOver || 0}.\n\n🏆 Главный успех процесса: ${safeString(weekData.mainWin) || 'Выдержали темп!'}\n🙏 За Кайдзен и помощь благодарим: ${safeString(weekData.thanks) || 'Всю команду!'}\n\n🎯 Инсайт потока: ${safeString(weekData.mainInsight)}\nФокус на расшивку горлышка: ${safeString(weekData.nextFocus)}`
     },
     {
       id: 'manager', title: 'Отчет для руководителя (Почта / Статус)', icon: LayoutDashboard, color: 'blue',
-      content: `Статус по направлению ОСО за ${weekData.weekNumber || ''} неделю (${safeString(weekData.dates)})\n\n🔹 Основные метрики:\n- Индекс управляемости: ${weekData.managementIndex || 0}/100\n- Спринт: выполнено ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0}. Хвост (перенос): ${weekData.sprintCarriedOver || 0} задач.\n- Срочная линия: выделенный дежурный закрыл ${weekData.urgentCompleted || 0} срочных задач, обеспечив защиту спринта.\n- 1-я линия: закрыто ${weekData.incidentsClosed || 0} инцидентов.\n- Бэклог Support: ${weekData.backlog || 0} задач (из них ${weekData.backlogOld30 || 0} старше 30 дней).\n\n⚠️ Аналитика нагрузки (1-я линия):\nТоп-3 проблемы забирают ${paretoPercent}% времени (${top3Text}). Требуется системное решение для их снижения.\n\n❗️ Основные риски:\n${safeString(weekData.mainRisk)}\n\n📝 План действий:\n${safeString(weekData.nextFocus)}`
+      content: `Статус по направлению ОСО за ${weekData.weekNumber || ''} неделю (${safeString(weekData.dates)})\n\n🔹 Основные метрики потока (Delivery):\n- Индекс управляемости: ${weekData.managementIndex || 0}/100\n- Выполнение плана (Спринт): ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0}. Хвост: ${weekData.sprintCarriedOver || 0} задач.\n- Срочная линия: ${weekData.urgentCompleted || 0} инцидентов (защита спринта).\n- Инциденты 1-я линия: ${weekData.incidentsClosed || 0}.\n- Cycle Time (Время цикла): ${weekData.avgCycleTime || 0} дн.\n- Бэклог Support: ${weekData.backlog || 0} задач (из них ${weekData.backlogOld30 || 0} старше 30 дней).\n\n⚠️ Узкие места (Теория ограничений):\nТоп-3 проблемы занимают ${paretoPercent}% времени (${top3Text}).\n\n❗️ Риски процесса:\n${safeString(weekData.mainRisk)}\n\n📝 План улучшений:\n${safeString(weekData.nextFocus)}`
     },
     {
       id: 'retro', title: 'Отчет для трекера / Обучения (Этап 2)', icon: BookOpen, color: 'indigo',
-      content: `Рефлексия (Этап 2: Процессы и метрики). Неделя ${weekData.weekNumber || ''}.\n\n🧪 Проверяемая гипотеза:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики процесса:\n- Выполнение плана: ${weekData.sprintCompleted || 0}/${weekData.sprintPlanned || 0}.\n- Защита от хаоса: "Щит" закрыл ${weekData.urgentCompleted || 0} внеплановых задач.\n- Эффект "Черри-пикинга" в бэклоге: ${weekData.backlogOld30 || 0} задач висят старше 30 дней, при общем бэклоге ${weekData.backlog || 0}.\n- Узкое место (Парето): ${top3Sum} инцидентов (${paretoPercent}%) генерируется всего тремя типами проблем (${top3Text}).\n\n💡 Управленческий вывод:\n${safeString(weekData.mainInsight)}\n\n🚧 Что мешает процессу:\n${safeString(weekData.mainRisk)}\n\n🛠 Изменение (Эксперимент):\n${safeString(weekData.nextFocus)}`
+      content: `Рефлексия (Этап 2: Процессы и метрики). Неделя ${weekData.weekNumber || ''}.\n\n🎯 Процессная гипотеза недели:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики потока создания ценности:\n- Cycle Time (Время цикла): ${weekData.avgCycleTime || 0} дн.\n- Reopen Rate (Возврат на доработку): ${weekData.reopenRate || 0}%\n- Выполнение плана: ${weekData.sprintCompleted || 0}/${weekData.sprintPlanned || 0}.\n- Распределение нагрузки (Парето): ${top3Sum} инцидентов (${paretoPercent}%) генерируется 3 проблемами (${top3Text}).\n- Возраст техдолга: ${weekData.backlogOld30 || 0} задач висят > 30 дней (Общий бэклог: ${weekData.backlog || 0}).\n\n💡 Аудит процесса (Узкие места):\n${safeString(weekData.mainInsight)}\n\n🚧 Системные ограничения (Bottlenecks):\n${safeString(weekData.mainRisk)}\n\n🛠 Эксперимент / Кайдзен на след. неделю:\n${safeString(weekData.nextFocus)}`
     }
   ];
 
@@ -890,7 +1061,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   );
 };
 
-// --- ВКЛАДКА: ПРОЦЕССЫ ---
+// --- ВКЛАДКА: ПРОЦЕССЫ И ЭСКАЛАЦИИ ---
 
 const ProcessesMap = ({ processes }) => {
   const getStatusBadge = (status) => {
@@ -905,8 +1076,8 @@ const ProcessesMap = ({ processes }) => {
     <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Карта процессов</h1>
-          <p className="text-slate-400 text-sm">Управление операционной моделью команды</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Процессы и Эскалации</h1>
+          <p className="text-slate-400 text-sm">Управление операционной моделью, работа с недоверием и узкими местами</p>
         </div>
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -920,9 +1091,9 @@ const ProcessesMap = ({ processes }) => {
               {getStatusBadge(proc.status)}
             </div>
             <div className="p-5 flex-1 space-y-4">
-              <div><span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Цель</span><p className="text-sm text-slate-300">{safeString(proc.goal)}</p></div>
+              <div><span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Цель процесса</span><p className="text-sm text-slate-300">{safeString(proc.goal)}</p></div>
               <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
-                <span className="text-xs font-bold text-amber-400/80 uppercase tracking-wider mb-1 flex items-center gap-1"><FileSearch size={14}/> Симптом / Проблема</span>
+                <span className="text-xs font-bold text-amber-400/80 uppercase tracking-wider mb-1 flex items-center gap-1"><AlertTriangle size={14}/> Узкое место / Зона эскалации</span>
                 <p className="text-sm text-slate-300">{safeString(proc.currentProblem)}</p>
               </div>
             </div>
@@ -937,7 +1108,7 @@ const ProcessesMap = ({ processes }) => {
   );
 };
 
-// --- ВКЛАДКА: ДОСТИЖЕНИЯ ---
+// --- ВКЛАДКА: ОБРАТНАЯ СВЯЗЬ (КАЙДЗЕН) ---
 
 const AchievementsBoard = ({ achievements }) => {
   const teamAchievements = achievements.filter(a => a.type === 'team');
@@ -960,23 +1131,23 @@ const AchievementsBoard = ({ achievements }) => {
     <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Достижения и Признание</h1>
-          <p className="text-slate-400 text-sm">Фокус на полезном поведении, а не на количестве закрытых задач</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Кайдзен и Улучшения процессов</h1>
+          <p className="text-slate-400 text-sm">Практика непрерывного улучшения (PDCA) и работа с системными ограничениями</p>
         </div>
       </div>
 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm p-6 mb-8 flex items-start gap-4">
-        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><ThumbsUp size={24} /></div>
+        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><ActivitySquare size={24} /></div>
         <div>
-          <h3 className="text-slate-200 font-medium mb-1">Почему здесь нет "Сотрудника месяца"?</h3>
+          <h3 className="text-slate-200 font-medium mb-1">Управляем потоком, а не людьми</h3>
           <p className="text-slate-400 text-sm leading-relaxed">
-            Рейтинги заставляют людей заниматься "черри-пикингом" и игнорировать сложные блокеры. 
-            Вместо этого мы отмечаем конкретное <b>полезное поведение</b>, которое делает команду и процессы сильнее.
+            На <b>Этапе 2</b> мы фокусируемся на метриках и процессах. Мы отмечаем успешные процессные изменения (гипотезы), 
+            которые сократили Cycle Time, снизили Reopen Rate или расшили узкое горлышко (Bottleneck).
           </p>
         </div>
       </div>
 
-      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Users size={20} className="text-blue-400" /> Командные победы</h2>
+      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><GitMerge size={20} className="text-blue-400" /> Командные победы (Delivery)</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {teamAchievements.map(a => (
           <div key={a.id} className={`bg-slate-800 rounded-xl p-5 border-t-4 border-${a.color}-500 shadow-sm flex items-start gap-4`}>
@@ -990,7 +1161,7 @@ const AchievementsBoard = ({ achievements }) => {
         {teamAchievements.length === 0 && <p className="text-slate-500 text-sm col-span-3">Пока нет командных побед на этой неделе.</p>}
       </div>
 
-      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Star size={20} className="text-amber-400" /> Личный вклад (Полезное поведение)</h2>
+      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Star size={20} className="text-amber-400" /> Успешные процессные гипотезы (Кайдзен)</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {individualAchievements.map(a => (
           <div key={a.id} className="bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm flex flex-col relative overflow-hidden group">
@@ -1013,7 +1184,7 @@ const AchievementsBoard = ({ achievements }) => {
   );
 };
 
-// --- ВКЛАДКА: ПРОФИЛИ КОМАНДЫ ---
+// --- ВКЛАДКА: ПРОФИЛИ КОМАНДЫ (МАТРИЦА КОМПЕТЕНЦИЙ) ---
 
 const TeamProfilesBoard = ({ profiles }) => {
   const getDelegationText = (level) => {
@@ -1031,18 +1202,18 @@ const TeamProfilesBoard = ({ profiles }) => {
     <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Профили команды (AI Анализ)</h1>
-          <p className="text-slate-400 text-sm">Генерируется нейросетью на базе закрытых инцидентов 1-й линии</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Матрица компетенций и Bus Factor (Этап 2)</h1>
+          <p className="text-slate-400 text-sm">Управление пропускной способностью, выявление "узких горлышек" и распределение нагрузки</p>
         </div>
       </div>
 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm p-6 mb-8 flex items-start gap-4">
         <div className="bg-emerald-500/20 p-3 rounded-lg border border-emerald-500/30 text-emerald-400 shrink-0"><Users size={24} /></div>
         <div>
-          <h3 className="text-slate-200 font-medium mb-1">Оценка работы на первой линии</h3>
+          <h3 className="text-slate-200 font-medium mb-1">Аналитика ресурсов (Capacity)</h3>
           <p className="text-slate-400 text-sm leading-relaxed">
-            Система автоматически собирает профили активных инженеров за прошедшую неделю, учитывая их <b>уровни и грейды</b>.
-            Оценка строится строго на цифрах: CSAT, объем, скорость реакции и качество комментариев.
+            Система выявляет, на ком из инженеров "замыкаются" процессы (Bus Factor), и показывает `T-shape` потенциал.
+            Оценка строится на базе реальных метрик, чтобы выровнять нагрузку и расшить узкие места в потоке (Theory of Constraints).
           </p>
         </div>
       </div>
@@ -1058,7 +1229,7 @@ const TeamProfilesBoard = ({ profiles }) => {
                 <h3 className="text-xl font-bold text-white mb-0.5">{safeString(p.name)}</h3>
                 <p className="text-slate-400 text-sm font-medium flex items-center gap-1.5"><Award size={14}/> {safeString(p.role)}</p>
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Уровень делегирования:</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Уровень автономности:</span>
                   <div className="flex gap-1">
                     {[1, 2, 3, 4, 5].map(lvl => (
                       <div key={lvl} className={`w-4 h-4 rounded-sm ${lvl <= Number(p.delegationLevel) ? `bg-${p.color || 'blue'}-500` : 'bg-slate-700'}`} title={`Уровень ${lvl}`}></div>
@@ -1071,20 +1242,20 @@ const TeamProfilesBoard = ({ profiles }) => {
             
             <div className="p-6 space-y-5 flex-1">
               <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/30">
-                <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5"><Star size={14}/> Сильные стороны (по фактам)</span>
+                <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5"><Star size={14}/> Ключевые компетенции в потоке</span>
                 <p className="text-sm text-slate-300 leading-relaxed font-medium">{safeString(p.strengths)}</p>
               </div>
               <div className="bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/10">
-                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5"><Target size={14}/> Зона применения на этой неделе</span>
+                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5"><Target size={14}/> Текущая процессная зона</span>
                 <p className="text-sm text-slate-300 leading-relaxed">{safeString(p.bestTasks)}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20">
-                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block mb-1 flex items-center gap-1.5"><TrendingUp size={12}/> Точка роста</span>
+                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block mb-1 flex items-center gap-1.5"><TrendingUp size={12}/> Потенциал расширения (T-shape)</span>
                   <p className="text-xs text-slate-400">{safeString(p.growthZone)}</p>
                 </div>
                 <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-700/20">
-                  <span className="text-[10px] font-black text-red-400 uppercase tracking-widest block mb-1 flex items-center gap-1.5"><ShieldAlert size={12}/> Управленческий риск</span>
+                  <span className="text-[10px] font-black text-red-400 uppercase tracking-widest block mb-1 flex items-center gap-1.5"><ShieldAlert size={12}/> Риск узкого горлышка / Bus Factor</span>
                   <p className="text-xs text-slate-400">{safeString(p.risks)}</p>
                 </div>
               </div>
@@ -1223,7 +1394,7 @@ const App = () => {
   const [authUsers, setAuthUsers] = useState([]);
   const [loginError, setLoginError] = useState('');
 
-  // ИСТОРИЯ НЕДЕЛЬ (_v8 ключи)
+  // ДАННЫЕ
   const [weeksHistory, setWeeksHistory] = useState(() => {
     try { const saved = localStorage.getItem('teamlead_history_data_v8'); if (saved) return JSON.parse(saved); } catch (e) {}
     return { [`${defaultWeekData.year}-${defaultWeekData.weekNumber}`]: defaultWeekData };
@@ -1237,6 +1408,8 @@ const App = () => {
   const [processes, setProcesses] = useState(() => { try { const saved = localStorage.getItem('teamlead_processes_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProcesses; });
   const [achievements, setAchievements] = useState(() => { try { const saved = localStorage.getItem('teamlead_achievements_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultAchievements; });
   const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_profiles_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProfiles; });
+  const [tasksArchive, setTasksArchive] = useState(() => { try { const saved = localStorage.getItem('teamlead_tasks_archive_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
+
 
   // Инициализация (загрузка из облака или кэша)
   useEffect(() => {
@@ -1260,6 +1433,7 @@ const App = () => {
         const procRow = cloudData.find(r => r.key_name === 'processes'); if (procRow) setProcesses(procRow.value_data);
         const achRow = cloudData.find(r => r.key_name === 'achievements'); if (achRow) setAchievements(achRow.value_data);
         const profRow = cloudData.find(r => r.key_name === 'profiles'); if (profRow) setProfiles(profRow.value_data);
+        const taskRow = cloudData.find(r => r.key_name === 'tasks_archive'); if (taskRow) setTasksArchive(taskRow.value_data);
       }
 
       // 2. ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ (АВТОРИЗАЦИЯ)
@@ -1271,12 +1445,10 @@ const App = () => {
         try { const localAuth = localStorage.getItem('teamlead_auth_v8'); if (localAuth) loadedAuthUsers = JSON.parse(localAuth); } catch (e) {}
       }
 
-      // Если в базе вообще нет пользователей, создаем админа с паролем по умолчанию
       if (!loadedAuthUsers || loadedAuthUsers.length === 0) {
-        const defaultHash = await hashPassword('Wmg82bpe'); // Тот самый дефолтный пароль
+        const defaultHash = await hashPassword('Wmg82bpe'); 
         loadedAuthUsers = [{ id: Date.now(), username: 'admin', passwordHash: defaultHash, role: 'admin' }];
         
-        // Сохраняем свежесозданного админа в базу
         if (client && dbStatus !== 'error') {
            await client.from('app_state').upsert({ key_name: 'auth_users', value_data: loadedAuthUsers });
         } else {
@@ -1285,7 +1457,6 @@ const App = () => {
       }
       setAuthUsers(loadedAuthUsers);
 
-      // Проверка сохраненной локально сессии
       try {
         const session = localStorage.getItem('teamlead_session');
         if (session) {
@@ -1336,51 +1507,21 @@ const App = () => {
   }, []);
 
   // Синхронизация при изменениях
-  useEffect(() => {
-    if (!isReadyToSave.current) return;
-    localStorage.setItem('teamlead_history_data_v8', JSON.stringify(weeksHistory));
-    if (supabaseClient && dbStatus === 'connected') {
-      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'history', value_data: weeksHistory }); };
-      save();
-    }
-  }, [weeksHistory, dbStatus, supabaseClient]);
+  const saveToDb = async (key, data, localName) => {
+      if (!isReadyToSave.current) return;
+      localStorage.setItem(localName, JSON.stringify(data));
+      if (supabaseClient && dbStatus === 'connected') {
+          await supabaseClient.from('app_state').upsert({ key_name: key, value_data: data });
+      }
+  };
 
-  useEffect(() => {
-    if (!isReadyToSave.current) return;
-    localStorage.setItem('teamlead_processes_v8', JSON.stringify(processes));
-    if (supabaseClient && dbStatus === 'connected') {
-      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'processes', value_data: processes }); };
-      save();
-    }
-  }, [processes, dbStatus, supabaseClient]);
-  
-  useEffect(() => {
-    if (!isReadyToSave.current) return;
-    localStorage.setItem('teamlead_achievements_v8', JSON.stringify(achievements));
-    if (supabaseClient && dbStatus === 'connected') {
-      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'achievements', value_data: achievements }); };
-      save();
-    }
-  }, [achievements, dbStatus, supabaseClient]);
+  useEffect(() => { saveToDb('history', weeksHistory, 'teamlead_history_data_v8'); }, [weeksHistory]);
+  useEffect(() => { saveToDb('processes', processes, 'teamlead_processes_v8'); }, [processes]);
+  useEffect(() => { saveToDb('achievements', achievements, 'teamlead_achievements_v8'); }, [achievements]);
+  useEffect(() => { saveToDb('profiles', profiles, 'teamlead_profiles_v8'); }, [profiles]);
+  useEffect(() => { saveToDb('tasks_archive', tasksArchive, 'teamlead_tasks_archive_v8'); }, [tasksArchive]);
+  useEffect(() => { saveToDb('auth_users', authUsers, 'teamlead_auth_v8'); }, [authUsers]);
 
-  useEffect(() => {
-    if (!isReadyToSave.current) return;
-    localStorage.setItem('teamlead_profiles_v8', JSON.stringify(profiles));
-    if (supabaseClient && dbStatus === 'connected') {
-      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'profiles', value_data: profiles }); };
-      save();
-    }
-  }, [profiles, dbStatus, supabaseClient]);
-
-  // Сохранение пользователей в базу при изменении
-  useEffect(() => {
-    if (!isReadyToSave.current || authUsers.length === 0) return;
-    localStorage.setItem('teamlead_auth_v8', JSON.stringify(authUsers));
-    if (supabaseClient && dbStatus === 'connected') {
-      const save = async () => { await supabaseClient.from('app_state').upsert({ key_name: 'auth_users', value_data: authUsers }); };
-      save();
-    }
-  }, [authUsers, dbStatus, supabaseClient]);
 
   // ФУНКЦИИ АВТОРИЗАЦИИ
   const handleLogin = async (username, password) => {
@@ -1412,18 +1553,13 @@ const App = () => {
   const handleUpdatePassword = async (id, newPassword) => {
     const hash = await hashPassword(newPassword);
     setAuthUsers(authUsers.map(u => u.id === id ? { ...u, passwordHash: hash } : u));
-    
-    // Если меняем пароль себе, обновляем сессию в браузере, чтобы не выкинуло
     if (currentUser && currentUser.id === id) {
       localStorage.setItem('teamlead_session', JSON.stringify({ u: currentUser.username, h: hash }));
       setCurrentUser({ ...currentUser, passwordHash: hash });
     }
   };
 
-  const handleDeleteUser = (id) => {
-    setAuthUsers(authUsers.filter(u => u.id !== id));
-  };
-
+  const handleDeleteUser = (id) => { setAuthUsers(authUsers.filter(u => u.id !== id)); };
 
   const activeWeekData = weeksHistory[selectedWeekKey] || defaultWeekData;
   const historyKeys = Object.keys(weeksHistory).sort().reverse(); 
@@ -1438,8 +1574,9 @@ const App = () => {
   const renderContent = () => {
     switch(activeTab) {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
-      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} />;
+      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} />;
       case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
+      case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
       case 'achievements': return <AchievementsBoard achievements={achievements} />;
       case 'profiles': return <TeamProfilesBoard profiles={profiles} />;
@@ -1454,22 +1591,17 @@ const App = () => {
     }
   };
 
-  // Экран загрузки
   if (!isLoaded) return <div className="h-screen bg-slate-900 flex items-center justify-center text-emerald-400"><Activity className="animate-spin mr-3"/> Загрузка Control Room...</div>;
-
-  // Экран входа, если нет активной сессии
   if (!currentUser) return <LoginScreen onLogin={handleLogin} error={loginError} />;
 
-  // Меню в зависимости от роли
   const navItems = [
     { id: 'pulse', icon: Activity, label: 'Пульс команды', roles: ['admin', 'viewer'] },
     { id: 'fill', icon: Pencil, label: 'Заполнить неделю', roles: ['admin'] },
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
-    { id: 'processes', icon: GitMerge, label: 'Процессы', roles: ['admin', 'viewer'] },
-    { id: 'achievements', icon: Award, label: 'Достижения', roles: ['admin', 'viewer'] },
-    { id: 'profiles', icon: Users, label: 'Профили AI', roles: ['admin', 'viewer'] },
-    { id: 'metrics', icon: PieChart, label: 'Метрики (TBD)', roles: ['admin', 'viewer'] },
-    { id: 'training', icon: BookOpen, label: 'Обучение (TBD)', roles: ['admin', 'viewer'] },
+    { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
+    { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
+    { id: 'achievements', icon: ActivitySquare, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
+    { id: 'profiles', icon: Users, label: 'Матрица компетенций', roles: ['admin', 'viewer'] },
     { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
   ].filter(item => item.roles.includes(currentUser.role));
 
