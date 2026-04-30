@@ -97,7 +97,7 @@ const defaultWeekData = {
   mainInsight: "Ожидание данных AI-анализа...", mainRisk: "Ожидание данных AI-анализа...",
   nextFocus: "Ожидание данных AI-анализа...", trainingHypothesis: "Ожидание данных AI-анализа...",
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
-  urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0,
+  urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных AI-анализа...",
   topIncidents: [], slaMetrics: [], topPerformers: [], taskComplexity: []
 };
@@ -208,7 +208,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   const prevWeekData = prevWeekKey ? weeksHistory[prevWeekKey] : null;
   const backlogTrend = prevWeekData ? (Number(weekData.backlog) || 0) - (Number(prevWeekData.backlog) || 0) : 0;
 
-  const totalClosed = (Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0);
+  const totalClosed = (Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0) + (Number(weekData.backlogCompleted) || 0);
   const loadPercentage = Math.min(Math.round((totalClosed / BASE_CAPACITY) * 100), 150);
   
   let loadStatus = 'Норма';
@@ -233,17 +233,17 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     return {
       name: `Нед. ${w.weekNumber}`,
       'Бэклог (Остаток)': Number(w.backlog) || 0,
-      'Выполнено': (Number(w.sprintCompleted) || 0) + (Number(w.urgentCompleted) || 0),
+      'Выполнено': (Number(w.sprintCompleted) || 0) + (Number(w.urgentCompleted) || 0) + (Number(w.backlogCompleted) || 0),
       'Приток': Number(w.inflowThisWeek) || 0
     };
   });
 
   const chartData = [
-    { name: 'Пн', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.2), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.25) },
-    { name: 'Вт', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.3), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.2) },
-    { name: 'Ср', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.2), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.25) },
-    { name: 'Чт', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.2), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.15) },
-    { name: 'Пт', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.1), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.15) },
+    { name: 'Пн', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.2), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.25), Бэклог: Math.floor((Number(weekData.backlogCompleted) || 0) * 0.2) },
+    { name: 'Вт', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.3), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.2), Бэклог: Math.floor((Number(weekData.backlogCompleted) || 0) * 0.2) },
+    { name: 'Ср', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.2), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.25), Бэклог: Math.floor((Number(weekData.backlogCompleted) || 0) * 0.2) },
+    { name: 'Чт', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.2), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.15), Бэклог: Math.floor((Number(weekData.backlogCompleted) || 0) * 0.2) },
+    { name: 'Пт', Спринт: Math.floor((Number(weekData.sprintCompleted) || 0) * 0.1), Срочная: Math.floor((Number(weekData.urgentCompleted) || 0) * 0.15), Бэклог: Math.floor((Number(weekData.backlogCompleted) || 0) * 0.2) },
   ];
 
   const totalIncidentsFromList = (weekData.topIncidents || []).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
@@ -370,7 +370,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                 </div>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-1">Очередь Support</p>
+            <p className="text-xs text-slate-500 mt-1">Закрыто напрямую: <span className="text-blue-400 font-bold">{Number(weekData.backlogCompleted) || 0}</span></p>
           </div>
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {Number(weekData.backlogOld30) || 0}</span></div>
         </div>
@@ -589,7 +589,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm h-56 flex flex-col">
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-sm font-medium text-slate-300 flex items-center gap-2"><Activity size={16} className="text-blue-400"/> Выполнение плана vs Хаос</h3>
-              <span className="text-xs text-slate-500">Закрыто: {(Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0)}</span>
+              <span className="text-xs text-slate-500">Закрыто: {(Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0) + (Number(weekData.backlogCompleted) || 0)}</span>
             </div>
             <div className="flex-1 w-full mt-2">
               <ResponsiveContainer width="100%" height="100%">
@@ -598,7 +598,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                   <YAxis stroke="#64748b" tickLine={false} axisLine={false} fontSize={10} />
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc', fontSize: '12px' }} cursor={{ fill: '#334155', opacity: 0.3 }} />
                   <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} iconType="circle" />
-                  <Bar dataKey="Спринт" name="Спринт (План)" fill="#f59e0b" radius={[2, 2, 0, 0]} stackId="a" maxBarSize={40} />
+                  <Bar dataKey="Спринт" name="Спринт (План)" fill="#f59e0b" radius={[0, 0, 0, 0]} stackId="a" maxBarSize={40} />
+                  <Bar dataKey="Бэклог" name="Из бэклога" fill="#3b82f6" radius={[0, 0, 0, 0]} stackId="a" maxBarSize={40} />
                   <Bar dataKey="Срочная" name="Срочная (Щит)" fill="#ef4444" radius={[2, 2, 0, 0]} stackId="a" maxBarSize={40} />
                 </BarChart>
               </ResponsiveContainer>
@@ -827,8 +828,9 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             </div>
             <div className="space-y-3 p-3 bg-slate-900/50 rounded-lg border border-blue-500/20"><h4 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">Бэклог</h4>
               <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Приток (Inflow)</label><input type="number" name="inflowThisWeek" value={formData.inflowThisWeek||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-indigo-400 font-bold" /></div>
-              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Всего</label><input type="number" name="backlog" value={formData.backlog||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Всего (В очереди)</label><input type="number" name="backlog" value={formData.backlog||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" /></div>
               <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Старых ({'>'}30д)</label><input type="number" name="backlogOld30" value={formData.backlogOld30||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-red-400 font-bold" /></div>
+              <div><label className="block text-[10px] font-bold text-blue-400 uppercase mb-1">Закрыто (Напрямую)</label><input type="number" name="backlogCompleted" value={formData.backlogCompleted||''} onChange={handleChange} className="w-full bg-slate-900 border border-blue-500/50 rounded p-2 text-blue-400 font-bold" /></div>
             </div>
 
             {/* НОВЫЕ ПОЛЯ: КАЧЕСТВО ПОТОКА */}
@@ -909,7 +911,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredTasks = tasksArchive.filter(t => {
-    const text = `${t.id} ${t.title} ${t.assignee} ${t.status} ${t.comments}`.toLowerCase();
+    const text = `${t.id} ${t.title} ${t.assignee} ${t.status} ${t.comments} ${t.tags || ''}`.toLowerCase();
     return text.includes(searchTerm.toLowerCase());
   });
 
@@ -933,7 +935,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input 
               type="text" 
-              placeholder="Поиск по ключу, теме, исполнителю..." 
+              placeholder="Поиск по ключу, теме, исполнителю, тегам..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:border-indigo-500 outline-none"
@@ -948,6 +950,9 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
                 <th className="p-4 font-medium">Ключ</th>
                 <th className="p-4 font-medium w-full min-w-[300px]">Тема задачи</th>
                 <th className="p-4 font-medium">Создано</th>
+                <th className="p-4 font-medium">Решено</th>
+                <th className="p-4 font-medium text-center">Cycle Time</th>
+                <th className="p-4 font-medium text-center">Размер</th>
                 <th className="p-4 font-medium">Статус</th>
                 <th className="p-4 font-medium">Исполнитель</th>
               </tr>
@@ -958,14 +963,41 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
                   <tr className="hover:bg-slate-900/20 transition-colors group">
                     <td className="p-4 text-indigo-400 font-bold text-xs">{task.id}</td>
                     <td className="p-4 text-slate-200 whitespace-normal min-w-[300px]">
-                      <span className="font-medium">{task.title || 'Без названия'}</span>
+                      <div className="font-medium">{task.title || 'Без названия'}</div>
+                      {task.tags && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {task.tags.split(',').map((tag, i) => (
+                            <span key={i} className="px-1.5 py-0.5 rounded-md bg-slate-700/50 border border-slate-600/50 text-[10px] text-slate-400 font-medium">
+                              {tag.trim()}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {task.comments && (
-                         <div className="mt-1 text-xs text-slate-500 italic bg-slate-900/50 p-2 rounded border border-slate-700/30 whitespace-pre-wrap max-h-12 overflow-hidden group-hover:max-h-none transition-all duration-300">
+                         <div className="mt-1.5 text-xs text-slate-500 italic bg-slate-900/50 p-2 rounded border border-slate-700/30 whitespace-pre-wrap max-h-12 overflow-hidden group-hover:max-h-none transition-all duration-300">
                            <span className="text-slate-400 font-bold not-italic mr-1">Лог:</span>{task.comments}
                          </div>
                       )}
                     </td>
                     <td className="p-4 text-slate-400 text-xs">{task.created || '-'}</td>
+                    <td className="p-4 text-slate-400 text-xs">{task.resolved || '-'}</td>
+                    <td className="p-4 text-center">
+                      <span className="text-slate-300 font-medium text-xs">
+                        {task.cycleTime !== undefined && task.cycleTime !== null ? `${task.cycleTime} дн.` : '-'}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      {task.size ? (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                          task.size === 'S' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                          task.size === 'M' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                          task.size === 'L' ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' :
+                          'bg-red-500/10 text-red-400 border-red-500/30'
+                        }`}>
+                          {task.size}
+                        </span>
+                      ) : '-'}
+                    </td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${
                         task.status === 'Закрыт' || task.status === 'Готово' || task.status === 'Resolved' || task.status === 'Завершен'
@@ -982,7 +1014,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
                 </React.Fragment>
               )) : (
                 <tr>
-                  <td colSpan="5" className="p-12 text-center text-slate-500">
+                  <td colSpan="6" className="p-12 text-center text-slate-500">
                     <Archive size={48} className="mx-auto mb-4 opacity-20" />
                     Задачи не найдены. <br/>Добавь массив `detailedTasks` в импорт JSON на вкладке "Заполнить неделю".
                   </td>
@@ -1007,19 +1039,21 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const totalListIncidents = sortedIncidents.reduce((sum, i) => sum + (Number(i.count) || 0), 0);
   const top3Sum = top3.reduce((sum, i) => sum + (Number(i.count) || 0), 0);
   const paretoPercent = totalListIncidents > 0 ? Math.round((top3Sum / totalListIncidents) * 100) : 0;
+  
+  const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
 
   const reports = [
     {
       id: 'team', title: 'Отчет для команды (Telegram / Чат)', icon: Users, color: 'emerald',
-      content: `Привет, команда! Итоги ${weekData.weekNumber || ''} недели (${safeString(weekData.dates)}):\n\n✅ 1-я линия отработала поток: закрыто ${weekData.incidentsClosed || 0} инцидентов (в очереди ${weekData.incidentsQueue || 0}).\n🔥 Топ-3 проблемы: ${top3Text}.\n🚀 Выделенный "Щит" отбил ${weekData.urgentCompleted || 0} внеплановых задач.\n⚙️ Delivery спринта: выполнили ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0} плановых. Перенесли ${weekData.sprintCarriedOver || 0}.\n\n🏆 Главный успех процесса: ${safeString(weekData.mainWin) || 'Выдержали темп!'}\n🙏 За Кайдзен и помощь благодарим: ${safeString(weekData.thanks) || 'Всю команду!'}\n\n🎯 Инсайт потока: ${safeString(weekData.mainInsight)}\nФокус на расшивку горлышка: ${safeString(weekData.nextFocus)}`
+      content: `Привет, команда! Итоги ${weekData.weekNumber || ''} недели (${safeString(weekData.dates)}):\n\n✅ 1-я линия отработала поток: закрыто ${weekData.incidentsClosed || 0} инцидентов (в очереди ${weekData.incidentsQueue || 0}).\n🔥 Топ-3 проблемы: ${top3Text}.\n🚀 Выделенный "Щит" отбил ${weekData.urgentCompleted || 0} внеплановых задач.\n⚙️ Delivery: всего закрыли ${totalClosedCount} задач. Из них: Спринт - ${weekData.sprintCompleted || 0} (из ${weekData.sprintPlanned || 0} плановых), Срочные - ${weekData.urgentCompleted || 0}, Напрямую из бэклога - ${weekData.backlogCompleted || 0}. Хвост спринта: ${weekData.sprintCarriedOver || 0}.\n\n🏆 Главный успех процесса: ${safeString(weekData.mainWin) || 'Выдержали темп!'}\n🙏 За Кайдзен и помощь благодарим: ${safeString(weekData.thanks) || 'Всю команду!'}\n\n🎯 Инсайт потока: ${safeString(weekData.mainInsight)}\nФокус на расшивку горлышка: ${safeString(weekData.nextFocus)}`
     },
     {
       id: 'manager', title: 'Отчет для руководителя (Почта / Статус)', icon: LayoutDashboard, color: 'blue',
-      content: `Статус по направлению ОСО за ${weekData.weekNumber || ''} неделю (${safeString(weekData.dates)})\n\n🔹 Основные метрики потока (Delivery):\n- Индекс управляемости: ${weekData.managementIndex || 0}/100\n- Выполнение плана (Спринт): ${weekData.sprintCompleted || 0} из ${weekData.sprintPlanned || 0}. Хвост: ${weekData.sprintCarriedOver || 0} задач.\n- Срочная линия: ${weekData.urgentCompleted || 0} инцидентов (защита спринта).\n- Инциденты 1-я линия: ${weekData.incidentsClosed || 0}.\n- Cycle Time (Время цикла): ${weekData.avgCycleTime || 0} дн.\n- Бэклог Support: ${weekData.backlog || 0} задач (из них ${weekData.backlogOld30 || 0} старше 30 дней).\n\n⚠️ Узкие места (Теория ограничений):\nТоп-3 проблемы занимают ${paretoPercent}% времени (${top3Text}).\n\n❗️ Риски процесса:\n${safeString(weekData.mainRisk)}\n\n📝 План улучшений:\n${safeString(weekData.nextFocus)}`
+      content: `Статус по направлению ОСО за ${weekData.weekNumber || ''} неделю (${safeString(weekData.dates)})\n\n🔹 Основные метрики потока (Delivery):\n- Индекс управляемости: ${weekData.managementIndex || 0}/100\n- Общее количество закрытых задач: ${totalClosedCount}. (Спринт: ${weekData.sprintCompleted || 0}, Срочные: ${weekData.urgentCompleted || 0}, Из бэклога напрямую: ${weekData.backlogCompleted || 0}).\n- Срочная линия: ${weekData.urgentCompleted || 0} инцидентов (защита спринта).\n- Инциденты 1-я линия: ${weekData.incidentsClosed || 0}.\n- Cycle Time (Время цикла): ${weekData.avgCycleTime || 0} дн.\n- Бэклог Support: ${weekData.backlog || 0} задач в очереди (из них ${weekData.backlogOld30 || 0} старше 30 дней).\n\n⚠️ Узкие места (Теория ограничений):\nТоп-3 проблемы занимают ${paretoPercent}% времени (${top3Text}).\n\n❗️ Риски процесса:\n${safeString(weekData.mainRisk)}\n\n📝 План улучшений:\n${safeString(weekData.nextFocus)}`
     },
     {
       id: 'retro', title: 'Отчет для трекера / Обучения (Этап 2)', icon: BookOpen, color: 'indigo',
-      content: `Рефлексия (Этап 2: Процессы и метрики). Неделя ${weekData.weekNumber || ''}.\n\n🎯 Процессная гипотеза недели:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики потока создания ценности:\n- Cycle Time (Время цикла): ${weekData.avgCycleTime || 0} дн.\n- Reopen Rate (Возврат на доработку): ${weekData.reopenRate || 0}%\n- Выполнение плана: ${weekData.sprintCompleted || 0}/${weekData.sprintPlanned || 0}.\n- Распределение нагрузки (Парето): ${top3Sum} инцидентов (${paretoPercent}%) генерируется 3 проблемами (${top3Text}).\n- Возраст техдолга: ${weekData.backlogOld30 || 0} задач висят > 30 дней (Общий бэклог: ${weekData.backlog || 0}).\n\n💡 Аудит процесса (Узкие места):\n${safeString(weekData.mainInsight)}\n\n🚧 Системные ограничения (Bottlenecks):\n${safeString(weekData.mainRisk)}\n\n🛠 Эксперимент / Кайдзен на след. неделю:\n${safeString(weekData.nextFocus)}`
+      content: `Рефлексия (Этап 2: Процессы и метрики). Неделя ${weekData.weekNumber || ''}.\n\n🎯 Процессная гипотеза недели:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики потока создания ценности:\n- Cycle Time (Время цикла): ${weekData.avgCycleTime || 0} дн.\n- Reopen Rate (Возврат на доработку): ${weekData.reopenRate || 0}%\n- Capacity (Выполнено всего): ${totalClosedCount} задач.\n- Распределение нагрузки (Парето): ${top3Sum} инцидентов (${paretoPercent}%) генерируется 3 проблемами (${top3Text}).\n- Возраст техдолга: ${weekData.backlogOld30 || 0} задач висят > 30 дней (Общий бэклог: ${weekData.backlog || 0}).\n\n💡 Аудит процесса (Узкие места):\n${safeString(weekData.mainInsight)}\n\n🚧 Системные ограничения (Bottlenecks):\n${safeString(weekData.mainRisk)}\n\n🛠 Эксперимент / Кайдзен на след. неделю:\n${safeString(weekData.nextFocus)}`
     }
   ];
 
