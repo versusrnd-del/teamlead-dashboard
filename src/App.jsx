@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -99,7 +99,7 @@ const defaultWeekData = {
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных AI-анализа...",
-  topIncidents: [], slaMetrics: [], topPerformers: [], taskComplexity: []
+  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: []
 };
 
 const defaultProcesses = [
@@ -383,26 +383,26 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         {/* CYCLE TIME */}
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm flex flex-col relative overflow-hidden">
           <div className="absolute right-0 top-0 opacity-5 -mt-2 -mr-2"><Clock size={100} /></div>
-          <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2"><Clock size={14} className="text-blue-400"/> Cycle Time (Время цикла)</h3>
+          <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2"><Clock size={14} className="text-blue-400"/> Среднее время решения</h3>
           <div className="flex-1 flex flex-col justify-center">
             <div className="flex items-baseline gap-2 mb-1">
               <span className={`text-4xl font-black ${cycleColor}`}>{Number(weekData.avgCycleTime) || 0}</span>
               <span className="text-slate-500 text-sm font-medium">дней</span>
             </div>
-            <p className="text-xs text-slate-400 mt-2 leading-relaxed">Среднее время от взятия задачи в работу до ее закрытия. Если Capacity высокое, а Cycle Time растет — мы плодим WIP (Work in Progress).</p>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">Среднее время от создания задачи до ее закрытия. Если мы закрываем много задач, но сроки их выполнения растут — значит, мы копим «незавершенку» (задачи висят в работе).</p>
           </div>
         </div>
 
         {/* REOPEN RATE */}
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm flex flex-col relative overflow-hidden">
           <div className="absolute right-0 top-0 opacity-5 -mt-2 -mr-2"><RefreshCcw size={100} /></div>
-          <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2"><RefreshCcw size={14} className="text-amber-400"/> Reopen Rate (Возвраты)</h3>
+          <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2"><RefreshCcw size={14} className="text-amber-400"/> Возвраты на доработку</h3>
           <div className="flex-1 flex flex-col justify-center">
             <div className="flex items-baseline gap-2 mb-1">
               <span className={`text-4xl font-black ${reopenColor}`}>{Number(weekData.reopenRate) || 0}</span>
               <span className="text-slate-500 text-sm font-medium">%</span>
             </div>
-            <p className="text-xs text-slate-400 mt-2 leading-relaxed">Доля задач, которые вернулись на доработку после статуса "Закрыто" или "Готово". Высокий процент бьет по CSAT и съедает время.</p>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">Доля задач, которые вернулись к инженерам после статуса "Закрыто" или "Готово". Высокий процент бьет по оценке удовлетворенности (CSAT) и съедает время команды.</p>
           </div>
         </div>
 
@@ -519,35 +519,86 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           </div>
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm xl:col-span-2 flex flex-col">
-          <div className="flex justify-between items-start mb-4">
-            <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Users size={18} className="text-blue-400" /> Матрица эффективности (Аудит нагрузки)</h3>
-            <span className="text-[10px] bg-slate-900 text-slate-500 px-2 py-1 rounded border border-slate-700/50 uppercase tracking-wider">Аналитика для Этапа 2</span>
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm xl:col-span-2 flex flex-col gap-6">
+          
+          {/* ТАБЛИЦА 1: ИНЦИДЕНТЫ (topPerformers) */}
+          <div className="flex-1 flex flex-col">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Users size={18} className="text-emerald-400" /> Нагрузка: 1-я линия (Инциденты)</h3>
+              <span className="text-[10px] bg-slate-900 text-slate-500 px-2 py-1 rounded border border-slate-700/50 uppercase tracking-wider">Аналитика для Этапа 2</span>
+            </div>
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
+                    <th className="pb-3 font-medium">Исполнитель</th><th className="pb-3 font-medium text-center">Закрыто</th><th className="pb-3 font-medium text-center">Ср. Время</th><th className="pb-3 font-medium text-center">Логирование</th><th className="pb-3 font-medium text-center">CSAT</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {weekData.topPerformers && weekData.topPerformers.map((perf, idx) => {
+                    const commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
+                    return (
+                      <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
+                        <td className="py-3 font-medium text-slate-200">{safeString(perf.name) || 'Неизвестно'}</td>
+                        <td className="py-3 text-center text-white font-bold">{Number(perf.closed) || 0}</td>
+                        <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} м</td>
+                        <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
+                        <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><Star size={14} className={Number(perf.csat) >= 4.8 ? "text-amber-400 fill-amber-400" : Number(perf.csat) >= 4.0 ? "text-amber-400" : "text-slate-500"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                      </tr>
+                    );
+                  })}
+                  {(!weekData.topPerformers || weekData.topPerformers.length === 0) && <tr><td colSpan="5" className="py-4 text-center text-slate-500">Данные не загружены</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
-                  <th className="pb-3 font-medium">Исполнитель</th><th className="pb-3 font-medium text-center">Закрыто</th><th className="pb-3 font-medium text-center">Ср. Время</th><th className="pb-3 font-medium text-center">Логирование</th><th className="pb-3 font-medium text-center">CSAT</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700/50">
-                {weekData.topPerformers && weekData.topPerformers.map((perf, idx) => {
-                  const commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
-                  return (
-                    <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
-                      <td className="py-3 font-medium text-slate-200">{safeString(perf.name) || 'Неизвестно'}</td>
-                      <td className="py-3 text-center text-white font-bold">{Number(perf.closed) || 0}</td>
-                      <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} м</td>
-                      <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
-                      <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><Star size={14} className={Number(perf.csat) >= 4.8 ? "text-amber-400 fill-amber-400" : Number(perf.csat) >= 4.0 ? "text-amber-400" : "text-slate-500"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+
+          {/* ТАБЛИЦА 2: ЗАДАЧИ (taskPerformers) */}
+          {weekData.taskPerformers && weekData.taskPerformers.length > 0 && (
+            <div className="flex-1 flex flex-col pt-6 border-t border-slate-700/50">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Server size={18} className="text-blue-400" /> Нагрузка: Инфраструктура (Задачи)</h3>
+              </div>
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
+                      <th className="pb-3 font-medium">Исполнитель</th><th className="pb-3 font-medium text-center">Закрыто</th><th className="pb-3 font-medium text-center">Ср. Время</th><th className="pb-3 font-medium text-center">Логирование</th><th className="pb-3 font-medium text-center">Возвраты</th><th className="pb-3 font-medium text-center">Качество</th>
                     </tr>
-                  );
-                })}
-                {(!weekData.topPerformers || weekData.topPerformers.length === 0) && <tr><td colSpan="5" className="py-4 text-center text-slate-500">Данные не загружены</td></tr>}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/50">
+                    {weekData.taskPerformers.map((perf, idx) => {
+                      const commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
+                      return (
+                        <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
+                          <td className="py-3 font-medium text-slate-200">{safeString(perf.name) || 'Неизвестно'}</td>
+                          <td className="py-3 text-center text-white font-bold">{Number(perf.closed) || 0}</td>
+                          <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} дн.</td>
+                          <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
+                          <td className="py-3 text-center">
+                            {perf.reopenedTasks && perf.reopenedTasks.length > 0 ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                                  {perf.reopenedTasks.length} шт.
+                                </span>
+                                <span className="text-[9px] text-slate-500 leading-tight w-24 whitespace-normal">
+                                  {perf.reopenedTasks.join(', ')}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-600">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-emerald-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
@@ -716,6 +767,14 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         }));
       }
 
+      // СОХРАНЕНИЕ TASK PERFORMERS (Инженеры задач)
+      if (parsedData.taskPerformers && Array.isArray(parsedData.taskPerformers)) {
+        parsedData.taskPerformers = parsedData.taskPerformers.map(perf => ({
+          ...perf,
+          name: USER_DICTIONARY[safeString(perf.name).trim()] || safeString(perf.name)
+        }));
+      }
+
       // СОХРАНЕНИЕ ДЕТАЛЬНЫХ ЗАДАЧ (ТЕХДОЛГ / АРХИВ)
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
          setTasksArchive(prev => {
@@ -779,7 +838,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
       <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 mb-8 relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
         <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> 🤖 Умный импорт (AI Parsing)</h3>
-        <p className="text-sm text-indigo-200/70 mb-4 relative z-10">Скормил CSV-выгрузку из Jira нейросети? Вставь полученный от неё JSON-код сюда. Если в JSON есть массив `detailedTasks`, он автоматически уйдет во вкладку "Архив/Техдолг".</p>
+        <p className="text-sm text-indigo-200/70 mb-4 relative z-10">Скормил CSV-выгрузку из Jira нейросети? Вставь полученный от неё JSON-код сюда. Если в JSON есть массив `detailedTasks` или `taskPerformers`, они автоматически уйдут в Архив и Пульс.</p>
         
         <div className="relative z-10 space-y-3">
           <textarea 
@@ -1014,7 +1073,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
                 </React.Fragment>
               )) : (
                 <tr>
-                  <td colSpan="6" className="p-12 text-center text-slate-500">
+                  <td colSpan="8" className="p-12 text-center text-slate-500">
                     <Archive size={48} className="mx-auto mb-4 opacity-20" />
                     Задачи не найдены. <br/>Добавь массив `detailedTasks` в импорт JSON на вкладке "Заполнить неделю".
                   </td>
@@ -1049,11 +1108,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     },
     {
       id: 'manager', title: 'Отчет для руководителя (Почта / Статус)', icon: LayoutDashboard, color: 'blue',
-      content: `Статус по направлению ОСО за ${weekData.weekNumber || ''} неделю (${safeString(weekData.dates)})\n\n🔹 Основные метрики потока (Delivery):\n- Индекс управляемости: ${weekData.managementIndex || 0}/100\n- Общее количество закрытых задач: ${totalClosedCount}. (Спринт: ${weekData.sprintCompleted || 0}, Срочные: ${weekData.urgentCompleted || 0}, Из бэклога напрямую: ${weekData.backlogCompleted || 0}).\n- Срочная линия: ${weekData.urgentCompleted || 0} инцидентов (защита спринта).\n- Инциденты 1-я линия: ${weekData.incidentsClosed || 0}.\n- Cycle Time (Время цикла): ${weekData.avgCycleTime || 0} дн.\n- Бэклог Support: ${weekData.backlog || 0} задач в очереди (из них ${weekData.backlogOld30 || 0} старше 30 дней).\n\n⚠️ Узкие места (Теория ограничений):\nТоп-3 проблемы занимают ${paretoPercent}% времени (${top3Text}).\n\n❗️ Риски процесса:\n${safeString(weekData.mainRisk)}\n\n📝 План улучшений:\n${safeString(weekData.nextFocus)}`
+      content: `Статус по направлению ОСО за ${weekData.weekNumber || ''} неделю (${safeString(weekData.dates)})\n\n🔹 Основные метрики потока (Delivery):\n- Индекс управляемости: ${weekData.managementIndex || 0}/100\n- Общее количество закрытых задач: ${totalClosedCount}. (Спринт: ${weekData.sprintCompleted || 0}, Срочные: ${weekData.urgentCompleted || 0}, Из бэклога напрямую: ${weekData.backlogCompleted || 0}).\n- Срочная линия: ${weekData.urgentCompleted || 0} инцидентов (защита спринта).\n- Инциденты 1-я линия: ${weekData.incidentsClosed || 0}.\n- Ср. время решения (Cycle Time): ${weekData.avgCycleTime || 0} дн.\n- Бэклог Support: ${weekData.backlog || 0} задач в очереди (из них ${weekData.backlogOld30 || 0} старше 30 дней).\n\n⚠️ Узкие места (Теория ограничений):\nТоп-3 проблемы занимают ${paretoPercent}% времени (${top3Text}).\n\n❗️ Риски процесса:\n${safeString(weekData.mainRisk)}\n\n📝 План улучшений:\n${safeString(weekData.nextFocus)}`
     },
     {
       id: 'retro', title: 'Отчет для трекера / Обучения (Этап 2)', icon: BookOpen, color: 'indigo',
-      content: `Рефлексия (Этап 2: Процессы и метрики). Неделя ${weekData.weekNumber || ''}.\n\n🎯 Процессная гипотеза недели:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики потока создания ценности:\n- Cycle Time (Время цикла): ${weekData.avgCycleTime || 0} дн.\n- Reopen Rate (Возврат на доработку): ${weekData.reopenRate || 0}%\n- Capacity (Выполнено всего): ${totalClosedCount} задач.\n- Распределение нагрузки (Парето): ${top3Sum} инцидентов (${paretoPercent}%) генерируется 3 проблемами (${top3Text}).\n- Возраст техдолга: ${weekData.backlogOld30 || 0} задач висят > 30 дней (Общий бэклог: ${weekData.backlog || 0}).\n\n💡 Аудит процесса (Узкие места):\n${safeString(weekData.mainInsight)}\n\n🚧 Системные ограничения (Bottlenecks):\n${safeString(weekData.mainRisk)}\n\n🛠 Эксперимент / Кайдзен на след. неделю:\n${safeString(weekData.nextFocus)}`
+      content: `Рефлексия (Этап 2: Процессы и метрики). Неделя ${weekData.weekNumber || ''}.\n\n🎯 Процессная гипотеза недели:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики потока создания ценности:\n- Ср. время решения (Cycle Time): ${weekData.avgCycleTime || 0} дн.\n- Возврат на доработку (Reopen Rate): ${weekData.reopenRate || 0}%\n- Capacity (Выполнено всего): ${totalClosedCount} задач.\n- Распределение нагрузки (Парето): ${top3Sum} инцидентов (${paretoPercent}%) генерируется 3 проблемами (${top3Text}).\n- Возраст техдолга: ${weekData.backlogOld30 || 0} задач висят > 30 дней (Общий бэклог: ${weekData.backlog || 0}).\n\n💡 Аудит процесса (Узкие места):\n${safeString(weekData.mainInsight)}\n\n🚧 Системные ограничения (Bottlenecks):\n${safeString(weekData.mainRisk)}\n\n🛠 Эксперимент / Кайдзен на след. неделю:\n${safeString(weekData.nextFocus)}`
     }
   ];
 
