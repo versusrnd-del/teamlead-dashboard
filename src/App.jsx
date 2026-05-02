@@ -604,14 +604,16 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                   {perf.reopenedTasks.map((taskItem, i) => {
                                     const tId = typeof taskItem === 'object' ? taskItem.id : taskItem;
                                     const tReason = typeof taskItem === 'object' ? taskItem.reason : 'Причина не проанализирована';
+                                    const tTitle = typeof taskItem === 'object' && taskItem.title ? taskItem.title : '';
                                     return (
                                       <div key={i} className="group relative">
                                         <span className="text-[9px] text-slate-400 border-b border-slate-600 border-dashed cursor-help hover:text-white transition-colors">
                                           {tId}
                                         </span>
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center pointer-events-none">
-                                          <div className="font-bold text-amber-400 mb-1">Причина возврата:</div>
-                                          {tReason}
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
+                                          <div className="font-bold text-amber-400 mb-1 border-b border-slate-700 pb-1">Возврат: {tId}</div>
+                                          {tTitle && <div className="text-[10px] text-slate-200 font-bold mb-1 line-clamp-2">{tTitle}</div>}
+                                          <div className="text-slate-400 leading-tight">{tReason}</div>
                                           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                         </div>
                                       </div>
@@ -673,7 +675,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                   <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 cursor-help">
                                     +{perf.techDebtClosed.length} стар.
                                   </span>
-                                  {/* Всплывающая подсказка про старые задачи */}
                                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
                                     <div className="font-bold text-purple-400 mb-1 border-b border-slate-700 pb-1">Закрыт старый долг (>30 дн):</div>
                                     <div className="space-y-1 mt-1 max-h-32 overflow-y-auto custom-scrollbar">
@@ -703,14 +704,16 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                   {perf.reopenedTasks.map((taskItem, i) => {
                                     const tId = typeof taskItem === 'object' ? taskItem.id : taskItem;
                                     const tReason = typeof taskItem === 'object' ? taskItem.reason : 'Причина не проанализирована';
+                                    const tTitle = typeof taskItem === 'object' && taskItem.title ? taskItem.title : '';
                                     return (
                                       <div key={i} className="group relative">
                                         <span className="text-[9px] text-slate-400 border-b border-slate-600 border-dashed cursor-help hover:text-white transition-colors">
                                           {tId}
                                         </span>
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center pointer-events-none">
-                                          <div className="font-bold text-amber-400 mb-1">Причина возврата:</div>
-                                          {tReason}
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
+                                          <div className="font-bold text-amber-400 mb-1 border-b border-slate-700 pb-1">Возврат: {tId}</div>
+                                          {tTitle && <div className="text-[10px] text-slate-200 font-bold mb-1 line-clamp-2">{tTitle}</div>}
+                                          <div className="text-slate-400 leading-tight">{tReason}</div>
                                           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                         </div>
                                       </div>
