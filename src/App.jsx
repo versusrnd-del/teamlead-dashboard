@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -73,7 +73,6 @@ const replaceLoginsWithNames = (text) => {
   if (typeof text !== 'string') return String(text || '');
   let result = text;
   for (const [login, name] of Object.entries(USER_DICTIONARY)) {
-    // Используем границы слова \b, чтобы не заменять часть другого слова
     const regex = new RegExp(`\\b${login}\\b`, 'gi');
     result = result.replace(regex, name);
   }
@@ -84,7 +83,6 @@ const replaceLoginsWithNames = (text) => {
 const getFullName = (login) => {
   if (!login) return 'Неизвестно';
   const cleanLogin = String(login).trim().toLowerCase();
-  // Ищем совпадение в словаре без учета регистра
   const foundKey = Object.keys(USER_DICTIONARY).find(k => k.toLowerCase() === cleanLogin);
   return foundKey ? USER_DICTIONARY[foundKey] : login;
 };
@@ -99,7 +97,7 @@ const safeString = (val) => {
 const formatCSAT = (val) => {
   if (val === null || val === undefined) return '0.0';
   const num = Number(val);
-  return isNaN(num) ? '0.0' : num.toFixed(1);
+  return isNaN(num) || num === 0 ? '5.0' : num.toFixed(1);
 };
 
 // --- НАЧАЛЬНЫЕ ДАННЫЕ ---
@@ -112,7 +110,7 @@ const defaultWeekData = {
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных AI-анализа...",
-  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: []
+  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: []
 };
 
 const defaultProcesses = [
@@ -466,31 +464,61 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
       )}
 
-      {/* ТРУДОЕМКОСТЬ СПРИНТА (T-Shirt Sizing) и АНАЛИТИКА СПРИНТА */}
-      {(weekData.taskComplexity?.length > 0 || weekData.sprintWin || weekData.sprintRisk || weekData.shieldHero) && (
+      {/* ТРУДОЕМКОСТЬ СПРИНТА (T-Shirt Sizing) И ТИПЫ РАБОТ */}
+      {(weekData.taskComplexity?.length > 0 || weekData.sprintWin || weekData.sprintRisk || weekData.shieldHero || weekData.taskTypesDistribution?.length > 0) && (
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
-          {weekData.taskComplexity && weekData.taskComplexity.length > 0 && (
-            <>
-              <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><Layers size={20} className="text-indigo-400" /> Трудоемкость выполненных задач (T-Shirt Sizing)</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {['S', 'M', 'L', 'XL'].map((size) => {
-                  const taskInfo = weekData.taskComplexity.find(t => t.size === size);
-                  const count = taskInfo ? Number(taskInfo.count) : 0;
-                  const desc = taskInfo ? safeString(taskInfo.description) : 'Задач такого размера не было';
-                  
-                  return (
-                    <div key={size} className={`relative p-4 rounded-xl border flex flex-col ${count > 0 ? 'bg-slate-900/80 border-slate-700/50 shadow-inner' : 'bg-slate-900/30 border-slate-800/50 opacity-50'}`}>
-                      <div className="flex justify-between items-start mb-2">
-                        <span className={`text-2xl font-black px-2.5 py-0.5 rounded-lg border-2 border-b-4 ${count > 0 ? getSizeColor(size) : 'bg-slate-800 text-slate-600 border-slate-700'}`}>{size}</span>
-                        <span className="text-3xl font-bold text-slate-300">{count}</span>
-                      </div>
-                      <div className="mt-2 text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">{desc}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+          
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+            <div className="xl:col-span-2">
+              {weekData.taskComplexity && weekData.taskComplexity.length > 0 && (
+                <>
+                  <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><Layers size={20} className="text-indigo-400" /> Трудоемкость выполненных задач (T-Shirt Sizing)</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {['S', 'M', 'L', 'XL'].map((size) => {
+                      const taskInfo = weekData.taskComplexity.find(t => t.size === size);
+                      const count = taskInfo ? Number(taskInfo.count) : 0;
+                      const desc = taskInfo ? safeString(taskInfo.description) : 'Задач такого размера не было';
+                      
+                      return (
+                        <div key={size} className={`relative p-4 rounded-xl border flex flex-col ${count > 0 ? 'bg-slate-900/80 border-slate-700/50 shadow-inner' : 'bg-slate-900/30 border-slate-800/50 opacity-50'}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <span className={`text-2xl font-black px-2.5 py-0.5 rounded-lg border-2 border-b-4 ${count > 0 ? getSizeColor(size) : 'bg-slate-800 text-slate-600 border-slate-700'}`}>{size}</span>
+                            <span className="text-3xl font-bold text-slate-300">{count}</span>
+                          </div>
+                          <div className="mt-2 text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">{desc}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* НОВЫЙ БЛОК: ТИПЫ РАБОТ */}
+            <div className="xl:col-span-1 border-t xl:border-t-0 xl:border-l border-slate-700/50 pt-6 xl:pt-0 xl:pl-6">
+               {weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? (
+                 <>
+                   <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><PieChartIcon size={20} className="text-fuchsia-400" /> Типы работ (Ценность vs Рутина)</h2>
+                   <div className="space-y-3">
+                     {weekData.taskTypesDistribution.map((item, idx) => (
+                        <div key={idx} className="relative w-full bg-slate-900/50 rounded flex flex-col p-3 border border-slate-700/30 overflow-hidden">
+                           <div className="absolute top-0 left-0 h-full opacity-20 bg-fuchsia-500" style={{ width: `${item.percent}%` }}></div>
+                           <div className="relative z-10 flex justify-between items-center text-sm">
+                              <span className="text-slate-200 font-medium truncate pr-2">{safeString(item.name)}</span>
+                              <span className="text-fuchsia-400 font-bold shrink-0">{Number(item.percent)}%</span>
+                           </div>
+                        </div>
+                     ))}
+                   </div>
+                 </>
+               ) : (
+                 <div className="h-full flex flex-col items-center justify-center opacity-50">
+                    <PieChartIcon size={32} className="text-slate-500 mb-2" />
+                    <p className="text-xs text-slate-400 text-center">Нет данных о типах работ.<br/>Обновите выгрузку.</p>
+                 </div>
+               )}
+            </div>
+          </div>
 
           {(weekData.sprintWin || weekData.sprintRisk || weekData.shieldHero) && (
             <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch ${weekData.taskComplexity?.length > 0 ? 'pt-6 border-t border-slate-700/50' : ''}`}>
@@ -540,11 +568,17 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
               <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Users size={18} className="text-emerald-400" /> Нагрузка: 1-я линия (Инциденты)</h3>
               <span className="text-[10px] bg-slate-900 text-slate-500 px-2 py-1 rounded border border-slate-700/50 uppercase tracking-wider">Аналитика для Этапа 2</span>
             </div>
-            <div className="overflow-x-auto custom-scrollbar">
+            <div className="overflow-x-auto custom-scrollbar pb-2">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
-                    <th className="pb-3 font-medium">Исполнитель</th><th className="pb-3 font-medium text-center">Закрыто</th><th className="pb-3 font-medium text-center">Ср. Время</th><th className="pb-3 font-medium text-center">Логирование</th><th className="pb-3 font-medium text-center">CSAT</th>
+                    <th className="pb-3 font-medium">Исполнитель</th>
+                    <th className="pb-3 font-medium text-center" title="Work in Progress (Открыто сейчас)">WIP</th>
+                    <th className="pb-3 font-medium text-center">Закрыто</th>
+                    <th className="pb-3 font-medium text-center">Ср. Время</th>
+                    <th className="pb-3 font-medium text-center">Логирование</th>
+                    <th className="pb-3 font-medium text-center">Возвраты</th>
+                    <th className="pb-3 font-medium text-center">CSAT</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
@@ -553,14 +587,48 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     return (
                       <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
                         <td className="py-3 font-medium text-slate-200">{getFullName(perf.name)}</td>
+                        <td className="py-3 text-center">
+                          <span className="text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">{Number(perf.wip) || 0}</span>
+                        </td>
                         <td className="py-3 text-center text-white font-bold">{Number(perf.closed) || 0}</td>
                         <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} м</td>
                         <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
+                        
+                        <td className="py-3 text-center">
+                            {perf.reopenedTasks && perf.reopenedTasks.length > 0 ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                                  {perf.reopenedTasks.length} шт.
+                                </span>
+                                <div className="flex flex-wrap justify-center gap-1 max-w-[120px]">
+                                  {perf.reopenedTasks.map((taskItem, i) => {
+                                    const tId = typeof taskItem === 'object' ? taskItem.id : taskItem;
+                                    const tReason = typeof taskItem === 'object' ? taskItem.reason : 'Причина не проанализирована';
+                                    return (
+                                      <div key={i} className="group relative">
+                                        <span className="text-[9px] text-slate-400 border-b border-slate-600 border-dashed cursor-help hover:text-white transition-colors">
+                                          {tId}
+                                        </span>
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center pointer-events-none">
+                                          <div className="font-bold text-amber-400 mb-1">Причина возврата:</div>
+                                          {tReason}
+                                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-600">-</span>
+                            )}
+                          </td>
+
                         <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><Star size={14} className={Number(perf.csat) >= 4.8 ? "text-amber-400 fill-amber-400" : Number(perf.csat) >= 4.0 ? "text-amber-400" : "text-slate-500"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
                       </tr>
                     );
                   })}
-                  {(!weekData.topPerformers || weekData.topPerformers.length === 0) && <tr><td colSpan="5" className="py-4 text-center text-slate-500">Данные не загружены</td></tr>}
+                  {(!weekData.topPerformers || weekData.topPerformers.length === 0) && <tr><td colSpan="7" className="py-4 text-center text-slate-500">Данные не загружены</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -576,7 +644,13 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
-                      <th className="pb-3 font-medium">Исполнитель</th><th className="pb-3 font-medium text-center">Закрыто</th><th className="pb-3 font-medium text-center">Cycle Time</th><th className="pb-3 font-medium text-center">Логирование</th><th className="pb-3 font-medium text-center">Возвраты</th><th className="pb-3 font-medium text-center">Качество</th>
+                      <th className="pb-3 font-medium">Исполнитель</th>
+                      <th className="pb-3 font-medium text-center" title="Work in Progress (Открыто сейчас)">WIP</th>
+                      <th className="pb-3 font-medium text-center">Закрыто</th>
+                      <th className="pb-3 font-medium text-center">Cycle Time</th>
+                      <th className="pb-3 font-medium text-center">Логирование</th>
+                      <th className="pb-3 font-medium text-center">Возвраты</th>
+                      <th className="pb-3 font-medium text-center">Качество</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/50">
@@ -585,8 +659,38 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       return (
                         <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
                           <td className="py-3 font-medium text-slate-200">{getFullName(perf.name)}</td>
+                          <td className="py-3 text-center">
+                            <span className="text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">{Number(perf.wip) || 0}</span>
+                          </td>
                           <td className="py-3 text-center text-white font-bold">{Number(perf.closed) || 0}</td>
-                          <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} дн.</td>
+                          
+                          {/* CYCLE TIME С БЕЙДЖОМ ТЕХДОЛГА */}
+                          <td className="py-3 text-center text-slate-400">
+                            <div className="flex flex-col items-center gap-1">
+                              <span>{Number(perf.avgTimeMin) || 0} дн.</span>
+                              {perf.techDebtClosed && perf.techDebtClosed.length > 0 && (
+                                <div className="group relative flex items-center justify-center">
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 cursor-help">
+                                    +{perf.techDebtClosed.length} стар.
+                                  </span>
+                                  {/* Всплывающая подсказка про старые задачи */}
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
+                                    <div className="font-bold text-purple-400 mb-1 border-b border-slate-700 pb-1">Закрыт старый долг (>30 дн):</div>
+                                    <div className="space-y-1 mt-1 max-h-32 overflow-y-auto custom-scrollbar">
+                                      {perf.techDebtClosed.map((td, i) => (
+                                        <div key={i} className="leading-tight bg-slate-900/50 p-1.5 rounded border border-slate-700">
+                                          <span className="text-purple-300 font-bold">{td.id}</span> <span className="text-slate-500">({td.days} дн.)</span><br/>
+                                          <span className="truncate block w-full text-[9px]">{td.title}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
                           <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
                           
                           <td className="py-3 text-center">
@@ -597,7 +701,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                 </span>
                                 <div className="flex flex-wrap justify-center gap-1 max-w-[120px]">
                                   {perf.reopenedTasks.map((taskItem, i) => {
-                                    // Поддержка как старого массива строк, так и нового массива объектов
                                     const tId = typeof taskItem === 'object' ? taskItem.id : taskItem;
                                     const tReason = typeof taskItem === 'object' ? taskItem.reason : 'Причина не проанализирована';
                                     return (
@@ -605,7 +708,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                         <span className="text-[9px] text-slate-400 border-b border-slate-600 border-dashed cursor-help hover:text-white transition-colors">
                                           {tId}
                                         </span>
-                                        {/* Всплывающая подсказка (Tooltip) */}
                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center pointer-events-none">
                                           <div className="font-bold text-amber-400 mb-1">Причина возврата:</div>
                                           {tReason}
