@@ -13,13 +13,15 @@ import {
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
 
 const USER_DICTIONARY = {
-  "u002209": "Антон Л.",
-  "obe1": "Петр С.",
-  "rem": "Роман Н.",
-  "u05112": "Владимир П.",
-  "u0287": "Марк Соколов",
+  "obe1": "Петр Скляренко",
+  "obe": "Петр Скляренко",
+  "u002209": "Антон Лысов",
+  "u0105": "Максим Нестеров",
   "u0279": "Никита Лысов",
-  "u0105": "Максим Н.",
+  "u05112": "Владимир Приходько",
+  "u01002": "Виктор С.",
+  "rem": "Роман Нор",
+  "u0287": "Марк Соколов",
   "u0608": "Максим Гуртов",
   "u0607": "Максим Отрошко"
 };
@@ -559,11 +561,11 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Server size={18} className="text-blue-400" /> Нагрузка: Инфраструктура (Задачи)</h3>
               </div>
-              <div className="overflow-x-auto custom-scrollbar">
+              <div className="overflow-x-auto custom-scrollbar pb-2">
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
-                      <th className="pb-3 font-medium">Исполнитель</th><th className="pb-3 font-medium text-center">Закрыто</th><th className="pb-3 font-medium text-center">Ср. Время</th><th className="pb-3 font-medium text-center">Логирование</th><th className="pb-3 font-medium text-center">Возвраты</th><th className="pb-3 font-medium text-center">Качество</th>
+                      <th className="pb-3 font-medium">Исполнитель</th><th className="pb-3 font-medium text-center">Закрыто</th><th className="pb-3 font-medium text-center">Cycle Time</th><th className="pb-3 font-medium text-center">Логирование</th><th className="pb-3 font-medium text-center">Возвраты</th><th className="pb-3 font-medium text-center">Качество</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/50">
@@ -575,20 +577,39 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                           <td className="py-3 text-center text-white font-bold">{Number(perf.closed) || 0}</td>
                           <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} дн.</td>
                           <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
+                          
                           <td className="py-3 text-center">
                             {perf.reopenedTasks && perf.reopenedTasks.length > 0 ? (
                               <div className="flex flex-col items-center gap-1">
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
                                   {perf.reopenedTasks.length} шт.
                                 </span>
-                                <span className="text-[9px] text-slate-500 leading-tight w-24 whitespace-normal">
-                                  {perf.reopenedTasks.join(', ')}
-                                </span>
+                                <div className="flex flex-wrap justify-center gap-1 max-w-[120px]">
+                                  {perf.reopenedTasks.map((taskItem, i) => {
+                                    // Поддержка как старого массива строк, так и нового массива объектов
+                                    const tId = typeof taskItem === 'object' ? taskItem.id : taskItem;
+                                    const tReason = typeof taskItem === 'object' ? taskItem.reason : 'Причина не проанализирована';
+                                    return (
+                                      <div key={i} className="group relative">
+                                        <span className="text-[9px] text-slate-400 border-b border-slate-600 border-dashed cursor-help hover:text-white transition-colors">
+                                          {tId}
+                                        </span>
+                                        {/* Всплывающая подсказка (Tooltip) */}
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center pointer-events-none">
+                                          <div className="font-bold text-amber-400 mb-1">Причина возврата:</div>
+                                          {tReason}
+                                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             ) : (
                               <span className="text-slate-600">-</span>
                             )}
                           </td>
+
                           <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-emerald-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
                         </tr>
                       );
