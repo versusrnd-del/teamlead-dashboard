@@ -1,12 +1,3 @@
-Ага, вижу на скрине! Проблема в том, что в прошлой версии кода имена переводились из логинов *только в момент загрузки нового JSON*. Если ты открыл неделю, которая уже была сохранена в базе ранее с логинами `obe1`, `u002209` и т.д., дашборд просто отрисовывал их как есть.
-
-Давай сделаем железобетонно: мы зашьем словарь с именами прямо в компонент отрисовки таблицы. Теперь дашборд будет переводить логины в ФИО «на лету» прямо на экране. Даже если в старых данных или в JSON будут кривые логины, на сайте **всегда** будут отображаться красивые фамилии.
-
-Я добавил строгий маппинг прямо в ячейки таблиц `topPerformers` и `taskPerformers`. 
-
-Вот финальный код `App.jsx`, скопируй его целиком и замени старый:
-
-```jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -299,7 +290,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div className="w-full sm:w-auto">
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
-          <p className="text-slate-400 text-sm">Оперативный статус направления техни поддержки</p>
+          <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
           
           <div className="mt-4 bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 w-full max-w-md">
              <div className="flex justify-between items-center mb-2">
@@ -606,6 +597,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                 </span>
                                 <div className="flex flex-wrap justify-center gap-1 max-w-[120px]">
                                   {perf.reopenedTasks.map((taskItem, i) => {
+                                    // Поддержка как старого массива строк, так и нового массива объектов
                                     const tId = typeof taskItem === 'object' ? taskItem.id : taskItem;
                                     const tReason = typeof taskItem === 'object' ? taskItem.reason : 'Причина не проанализирована';
                                     return (
@@ -1769,4 +1761,3 @@ const App = () => {
 };
 
 export default App;
-```
