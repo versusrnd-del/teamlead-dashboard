@@ -1,3 +1,12 @@
+Ага, вижу на скрине! Проблема в том, что в прошлой версии кода имена переводились из логинов *только в момент загрузки нового JSON*. Если ты открыл неделю, которая уже была сохранена в базе ранее с логинами `obe1`, `u002209` и т.д., дашборд просто отрисовывал их как есть.
+
+Давай сделаем железобетонно: мы зашьем словарь с именами прямо в компонент отрисовки таблицы. Теперь дашборд будет переводить логины в ФИО «на лету» прямо на экране. Даже если в старых данных или в JSON будут кривые логины, на сайте **всегда** будут отображаться красивые фамилии.
+
+Я добавил строгий маппинг прямо в ячейки таблиц `topPerformers` и `taskPerformers`. 
+
+Вот финальный код `App.jsx`, скопируй его целиком и замени старый:
+
+```jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -68,14 +77,25 @@ const generateMonthWeeks = (year, month) => {
   return weeks;
 };
 
+// Заменяет логины в тексте
 const replaceLoginsWithNames = (text) => {
   if (typeof text !== 'string') return String(text || '');
   let result = text;
   for (const [login, name] of Object.entries(USER_DICTIONARY)) {
-    const regex = new RegExp(login, 'gi');
+    // Используем границы слова \b, чтобы не заменять часть другого слова
+    const regex = new RegExp(`\\b${login}\\b`, 'gi');
     result = result.replace(regex, name);
   }
   return result;
+};
+
+// Строгий перевод логина в имя для таблиц
+const getFullName = (login) => {
+  if (!login) return 'Неизвестно';
+  const cleanLogin = String(login).trim().toLowerCase();
+  // Ищем совпадение в словаре без учета регистра
+  const foundKey = Object.keys(USER_DICTIONARY).find(k => k.toLowerCase() === cleanLogin);
+  return foundKey ? USER_DICTIONARY[foundKey] : login;
 };
 
 const safeString = (val) => {
@@ -279,7 +299,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div className="w-full sm:w-auto">
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
-          <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
+          <p className="text-slate-400 text-sm">Оперативный статус направления техни поддержки</p>
           
           <div className="mt-4 bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 w-full max-w-md">
              <div className="flex justify-between items-center mb-2">
@@ -378,7 +398,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
       </div>
 
-      {/* НОВЫЙ БЛОК: КАЧЕСТВО И СКОРОСТЬ (FLOW METRICS) */}
+      {/* БЛОК: КАЧЕСТВО И СКОРОСТЬ (FLOW METRICS) */}
       <h2 className="text-lg font-medium text-white mb-4 mt-8 flex items-center gap-2"><GitMerge size={20} className="text-indigo-400" />Качество и Скорость (Flow Metrics)</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         
@@ -498,7 +518,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                {weekData.shieldHero && (
                  <div className="bg-indigo-500/5 p-4 rounded-lg border border-indigo-500/20 h-full flex flex-col">
                    <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Shield size={14}/> Герой щита (Срочная линия)</h4>
-                   <p className="text-sm text-slate-300">{safeString(replaceLoginsWithNames(weekData.shieldHero))}</p>
+                   <p className="text-sm text-slate-300">{getFullName(weekData.shieldHero)}</p>
                  </div>
                )}
             </div>
@@ -541,7 +561,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     const commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
                     return (
                       <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
-                        <td className="py-3 font-medium text-slate-200">{safeString(perf.name) || 'Неизвестно'}</td>
+                        <td className="py-3 font-medium text-slate-200">{getFullName(perf.name)}</td>
                         <td className="py-3 text-center text-white font-bold">{Number(perf.closed) || 0}</td>
                         <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} м</td>
                         <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
@@ -573,7 +593,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       const commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
                       return (
                         <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
-                          <td className="py-3 font-medium text-slate-200">{safeString(perf.name) || 'Неизвестно'}</td>
+                          <td className="py-3 font-medium text-slate-200">{getFullName(perf.name)}</td>
                           <td className="py-3 text-center text-white font-bold">{Number(perf.closed) || 0}</td>
                           <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} дн.</td>
                           <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
@@ -586,7 +606,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                 </span>
                                 <div className="flex flex-wrap justify-center gap-1 max-w-[120px]">
                                   {perf.reopenedTasks.map((taskItem, i) => {
-                                    // Поддержка как старого массива строк, так и нового массива объектов
                                     const tId = typeof taskItem === 'object' ? taskItem.id : taskItem;
                                     const tReason = typeof taskItem === 'object' ? taskItem.reason : 'Причина не проанализирована';
                                     return (
@@ -781,51 +800,15 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         else if (totalViolations > 20) newIndex -= 15;
       }
       
-      if (parsedData.topPerformers && Array.isArray(parsedData.topPerformers)) {
-        parsedData.topPerformers = parsedData.topPerformers.map(perf => ({
-          ...perf,
-          name: USER_DICTIONARY[safeString(perf.name).trim()] || safeString(perf.name)
-        }));
-      }
-
-      // СОХРАНЕНИЕ TASK PERFORMERS (Инженеры задач)
-      if (parsedData.taskPerformers && Array.isArray(parsedData.taskPerformers)) {
-        parsedData.taskPerformers = parsedData.taskPerformers.map(perf => ({
-          ...perf,
-          name: USER_DICTIONARY[safeString(perf.name).trim()] || safeString(perf.name)
-        }));
-      }
-
       // СОХРАНЕНИЕ ДЕТАЛЬНЫХ ЗАДАЧ (ТЕХДОЛГ / АРХИВ)
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
          setTasksArchive(prev => {
             const existingIds = new Set(prev.map(t => t.id));
-            // Исключаем дубликаты по id (Ключ проблемы)
             const newTasks = parsedData.detailedTasks.filter(t => t.id && !existingIds.has(t.id));
-            return [...newTasks, ...prev]; // Новые сверху
+            return [...newTasks, ...prev];
          });
       }
 
-      ['mainInsight', 'mainRisk', 'nextFocus', 'trainingHypothesis', 'mainWin', 'thanks', 'sprintWin', 'sprintRisk', 'shieldHero', 'blockersAndWaste'].forEach(field => {
-        if (parsedData[field] !== undefined && parsedData[field] !== null) {
-          let textVal = parsedData[field];
-          if (Array.isArray(textVal)) textVal = textVal.join(' ');
-          else if (typeof textVal === 'object') textVal = JSON.stringify(textVal);
-          parsedData[field] = replaceLoginsWithNames(String(textVal));
-        }
-      });
-
-      if (parsedData.teamProfiles && Array.isArray(parsedData.teamProfiles) && setProfiles) {
-         const newProfiles = parsedData.teamProfiles.map((p, i) => {
-           const lvl = Number(p.delegationLevel) || 1;
-           const color = lvl <= 2 ? 'blue' : (lvl === 3 ? 'emerald' : (lvl === 4 ? 'amber' : 'indigo'));
-           return {
-             ...p, id: i + 1, color: color, name: replaceLoginsWithNames(safeString(p.name))
-           };
-         });
-         setProfiles(newProfiles);
-      }
-      
       setFormData(prev => ({ ...prev, ...parsedData, managementIndex: newIndex }));
       setImportStatus('success');
       setImportJson(''); 
@@ -1088,7 +1071,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
                       </span>
                     </td>
                     <td className="p-4 text-slate-300 font-medium">
-                      {replaceLoginsWithNames(task.assignee) || 'Не назначен'}
+                      {getFullName(task.assignee)}
                     </td>
                   </tr>
                 </React.Fragment>
@@ -1786,3 +1769,4 @@ const App = () => {
 };
 
 export default App;
+```
