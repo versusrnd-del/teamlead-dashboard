@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -1243,67 +1243,157 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const sortedTaskPerformers = [...(weekData.taskPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
   const sortedIncPerformers = [...(weekData.topPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
 
-  // Шаблон главного Elite-отчета
-  const eliteReportContent = `=================================================
-📊 ЕЖЕНЕДЕЛЬНЫЙ СТАТУС-ОТЧЕТ: ИНФРАСТРУКТУРА И 1-Я ЛИНИЯ
-=================================================
+  // Получаем список ВЫПОЛНЕННЫХ задач из подробного архива
+  const completedDetailedTasks = (weekData.detailedTasks || [])
+    .filter(t => t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved)
+    .sort((a, b) => new Date(b.resolved) - new Date(a.resolved));
+
+  // Функция, генерирующая HTML-строку со встроенными стилями (для копирования в Word/Outlook)
+  const getReportHtmlString = () => {
+    // Вспомогательная функция для генерации таблиц
+    const generateTableHtml = (headers, rows) => {
+      return `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
+          <thead>
+            <tr>
+              ${headers.map(h => `<th style="border-bottom: 2px solid #e2e8f0; padding: 10px 8px; text-align: left; color: #475569; font-size: 12px; text-transform: uppercase;">${h}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                ${r.map((cell, idx) => `<td style="border-bottom: 1px solid #f1f5f9; padding: 10px 8px; color: #1e293b; font-size: 13px; ${idx > 0 ? 'text-align: center;' : ''}">${cell}</td>`).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    };
+
+    const taskRows = sortedTaskPerformers.map(p => [getFullName(p.name), p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`]);
+    const incRows = sortedIncPerformers.map(p => [getFullName(p.name), p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
+
+    return `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 800px; margin: 0 auto; line-height: 1.5;">
+        
+        <!-- HEADER -->
+        <div style="border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px;">
+          <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">Статус-отчет: Техподдержка и Инфраструктура</h1>
+          <p style="margin: 0; color: #64748b; font-size: 14px;">Отчетный период: Неделя ${weekData.weekNumber} (${safeString(weekData.dates)}) | Отдел: OSO_Support</p>
+        </div>
+
+        <!-- 1. METRICS -->
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #3b82f6; padding-left: 10px; margin-top: 30px;">1. Операционная сводка (KPI)</h2>
+        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+          <div style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Инциденты (1 линия)</div>
+            <div style="font-size: 24px; font-weight: bold; color: #10b981;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
+            <div style="font-size: 12px; color: #64748b; mt-1">Очередь: ${weekData.incidentsQueue || 0}</div>
+          </div>
+          <div style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Задачи (Инфра)</div>
+            <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
+            <div style="font-size: 12px; color: #64748b; mt-1">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
+          </div>
+          <div style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Индекс SLA</div>
+            <div style="font-size: 24px; font-weight: bold; color: ${weekData.managementIndex >= 70 ? '#10b981' : '#ef4444'};">${weekData.managementIndex || 0}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
+            <div style="font-size: 12px; color: #64748b; mt-1">Возвраты: ${weekData.reopenRate || 0}%</div>
+          </div>
+        </div>
+
+        <!-- 2. TEAM -->
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #8b5cf6; padding-left: 10px; margin-top: 30px;">2. Нагрузка и Исполнители</h2>
+        
+        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Инфраструктура (Задачи)</h3>
+        ${generateTableHtml(['Сотрудник', 'В работе (WIP)', 'Закрыто', 'Cycle Time'], taskRows.slice(0, 7))}
+
+        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Первая линия (Инциденты)</h3>
+        ${generateTableHtml(['Сотрудник', 'Закрыто', 'Ср. Время', 'CSAT'], incRows.slice(0, 5))}
+
+        <!-- 3. DETAILED TASKS -->
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #10b981; padding-left: 10px; margin-top: 30px;">3. Выполненные задачи за неделю</h2>
+        <div style="font-size: 13px; color: #334155; margin-bottom: 15px;">
+           ${doneTasksText ? doneTasksText.split('\n').map(line => `<p style="margin: 4px 0;">${line}</p>`).join('') : ''}
+        </div>
+        ${completedDetailedTasks.length > 0 ? `
+          <ul style="font-size: 13px; color: #334155; padding-left: 20px; list-style-type: square;">
+            ${completedDetailedTasks.map(t => `<li style="margin-bottom: 6px;"><b>${t.id}</b>: ${t.title} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
+          </ul>
+        ` : '<p style="font-size: 13px; color: #64748b;">Список задач не загружен.</p>'}
+
+        <!-- 4. MANAGEMENT -->
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #f59e0b; padding-left: 10px; margin-top: 30px;">4. Проекты и Поручения</h2>
+        <div style="background: #fffbeb; padding: 15px; border-radius: 8px; border: 1px solid #fde68a; font-size: 13px;">
+          ${managementPlansText ? managementPlansText.split('\n').map(line => `<p style="margin: 4px 0;">${line}</p>`).join('') : '<p style="color: #92400e; margin: 0;">Нет данных</p>'}
+        </div>
+
+        <!-- 5. RISKS -->
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #ef4444; padding-left: 10px; margin-top: 30px;">5. Риски, Инциденты и Улучшения</h2>
+        <ul style="font-size: 13px; color: #334155; padding-left: 20px;">
+          <li style="margin-bottom: 8px;"><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
+          <li style="margin-bottom: 8px;"><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk)}</li>
+          <li style="margin-bottom: 8px;"><b>План расшивки:</b> ${safeString(weekData.nextFocus)}</li>
+        </ul>
+
+      </div>
+    `;
+  };
+
+  // Копирование Rich Text (HTML) в буфер обмена
+  const handleCopyHtml = async () => {
+    try {
+      const htmlString = getReportHtmlString();
+      const blobHtml = new Blob([htmlString], { type: "text/html" });
+      const blobText = new Blob([eliteReportContent], { type: "text/plain" });
+      const data = [new ClipboardItem({ ["text/plain"]: blobText, ["text/html"]: blobHtml })];
+      
+      await navigator.clipboard.write(data);
+      setCopiedId('html');
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      // Фолбэк для старых браузеров
+      const textArea = document.createElement("textarea");
+      textArea.value = eliteReportContent; document.body.appendChild(textArea); textArea.select();
+      document.execCommand('copy'); document.body.removeChild(textArea);
+      setCopiedId('html'); setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
+
+  // Plain Text Preview Content
+  const eliteReportContent = `ЕЖЕНЕДЕЛЬНЫЙ СТАТУС-ОТЧЕТ: ИНФРАСТРУКТУРА И 1-Я ЛИНИЯ
 Отчетный период: Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})
 
-1. 📈 ОПЕРАЦИОННАЯ СВОДКА (DELIVERY METRICS)
+1. ОПЕРАЦИОННАЯ СВОДКА (KPI)
 -------------------------------------------------
-• Инциденты (1-я линия): 
-  - Решено: ${totalIncidents} шт. 
-  - В очереди (на конец недели): ${weekData.incidentsQueue || 0} шт.
-• Задачи (Инфраструктура): 
-  - Выполнено: ${totalClosedCount} шт. (Спринт: ${weekData.sprintCompleted || 0}, Срочные: ${weekData.urgentCompleted || 0})
-  - Бэклог OSO_Support: ${weekData.backlog || 0} шт. (Из них >30 дней: ${weekData.backlogOld30 || 0} шт.)
-• Индекс управляемости (SLA): ${weekData.managementIndex || 0}/100
+• Инциденты (1-я линия): Решено ${totalIncidents} шт. | Очередь: ${weekData.incidentsQueue || 0}
+• Задачи (Инфра): Закрыто ${totalClosedCount} шт. | Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})
+• Индекс SLA: ${weekData.managementIndex || 0}/100 | Возвраты: ${weekData.reopenRate || 0}%
 
-2. 🏆 НАГРУЗКА И ТОП ИСПОЛНИТЕЛЕЙ
+2. НАГРУЗКА И ТОП ИСПОЛНИТЕЛЕЙ
 -------------------------------------------------
 [Инфраструктура - Задачи]
-${sortedTaskPerformers.slice(0, 5).map(p => `• ${getFullName(p.name)}: ${p.closed} шт. (Ср. время цикла: ${Number(p.avgTimeMin)||0} дн.)`).join('\n')}
+${sortedTaskPerformers.slice(0, 5).map(p => `• ${getFullName(p.name)}: WIP ${p.wip || 0} | Закрыто ${p.closed} | Cycle: ${Number(p.avgTimeMin)||0} дн.`).join('\n')}
 
 [1-я Линия - Инциденты]
-${sortedIncPerformers.slice(0, 5).map(p => `• ${getFullName(p.name)}: ${p.closed} шт. (CSAT: ${formatCSAT(p.csat)})`).join('\n')}
+${sortedIncPerformers.slice(0, 5).map(p => `• ${getFullName(p.name)}: Закрыто ${p.closed} | Время: ${Number(p.avgTimeMin)||0} м. | CSAT: ${formatCSAT(p.csat)}`).join('\n')}
 
-3. 🚀 КЛЮЧЕВЫЕ РЕЗУЛЬТАТЫ (ПОСТАВКА ЦЕННОСТИ)
+3. ВЫПОЛНЕННЫЕ ЗАДАЧИ
 -------------------------------------------------
-${doneTasksText.trim() ? doneTasksText : 'Нет данных'}
+${doneTasksText.trim() ? doneTasksText + '\n\n' : ''}Список из Jira:
+${completedDetailedTasks.length > 0 ? completedDetailedTasks.map(t => `${t.id}: ${t.title} (${getFullName(t.assignee)})`).join('\n') : 'Нет данных'}
 
-4. 🎯 СТАТУС ПО ПРОЕКТАМ И ЗАДАЧАМ РУКОВОДСТВА
+4. СТАТУС ПО ПРОЕКТАМ И ПОРУЧЕНИЯМ
 -------------------------------------------------
 ${managementPlansText.trim() ? managementPlansText : 'Нет данных'}
 
-5. ⚠️ РИСКИ, УЗКИЕ МЕСТА И УЛУЧШЕНИЯ
+5. РИСКИ И УЛУЧШЕНИЯ
 -------------------------------------------------
-• Топ-драйверы инцидентов: ${top3Text || 'Нет данных'}
-• Риски потока: ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}
-• План расшивки (Foucus): ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}
-
-6. 📞 ТЕЛЕФОНИЯ (CALL CENTER)
--------------------------------------------------
-[Блок зарезервирован под выгрузку телефонии]
+• Топ-драйверы: ${top3Text || 'Нет данных'}
+• Риски: ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}
+• План: ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}
 `;
-
-  // Оставляем старые "быстрые" отчеты как дополнительные
-  const quickReports = [
-    {
-      id: 'team', title: 'Быстрый статус для команды (в Чат)', icon: Users, color: 'emerald',
-      content: `Привет, команда! Итоги ${weekData.weekNumber || ''} недели (${safeString(weekData.dates)}):\n\n✅ 1-я линия: закрыто ${weekData.incidentsClosed || 0} инцидентов. 🔥 Топ-3 проблемы: ${top3Text}.\n🚀 Инфраструктура: отбили ${weekData.urgentCompleted || 0} внеплановых задач. Всего закрыли ${totalClosedCount} задач (Спринт: ${weekData.sprintCompleted || 0}).\n\n🏆 Успех недели: ${safeString(weekData.mainWin) || 'Выдержали темп!'}\n🙏 За Кайдзен спасибо: ${safeString(weekData.thanks) || 'Всю команду!'}\n\n🎯 Фокус на след. неделю: ${safeString(weekData.nextFocus)}`
-    },
-    {
-      id: 'retro', title: 'Отчет для Ретроспективы (Аудит)', icon: BookOpen, color: 'fuchsia',
-      content: `Рефлексия (Этап 2). Неделя ${weekData.weekNumber || ''}.\n\n🎯 Процессная гипотеза:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики:\n- Ср. время решения (Cycle Time): ${weekData.avgCycleTime || 0} дн.\n- Возврат (Reopen Rate): ${weekData.reopenRate || 0}%\n- Capacity: ${totalClosedCount} задач.\n- Возраст техдолга: ${weekData.backlogOld30 || 0} задач висят > 30 дней.\n\n💡 Аудит процесса:\n${safeString(weekData.mainInsight)}\n\n🚧 Bottlenecks (Ограничения):\n${safeString(weekData.mainRisk)}`
-    }
-  ];
-
-  const handleCopy = (text, id) => {
-    const textArea = document.createElement("textarea");
-    textArea.value = text; document.body.appendChild(textArea); textArea.select();
-    try { document.execCommand('copy'); setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); } catch (err) {}
-    document.body.removeChild(textArea);
-  };
 
   return (
     <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
@@ -1319,11 +1409,11 @@ ${managementPlansText.trim() ? managementPlansText : 'Нет данных'}
         {/* ЛЕВАЯ КОЛОНКА: РУЧНОЙ ВВОД ДАННЫХ */}
         <div className="space-y-6">
           <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm p-5">
-            <h3 className="text-slate-200 font-bold mb-2 flex items-center gap-2"><Target size={18} className="text-emerald-400"/> 3. Выполненные ключевые задачи (Ценность)</h3>
-            <p className="text-xs text-slate-500 mb-3">Скопируй сюда список достижений по системам (PSI DSS, Zabbix, IDM и т.д.)</p>
+            <h3 className="text-slate-200 font-bold mb-2 flex items-center gap-2"><Target size={18} className="text-emerald-400"/> 3. Выполненные ключевые задачи (Мануал)</h3>
+            <p className="text-xs text-slate-500 mb-3">Скопируй сюда ручные пояснения (система автоматически добавит ниже список всех задач из Jira).</p>
             <textarea 
               value={doneTasksText} onChange={(e)=>setDoneTasksText(e.target.value)}
-              placeholder="Пример:&#10;PSI DSS:&#10;- Обновили ОС Win10 до Win11 на NUC...&#10;- Настроили сервера...&#10;&#10;ZABBIX:&#10;- Подключили новый хост..."
+              placeholder="Пример:&#10;PSI DSS:&#10;- Обновили ОС Win10 до Win11...&#10;&#10;ZABBIX:&#10;- Подключили новый хост..."
               className="w-full h-48 bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-300 outline-none focus:border-emerald-500 custom-scrollbar"
             />
           </div>
@@ -1333,7 +1423,7 @@ ${managementPlansText.trim() ? managementPlansText : 'Нет данных'}
             <p className="text-xs text-slate-500 mb-3">Вставь сюда статусы по проектным задачам из бэклога руководства</p>
             <textarea 
               value={managementPlansText} onChange={(e)=>setManagementPlansText(e.target.value)}
-              placeholder="Пример:&#10;- Распределение ВМ csd2016: в работе, ждем фидбек от сети.&#10;- Замена Win10: тестирование проведено успешно."
+              placeholder="Пример:&#10;- Распределение ВМ csd2016: в работе, ждем фидбек.&#10;- Замена Win10: тестирование проведено успешно."
               className="w-full h-48 bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-300 outline-none focus:border-blue-500 custom-scrollbar"
             />
           </div>
@@ -1341,36 +1431,25 @@ ${managementPlansText.trim() ? managementPlansText : 'Нет данных'}
 
         {/* ПРАВАЯ КОЛОНКА: ИТОГОВЫЙ ОТЧЕТ */}
         <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-xl flex flex-col overflow-hidden h-full">
-          <div className="bg-indigo-500/10 p-4 border-b border-indigo-500/20 flex justify-between items-center">
-            <div className="flex items-center gap-2"><FileText size={18} className="text-indigo-400" /><h3 className="font-bold text-slate-200">Финальный отчет (Preview)</h3></div>
-            <button onClick={() => handleCopy(eliteReportContent, 'elite')} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${copiedId === 'elite' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg'}`}>
-              {copiedId === 'elite' ? <Check size={16} /> : <Copy size={16} />} {copiedId === 'elite' ? 'Скопировано!' : 'Копировать'}
-            </button>
+          <div className="bg-indigo-500/10 p-4 border-b border-indigo-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-2">
+               <FileText size={18} className="text-indigo-400" />
+               <h3 className="font-bold text-slate-200">Финальный отчет</h3>
+            </div>
+            
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button onClick={handleCopyHtml} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${copiedId === 'html' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg'}`}>
+                {copiedId === 'html' ? <Check size={16} /> : <Copy size={16} />} 
+                <span className="hidden sm:inline">{copiedId === 'html' ? 'Скопировано!' : 'Копировать в Word/Mail'}</span>
+                <span className="sm:hidden">{copiedId === 'html' ? 'ОК' : 'Copy Word'}</span>
+              </button>
+            </div>
           </div>
-          <div className="p-0 flex-1 relative">
-            <textarea readOnly value={eliteReportContent} className="w-full h-full min-h-[500px] bg-slate-950 text-slate-300 text-[13px] leading-relaxed p-6 resize-none outline-none focus:ring-0 custom-scrollbar font-mono" />
+          <div className="p-0 flex-1 relative bg-slate-950">
+             {/* РЕНДЕР ПРЕВЬЮ ИЗ HTML СТРОКИ */}
+            <div className="w-full h-[520px] overflow-y-auto custom-scrollbar p-6 bg-white" dangerouslySetInnerHTML={{ __html: getReportHtmlString() }} />
           </div>
         </div>
-      </div>
-
-      {/* ДОПОЛНИТЕЛЬНЫЕ ОТЧЕТЫ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {quickReports.map((report) => {
-          const Icon = report.icon; const isCopied = copiedId === report.id;
-          return (
-            <div key={report.id} className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm flex flex-col overflow-hidden h-64">
-              <div className={`bg-slate-900/50 p-4 border-b border-slate-700/50 flex justify-between items-center`}>
-                <div className="flex items-center gap-2"><Icon size={18} className={`text-${report.color}-400`} /><h3 className="font-medium text-slate-200 text-sm">{report.title}</h3></div>
-              </div>
-              <div className="p-4 flex-1"><textarea readOnly value={report.content} className="w-full h-full bg-transparent text-slate-400 text-xs resize-none outline-none focus:ring-0 custom-scrollbar" /></div>
-              <div className="p-3 bg-slate-900/30 border-t border-slate-700/50">
-                <button onClick={() => handleCopy(report.content, report.id)} className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-colors ${isCopied ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600'}`}>
-                  {isCopied ? <Check size={14} /> : <Copy size={14} />} {isCopied ? 'Скопировано!' : 'Копировать'}
-                </button>
-              </div>
-            </div>
-          )
-        })}
       </div>
     </div>
   );
