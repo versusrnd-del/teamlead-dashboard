@@ -1226,25 +1226,25 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const [isDirty, setIsDirty] = useState(false);
   
   // Локальный стейт для ручного ввода данных руководителю
-  const [doneTasksText, setDoneTasksText] = useState(weekData?.doneTasksText || '');
-  const [managementPlansText, setManagementPlansText] = useState(weekData?.managementPlansText || '');
+  const [doneTasksText, setDoneTasksText] = useState(weekData.doneTasksText || '');
+  const [managementPlansText, setManagementPlansText] = useState(weekData.managementPlansText || '');
 
   // Ссылка на div для копирования HTML
   const reportRef = useRef(null);
 
   // Сброс локального состояния при переключении недели
   useEffect(() => {
-    setDoneTasksText(weekData?.doneTasksText || '');
-    setManagementPlansText(weekData?.managementPlansText || '');
+    setDoneTasksText(weekData.doneTasksText || '');
+    setManagementPlansText(weekData.managementPlansText || '');
     setIsDirty(false);
-  }, [weekData?.weekNumber]);
+  }, [weekData.weekNumber]);
 
   const handleTextareaBlur = () => {
-     if(onSaveWeek) onSaveWeek({ ...weekData, doneTasksText, managementPlansText });
+     onSaveWeek({ ...weekData, doneTasksText, managementPlansText });
   };
 
   const handleFreezeReport = () => {
-     if (reportRef.current && onSaveWeek) {
+     if (reportRef.current) {
         onSaveWeek({ 
            ...weekData, 
            doneTasksText, 
@@ -1257,56 +1257,52 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   };
 
   const handleUnfreezeReport = () => {
-     if(onSaveWeek) {
-       onSaveWeek({
-          ...weekData,
-          doneTasksText,
-          managementPlansText,
-          customReportHtml: null,
-          isReportFrozen: false
-       });
-     }
+     onSaveWeek({
+        ...weekData,
+        customReportHtml: null,
+        isReportFrozen: false
+     });
      setIsDirty(false);
   };
 
-  // БЕЗОПАСНЫЕ Расчеты для отчета (защита от null)
-  const safeData = weekData || {};
-  const sortedIncidents = Array.isArray(safeData.topIncidents) ? [...safeData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
+  // Расчеты для отчета
+  const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
   const top3Text = sortedIncidents.slice(0, 3).map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
   
-  const totalClosedCount = (Number(safeData.sprintCompleted)||0) + (Number(safeData.urgentCompleted)||0) + (Number(safeData.backlogCompleted)||0);
-  const totalIncidents = Number(safeData.incidentsClosed) || 0;
+  const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
+  const totalIncidents = Number(weekData.incidentsClosed) || 0;
+  const managementIndex = Number(weekData.managementIndex) || 0;
 
-  const sortedTaskPerformers = Array.isArray(safeData.taskPerformers) ? [...safeData.taskPerformers].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0)) : [];
-  const sortedIncPerformers = Array.isArray(safeData.topPerformers) ? [...safeData.topPerformers].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0)) : [];
+  const sortedTaskPerformers = [...(weekData.taskPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
+  const sortedIncPerformers = [...(weekData.topPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
 
-  // Ограничиваем список задач, чтобы не "повесить" браузер, если их тысячи
-  const completedDetailedTasks = Array.isArray(safeData.detailedTasks) 
-    ? safeData.detailedTasks.filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved)).slice(0, 50)
-    : [];
+  // Получаем список ВЫПОЛНЕННЫХ задач из подробного архива
+  // БЕЗ ОПАСНОЙ СОРТИРОВКИ ДАТ!
+  const completedDetailedTasks = (weekData.detailedTasks || [])
+    .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
 
-  // Функция для отрисовки "прогресс-бара" ТАБЛИЦЕЙ для Word/Почты
+  // Цветовая логика для "Красных температур"
+  const incColor = totalIncidents >= 300 ? '#ef4444' : '#10b981'; // Если >= 300 инцидентов - красный
+  const taskColor = totalClosedCount >= 50 ? '#ef4444' : '#3b82f6'; // Если >= 50 задач - красный
+  const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981'; // Если индекс < 70 - красный
+
+  // Функция для отрисовки "прогресс-бара" внутри HTML для Word/Почты через вложенные таблицы
   const renderProgressBar = (value, max, color) => {
-    let percentage = 0;
-    if (max > 0) {
-      percentage = Math.min(Math.max(Math.round((value / max) * 100), 0), 100);
-    }
-    if (isNaN(percentage)) percentage = 0;
-
+    const percentage = Math.min(Math.round((value / max) * 100), 100);
     return `
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 8px; background-color: #e2e8f0; border-radius: 4px; height: 6px; width: 100%;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 8px; width: 100%; background-color: #e2e8f0; border-radius: 4px;">
         <tr>
-          <td width="${percentage}%" style="background-color: ${color}; height: 6px; border-radius: 4px 0 0 4px; padding: 0; margin: 0; font-size: 0; line-height: 0;">&nbsp;</td>
-          <td width="${100 - percentage}%" style="background-color: transparent; height: 6px; padding: 0; margin: 0; font-size: 0; line-height: 0;">&nbsp;</td>
+          ${percentage > 0 ? `<td width="${percentage}%" style="background-color: ${color}; height: 6px; border-radius: 4px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
+          ${percentage < 100 ? `<td width="${100 - percentage}%" style="height: 6px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
         </tr>
       </table>
     `;
   };
 
-  // Функция, генерирующая HTML-строку со встроенными стилями (WORD-FRIENDLY)
+  // Функция, генерирующая HTML-строку со встроенными стилями (WORD-FRIENDLY, ТАБЛИЧНАЯ ВЕРСТКА)
   const getReportHtmlString = () => {
+    // Вспомогательная функция для генерации таблиц
     const generateTableHtml = (headers, rows) => {
-      if (!rows || rows.length === 0) return '<p style="font-size: 13px; color: #64748b; font-style: italic;">Нет данных</p>';
       return `
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; margin-bottom: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
           <thead>
@@ -1328,21 +1324,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const taskRows = sortedTaskPerformers.map(p => [getFullName(p.name), p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`]);
     const incRows = sortedIncPerformers.map(p => [getFullName(p.name), p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
 
-    // Цветовая температура шкал
-    let incColor = '#10b981'; if (totalIncidents > 300) incColor = '#ef4444'; else if (totalIncidents > 200) incColor = '#f59e0b';
-    let taskColor = '#3b82f6'; if (totalClosedCount > BASE_CAPACITY * 1.2) taskColor = '#ef4444'; else if (totalClosedCount > BASE_CAPACITY * 0.8) taskColor = '#f59e0b';
-    let indexColor = '#10b981'; if (safeData.managementIndex <= 0) indexColor = '#ef4444'; else if (safeData.managementIndex < 70) indexColor = '#f59e0b';
-
     return `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 800px; margin: 0 auto; line-height: 1.5; background-color: #ffffff;">
         
         <!-- HEADER -->
         <div style="border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px;">
           <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">Статус-отчет: Направление технической поддержки ОСО</h1>
-          <p style="margin: 0; color: #64748b; font-size: 14px;">Отчетный период: Неделя ${safeData.weekNumber} (${safeString(safeData.dates)})</p>
+          <p style="margin: 0; color: #64748b; font-size: 14px;">Отчетный период: Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})</p>
         </div>
 
-        <!-- 1. METRICS -->
+        <!-- 1. METRICS (ИСПОЛЬЗУЕМ ТАБЛИЦУ ДЛЯ WORD-СОВМЕСТИМОСТИ) -->
         <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #3b82f6; padding-left: 10px; margin-top: 30px; margin-bottom: 15px;">1. Операционная сводка (KPI)</h2>
         
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
@@ -1350,22 +1341,22 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; vertical-align: top;">
               <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Инциденты (1 линия)</div>
               <div style="font-size: 24px; font-weight: bold; color: ${incColor}; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
-              <div style="font-size: 12px; color: #64748b;">Очередь: ${safeData.incidentsQueue || 0}</div>
+              <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
               ${renderProgressBar(totalIncidents, 400, incColor)}
             </td>
             <td width="2%"></td> <!-- SPACER -->
             <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; vertical-align: top;">
               <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
               <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
-              <div style="font-size: 12px; color: #64748b;">Бэклог: ${safeData.backlog || 0} (>30д: ${safeData.backlogOld30 || 0})</div>
-              ${renderProgressBar(totalClosedCount, Math.max(100, BASE_CAPACITY * 1.5), taskColor)}
+              <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
+              ${renderProgressBar(totalClosedCount, 100, taskColor)}
             </td>
             <td width="2%"></td> <!-- SPACER -->
             <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; vertical-align: top;">
               <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Индекс SLA</div>
-              <div style="font-size: 24px; font-weight: bold; color: ${indexColor}; margin-bottom: 5px;">${safeData.managementIndex || 0}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
-              <div style="font-size: 12px; color: #64748b;">Возвраты: ${safeData.reopenRate || 0}%</div>
-              ${renderProgressBar(safeData.managementIndex || 0, 100, indexColor)}
+              <div style="font-size: 24px; font-weight: bold; color: ${indexColor}; margin-bottom: 5px;">${managementIndex}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
+              <div style="font-size: 12px; color: #64748b;">Возвраты: ${weekData.reopenRate || 0}%</div>
+              ${renderProgressBar(managementIndex, 100, indexColor)}
             </td>
           </tr>
         </table>
@@ -1386,7 +1377,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         </div>
         ${completedDetailedTasks.length > 0 ? `
           <ul style="font-size: 13px; color: #334155; padding-left: 20px; list-style-type: square; margin-top: 10px;">
-            ${completedDetailedTasks.map(t => `<li style="margin-bottom: 6px;"><b>${safeString(t.id)}</b>: ${safeString(t.title)} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
+            ${completedDetailedTasks.map(t => `<li style="margin-bottom: 6px;"><b>${t.id}</b>: ${t.title} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
           </ul>
         ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
@@ -1400,30 +1391,28 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #ef4444; padding-left: 10px; margin-top: 30px; margin-bottom: 15px;">5. Риски, Инциденты и Улучшения</h2>
         <ul style="font-size: 13px; color: #334155; padding-left: 20px;">
           <li style="margin-bottom: 8px;"><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
-          <li style="margin-bottom: 8px;"><b>Ситуация в потоке:</b> ${safeString(safeData.mainRisk).replace(/\n/g, ' ')}</li>
-          <li style="margin-bottom: 8px;"><b>План расшивки:</b> ${safeString(safeData.nextFocus).replace(/\n/g, ' ')}</li>
+          <li style="margin-bottom: 8px;"><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
+          <li style="margin-bottom: 8px;"><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
         </ul>
 
       </div>
     `;
   };
 
-  // Обновляем содержимое div'а при изменении данных
+  // Единый UseEffect, который отвечает за наполнение HTML-отчета
   useEffect(() => {
     if (reportRef.current) {
-      if (weekData.isReportFrozen && weekData.customReportHtml) {
-          // Если заморожен, не трогаем, пусть висит старый HTML
-      } else {
-          // Если не заморожен, обновляем из генератора
-          reportRef.current.innerHTML = getReportHtmlString();
-      }
+        if (weekData.isReportFrozen && weekData.customReportHtml) {
+            reportRef.current.innerHTML = weekData.customReportHtml;
+        } else {
+            reportRef.current.innerHTML = getReportHtmlString();
+        }
     }
   }, [weekData, doneTasksText, managementPlansText]);
 
-  // Копирование Rich Text (HTML) из DOM
+  // Копирование Rich Text (HTML) из DOM (чтобы захватить ручные правки пользователя!)
   const handleCopyHtml = async () => {
     try {
-      if (!reportRef.current) return;
       const htmlContent = reportRef.current.innerHTML;
       const fullHtml = `<html><body>${htmlContent}</body></html>`;
       const blobHtml = new Blob([fullHtml], { type: "text/html" });
@@ -1435,17 +1424,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
       console.error('Failed to copy: ', err);
+      // Фолбэк для старых браузеров
       const textArea = document.createElement("textarea");
-      textArea.value = "Ошибка копирования. Используйте сочетание Ctrl+A и Ctrl+C внутри белого окна отчета."; 
+      textArea.value = "Ошибка копирования HTML. Воспользуйтесь выделением текста (Ctrl+A) и копированием (Ctrl+C) прямо внутри белого поля."; 
       document.body.appendChild(textArea); textArea.select();
       document.execCommand('copy'); document.body.removeChild(textArea);
       setCopiedId('html'); setTimeout(() => setCopiedId(null), 2000);
     }
   };
 
-  // Скачивание как HTML файл
+  // Скачивание как HTML файл (с учетом ручных правок)
   const handleDownloadHtml = () => {
-    if (!reportRef.current) return;
     const htmlContent = reportRef.current.innerHTML;
     const htmlString = `
       <!DOCTYPE html>
@@ -1531,7 +1520,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-xl flex flex-col overflow-hidden h-full">
           
           {/* СТАТУС БАР */}
-          <div className="bg-slate-900 py-2 px-4 text-[10px] font-bold uppercase tracking-widest flex flex-col sm:flex-row items-center justify-between border-b border-slate-800 gap-2">
+          <div className="bg-slate-900 py-2 px-4 text-[10px] font-bold uppercase tracking-widest flex items-center justify-between border-b border-slate-800">
             <div className="flex items-center gap-2">
               {weekData.isReportFrozen ? (
                 <><Lock size={14} className="text-amber-500"/> <span className="text-amber-500/80">Отчет зафиксирован (Включены ручные правки)</span></>
@@ -1551,7 +1540,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                      <RefreshCcw size={14} /> <span className="hidden sm:inline">Сбросить правки</span>
                   </button>
                ) : (
-                  <button onClick={() => { handleFreezeReport(); }} className={`${isDirty ? 'bg-amber-500 animate-pulse text-slate-900' : 'bg-amber-600 text-white'} hover:bg-amber-500 px-3 py-2 rounded-lg text-xs font-bold transition-colors shadow-lg flex items-center gap-1.5`} title="Сохранить текущий вид и отключить автообновление">
+                  <button onClick={() => { handleFreezeReport(); setIsDirty(false); }} className={`${isDirty ? 'bg-amber-500 animate-pulse text-slate-900' : 'bg-amber-600 text-white'} hover:bg-amber-500 px-3 py-2 rounded-lg text-xs font-bold transition-colors shadow-lg flex items-center gap-1.5`} title="Сохранить текущий вид и отключить автообновление">
                      <Save size={14} /> <span className="hidden sm:inline">Зафиксировать</span>
                   </button>
                )}
@@ -1975,4 +1964,244 @@ const App = () => {
       if (cloudData && cloudData.length > 0) {
         const hRow = cloudData.find(r => r.key_name === 'history'); if (hRow) { setWeeksHistory(hRow.value_data); setSelectedWeekKey(Object.keys(hRow.value_data).sort().pop()); }
         const procRow = cloudData.find(r => r.key_name === 'processes'); if (procRow) setProcesses(procRow.value_data);
-        const achRow = cloudЯ не могу помочь вам. Я всего лишь языковая модель, и у меня нет возможности понять и ответить.
+        const achRow = cloudData.find(r => r.key_name === 'achievements'); if (achRow) setAchievements(achRow.value_data);
+        const profRow = cloudData.find(r => r.key_name === 'profiles'); if (profRow) setProfiles(profRow.value_data);
+        const taskRow = cloudData.find(r => r.key_name === 'tasks_archive'); if (taskRow) setTasksArchive(taskRow.value_data);
+      }
+
+      // 2. ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ (АВТОРИЗАЦИЯ)
+      let loadedAuthUsers = [];
+      if (cloudData) {
+        const authRow = cloudData.find(r => r.key_name === 'auth_users');
+        if (authRow) loadedAuthUsers = authRow.value_data;
+      } else {
+        try { const localAuth = localStorage.getItem('teamlead_auth_v8'); if (localAuth) loadedAuthUsers = JSON.parse(localAuth); } catch (e) {}
+      }
+
+      if (!loadedAuthUsers || loadedAuthUsers.length === 0) {
+        const defaultHash = await hashPassword('Wmg82bpe'); 
+        loadedAuthUsers = [{ id: Date.now(), username: 'admin', passwordHash: defaultHash, role: 'admin' }];
+        
+        if (client && dbStatus !== 'error') {
+           await client.from('app_state').upsert({ key_name: 'auth_users', value_data: loadedAuthUsers });
+        } else {
+           localStorage.setItem('teamlead_auth_v8', JSON.stringify(loadedAuthUsers));
+        }
+      }
+      setAuthUsers(loadedAuthUsers);
+
+      try {
+        const session = localStorage.getItem('teamlead_session');
+        if (session) {
+          const { u, h } = JSON.parse(session);
+          const foundUser = loadedAuthUsers.find(user => user.username === u && user.passwordHash === h);
+          if (foundUser) setCurrentUser(foundUser);
+        }
+      } catch(e) {}
+
+      setIsLoaded(true);
+      setTimeout(() => { if (mounted) isReadyToSave.current = true; }, 1000);
+    };
+
+    let url = '';
+    let key = '';
+    try {
+      const env = typeof import.meta !== 'undefined' ? import.meta.env : {};
+      url = env.VITE_SUPABASE_URL || '';
+      key = env.VITE_SUPABASE_ANON_KEY || '';
+    } catch (e) {}
+
+    if (url && key) {
+      if (window.supabase) {
+        const client = window.supabase.createClient(url, key);
+        setSupabaseClient(client);
+        initData(client);
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js';
+        script.async = true;
+        script.onload = () => {
+          if (window.supabase) {
+            const client = window.supabase.createClient(url, key);
+            setSupabaseClient(client);
+            initData(client);
+          } else {
+            initData(null);
+          }
+        };
+        script.onerror = () => initData(null);
+        document.head.appendChild(script);
+      }
+    } else {
+      initData(null);
+    }
+
+    return () => { mounted = false; };
+  }, []);
+
+  // Синхронизация при изменениях
+  const saveToDb = async (key, data, localName) => {
+      if (!isReadyToSave.current) return;
+      localStorage.setItem(localName, JSON.stringify(data));
+      if (supabaseClient && dbStatus === 'connected') {
+          await supabaseClient.from('app_state').upsert({ key_name: key, value_data: data });
+      }
+  };
+
+  useEffect(() => { saveToDb('history', weeksHistory, 'teamlead_history_data_v8'); }, [weeksHistory]);
+  useEffect(() => { saveToDb('processes', processes, 'teamlead_processes_v8'); }, [processes]);
+  useEffect(() => { saveToDb('achievements', achievements, 'teamlead_achievements_v8'); }, [achievements]);
+  useEffect(() => { saveToDb('profiles', profiles, 'teamlead_profiles_v8'); }, [profiles]);
+  useEffect(() => { saveToDb('tasks_archive', tasksArchive, 'teamlead_tasks_archive_v8'); }, [tasksArchive]);
+  useEffect(() => { saveToDb('auth_users', authUsers, 'teamlead_auth_v8'); }, [authUsers]);
+
+
+  // ФУНКЦИИ АВТОРИЗАЦИИ
+  const handleLogin = async (username, password) => {
+    setLoginError('');
+    const inputHash = await hashPassword(password);
+    const user = authUsers.find(u => u.username === username && u.passwordHash === inputHash);
+    
+    if (user) {
+      setCurrentUser(user);
+      localStorage.setItem('teamlead_session', JSON.stringify({ u: user.username, h: user.passwordHash }));
+    } else {
+      setLoginError('Неверный логин или пароль');
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('teamlead_session');
+    setActiveTab('pulse');
+  };
+
+  // УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ (АДМИНКА)
+  const handleAddUser = async (newUser) => {
+    const hash = await hashPassword(newUser.password);
+    const newEntry = { id: Date.now(), username: newUser.username, passwordHash: hash, role: newUser.role };
+    setAuthUsers([...authUsers, newEntry]);
+  };
+
+  const handleUpdatePassword = async (id, newPassword) => {
+    const hash = await hashPassword(newPassword);
+    setAuthUsers(authUsers.map(u => u.id === id ? { ...u, passwordHash: hash } : u));
+    if (currentUser && currentUser.id === id) {
+      localStorage.setItem('teamlead_session', JSON.stringify({ u: currentUser.username, h: hash }));
+      setCurrentUser({ ...currentUser, passwordHash: hash });
+    }
+  };
+
+  const handleDeleteUser = (id) => { setAuthUsers(authUsers.filter(u => u.id !== id)); };
+
+  const activeWeekData = weeksHistory[selectedWeekKey] || defaultWeekData;
+  const historyKeys = Object.keys(weeksHistory).sort().reverse(); 
+
+  const handleSaveWeek = (newData) => {
+    const key = `${newData.year}-${newData.weekNumber}`;
+    setWeeksHistory(prev => ({ ...prev, [key]: newData }));
+    setSelectedWeekKey(key);
+    setActiveTab('pulse');
+  };
+
+  const renderContent = () => {
+    switch(activeTab) {
+      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
+      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} />;
+      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} />;
+      case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
+      case 'processes': return <ProcessesMap processes={processes} />; 
+      case 'achievements': return <AchievementsBoard achievements={achievements} />;
+      case 'profiles': return <TeamProfilesBoard profiles={profiles} />;
+      case 'settings': return <AdminSettings users={authUsers} onAddUser={handleAddUser} onUpdateUser={handleUpdatePassword} onDeleteUser={handleDeleteUser} />;
+      default:
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 h-full mt-20">
+            <GitMerge size={64} className="mb-4 opacity-20" />
+            <h2 className="text-xl font-medium">Раздел в разработке</h2>
+          </div>
+        );
+    }
+  };
+
+  if (!isLoaded) return <div className="h-screen bg-slate-900 flex items-center justify-center text-emerald-400"><Activity className="animate-spin mr-3"/> Загрузка Control Room...</div>;
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} error={loginError} />;
+
+  const navItems = [
+    { id: 'pulse', icon: Activity, label: 'Пульс команды', roles: ['admin', 'viewer'] },
+    { id: 'fill', icon: Pencil, label: 'Заполнить неделю', roles: ['admin'] },
+    { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
+    { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
+    { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
+    { id: 'achievements', icon: ActivitySquare, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
+    { id: 'profiles', icon: Users, label: 'Матрица компетенций', roles: ['admin', 'viewer'] },
+    { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
+  ].filter(item => item.roles.includes(currentUser.role));
+
+  return (
+    <div className="flex h-screen bg-slate-900 font-sans text-slate-200 overflow-hidden">
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.1); border-radius: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.6); border-radius: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.8); }
+      `}</style>
+      
+      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col flex-shrink-0 z-20 relative">
+        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40">
+            <LayoutDashboard size={20} className="text-emerald-400" />
+          </div>
+          <div>
+            <h1 className="font-black text-white text-lg leading-tight uppercase tracking-tighter">ЦЕНТР УПРАВЛЕНИЯ</h1>
+            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">ПАНЕЛЬ ТИМЛИДА</p>
+          </div>
+        </div>
+        
+        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2 custom-scrollbar">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id} onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200
+                  ${isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-900/10' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent'}`}
+              >
+                <Icon size={20} className={isActive ? 'text-emerald-400' : 'text-slate-500'} />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+        
+        <div className="p-4 border-t border-slate-800 space-y-3">
+          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800/50 flex items-center gap-3 shadow-inner">
+             <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : (dbStatus === 'error' ? 'bg-red-500' : 'bg-slate-500')}`}></div>
+             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{dbStatus === 'connected' ? 'СИНХРОНИЗАЦИЯ: ОК' : 'ЛОКАЛЬНЫЙ РЕЖИМ'}</div>
+          </div>
+          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 flex items-center justify-between shadow-inner">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white uppercase flex-shrink-0">
+                {currentUser.username.substring(0, 2).toUpperCase()}
+              </div>
+              <div className="overflow-hidden leading-tight">
+                 <p className="text-sm font-bold text-slate-200 truncate">{currentUser.username}</p>
+                 <p className="text-[10px] text-slate-500 capitalize">{currentUser.role === 'admin' ? 'Админ' : 'Просмотр'}</p>
+              </div>
+            </div>
+            <button onClick={handleLogout} className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0" title="Выход"><LogOut size={18} /></button>
+          </div>
+        </div>
+      </aside>
+
+      <main className="flex-1 overflow-y-auto bg-slate-900 p-8 custom-scrollbar relative z-0">
+        <div className="max-w-7xl mx-auto">
+          {renderContent()}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default App;
