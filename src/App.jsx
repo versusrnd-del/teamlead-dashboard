@@ -27,7 +27,7 @@ const USER_DICTIONARY = {
 };
 
 const BASE_CAPACITY = 50; 
-const TEAM_LEAD_ID = "u01002"; // ID тимлида для исключения из таблиц отчета
+const TEAM_LEAD_ID = "u01002"; 
 const TEAM_LEAD_NAME = "Виктор С.";
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -70,7 +70,6 @@ const generateMonthWeeks = (year, month) => {
   return weeks;
 };
 
-// Заменяет ЛЮБЫЕ логины в тексте на ФИО
 const replaceLoginsWithNames = (text) => {
   if (typeof text !== 'string') return String(text || '');
   let result = text;
@@ -81,7 +80,6 @@ const replaceLoginsWithNames = (text) => {
   return result;
 };
 
-// Строгий перевод логина в имя для таблиц
 const getFullName = (login) => {
   if (!login) return 'Неизвестно';
   const cleanLogin = String(login).trim().toLowerCase();
@@ -367,7 +365,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(weekData.urgentQueue) || 0}</span></div>
         </div>
         
-        {/* КАРТОЧКА 5 - Бэклог с Тултипом */}
+        {/* КАРТОЧКА 5 - Бэклог с Тултипом (УДАЛЕН overflow-hidden) */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative flex flex-col justify-between z-10">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Бэклог</h3>
@@ -762,7 +760,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             )}
                           </td>
 
-                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-emerald-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
                         </tr>
                       );
                     })}
@@ -926,10 +924,8 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
       const parsedData = JSON.parse(cleanJson);
       
-      // УБРАН ДВОЙНОЙ ШТРАФ И ОБНУЛЕНИЕ! Если в новом JSON нет managementIndex, оставляем текущий
       let newIndex = parsedData.managementIndex !== undefined ? parsedData.managementIndex : formData.managementIndex;
       
-      // СОХРАНЕНИЕ ДЕТАЛЬНЫХ ЗАДАЧ (ТЕХДОЛГ / АРХИВ)
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
          setTasksArchive(prev => {
             const existingIds = new Set(prev.map(t => t.id));
@@ -1227,13 +1223,79 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const [copiedId, setCopiedId] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Ссылка на div для копирования HTML
   const reportRef = useRef(null);
 
-  // Сброс локального состояния при переключении недели
+  // Сбрасываем флаг изменений при смене недели
   useEffect(() => {
     setIsDirty(false);
   }, [weekData.weekNumber]);
+
+  // Прикрепляем слушатели событий для кнопок внутри contentEditable
+  useEffect(() => {
+    const container = reportRef.current;
+    if (!container) return;
+
+    // Логика добавления и удаления карточек
+    const handleAddClick = (e) => {
+      // Кнопка "Добавить поручение"
+      const addBtn = e.target.closest('.add-task-btn');
+      if (addBtn) {
+         const tasksContainer = container.querySelector('#management-tasks-container');
+         if (!tasksContainer) return;
+         
+         const newTask = document.createElement('div');
+         newTask.className = 'management-task-block';
+         newTask.contentEditable = "false"; 
+         newTask.style.cssText = "background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px; position: relative;";
+         
+         newTask.innerHTML = `
+            <div class="no-print" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 6px;" contenteditable="false">
+                <select class="color-picker" style="font-size: 11px; padding: 2px 4px; border-radius: 4px; border: 1px solid #cbd5e1; background: white; cursor: pointer; outline: none; color: #0f172a;">
+                  <option value="#10b981">🟢 Зеленый</option>
+                  <option value="#ef4444">🔴 Красный</option>
+                  <option value="#0f172a">⚫ Черный</option>
+                </select>
+                <button class="delete-task-btn" style="background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-weight: bold; font-size: 12px;">✕</button>
+            </div>
+            <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; padding-right: 120px;">
+                <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 200px; display: inline-block;">Опишите поручение...</span>
+            </div>
+            <div style="font-size: 13px;">
+                <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
+                [ <span class="task-status-text" contenteditable="true" style="color: #10b981; font-weight: bold; outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 100px; display: inline-block;">в работе</span> ]
+            </div>
+         `;
+         tasksContainer.appendChild(newTask);
+         setIsDirty(true);
+      }
+
+      // Кнопка "Удалить"
+      const delBtn = e.target.closest('.delete-task-btn');
+      if (delBtn) {
+         delBtn.closest('.management-task-block').remove();
+         setIsDirty(true);
+      }
+    };
+
+    // Логика смены цвета статуса
+    const handleColorChange = (e) => {
+      if (e.target.classList.contains('color-picker')) {
+         const statusText = e.target.closest('.management-task-block').querySelector('.task-status-text');
+         if (statusText) {
+           statusText.style.color = e.target.value;
+           setIsDirty(true);
+         }
+      }
+    };
+
+    container.addEventListener('click', handleAddClick);
+    container.addEventListener('change', handleColorChange);
+
+    return () => {
+      container.removeEventListener('click', handleAddClick);
+      container.removeEventListener('change', handleColorChange);
+    };
+  }, []);
 
   const handleFreezeReport = () => {
      if (reportRef.current) {
@@ -1255,7 +1317,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
      setIsDirty(false);
   };
 
-  // Расчеты для отчета
   const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
   const top3 = sortedIncidents.slice(0, 3);
   const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
@@ -1264,12 +1325,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const totalIncidents = Number(weekData.incidentsClosed) || 0;
   const managementIndex = Number(weekData.managementIndex) || 0;
 
-  // Определение "Температуры" (перегрузки)
   const incColor = totalIncidents >= 300 ? '#ef4444' : '#10b981'; 
   const taskColor = totalClosedCount >= 50 ? '#ef4444' : '#3b82f6'; 
   const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
 
-  // Логика "Индекса выгорания" (🔥)
   const getBurnoutBadge = (wip, closed, type) => {
     const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) > 100) || (type === 'task' && Number(closed) > 15);
     if (isOverloaded) {
@@ -1278,18 +1337,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     return '';
   };
 
-  // Фильтруем тимлида из таблиц линейного перформанса
   let sortedTaskPerformers = [...(weekData.taskPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
   let sortedIncPerformers = [...(weekData.topPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
   
   sortedTaskPerformers = sortedTaskPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
   sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
 
-  // Получаем список ВЫПОЛНЕННЫХ задач из подробного архива БЕЗ ОПАСНОЙ СОРТИРОВКИ ДАТ
   const completedDetailedTasks = (weekData.detailedTasks || [])
     .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
 
-  // Функция для отрисовки "прогресс-бара" (Совместимо с Word/HTML)
   const renderProgressBar = (value, max, color) => {
     const percentage = Math.min(Math.round((value / max) * 100), 100);
     return `
@@ -1302,7 +1358,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     `;
   };
 
-  // Круговая диаграмма
   const renderPieChart = () => {
     if (!weekData.taskTypesDistribution || weekData.taskTypesDistribution.length === 0) return '';
     
@@ -1325,10 +1380,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     `).join('');
 
     return `
-      <div style="display: flex; gap: 15px; margin-top: 15px; align-items: center;">
-        <div style="width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(${gradientParts.join(', ')}); flex-shrink: 0;"></div>
-        <div>${legendHtml}</div>
-      </div>
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 20px;">
+        <tr>
+          <td width="80" style="vertical-align: top;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(${gradientParts.join(', ')});"></div>
+          </td>
+          <td style="vertical-align: top; padding-left: 10px;">
+            ${legendHtml}
+          </td>
+        </tr>
+      </table>
     `;
   };
 
@@ -1366,7 +1427,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
     return `
       <style>
-        .report-container { font-family: 'Segoe UI', system-ui, sans-serif; color: #1e293b; line-height: 1.6; max-width: 900px; margin: 0 auto; background: #ffffff; }
+        .report-container { font-family: 'Segoe UI', system-ui, sans-serif; color: #1e293b; line-height: 1.6; max-width: 900px; margin: 0 auto; background: #ffffff; text-align: left; }
         .header { border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px; }
         .kpi-grid { display: flex; gap: 20px; margin-bottom: 30px; }
         .kpi-card { flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
@@ -1374,28 +1435,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         .data-table th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
         .data-table td { padding: 10px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
         .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--accent); padding-left: 10px; margin: 40px 0 15px 0; text-transform: uppercase; color: #0f172a; }
-        
-        .editable-box { 
-          background: #fffbeb; 
-          border: 1px solid #fde68a; 
-          border-radius: 8px; 
-          padding: 15px; 
-          font-size: 13px; 
-          color: #1e293b; 
-          margin-bottom: 30px; 
-          text-align: left; 
-          font-style: normal;
-        }
-
-        .qa-card {
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-left: 4px solid #f59e0b;
-          border-radius: 4px;
-          padding: 12px;
-          margin-bottom: 10px;
-        }
-
         .incident-card { background: #f8fafc; border-left: 3px solid #f59e0b; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
         ul.custom-list li { margin-bottom: 6px; }
@@ -1447,8 +1486,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
-          <div class="editable-box" style="background-color: #f1f5f9; border-color: #cbd5e1; color: #64748b; font-style: italic;">
-            [ Кликните на этот текст, удалите его и вставьте сюда скопированную таблицу из модуля телефонии ]
+          <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; border: 1px dashed #cbd5e1; font-size: 13px; color: #94a3b8; font-style: italic; text-align: center; margin-bottom: 30px;">
+             <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и вставьте сюда скопированную таблицу из модуля телефонии ]</span>
           </div>
 
           <!-- ИНФРАСТРУКТУРА -->
@@ -1466,7 +1505,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Выполненные ключевые задачи (Ценность)</h3>
           <ul class="custom-list" style="color: #94a3b8; font-style: italic; margin-bottom: 15px;">
-            <li>[ Кликните на этот текст, удалите его и впишите достижения вручную... ]</li>
+            <li><span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и впишите достижения вручную... ]</span></li>
           </ul>
           ${completedDetailedTasks.length > 0 ? `
             <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 5px;">Автоматическая сводка из Jira:</p>
@@ -1478,17 +1517,29 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <!-- MANAGEMENT (ПРОЕКТЫ) -->
           <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
           
-          <div class="editable-box" style="background: transparent; border: none; padding: 0;">
-            <div class="qa-card">
-              <div style="color: #0f172a; font-size: 13px; font-weight: 700; margin-bottom: 4px;">[ Кликните, чтобы вписать название поручения... ]</div>
-              <div style="color: #047857; font-size: 13px;"><b>Статус:</b> [ Впишите ваш комментарий или прогресс... ]</div>
-            </div>
-            
-            <div class="qa-card">
-              <div style="color: #0f172a; font-size: 13px; font-weight: 700; margin-bottom: 4px;">[ Еще одна задача от руководства... ]</div>
-              <div style="color: #047857; font-size: 13px;"><b>Статус:</b> [ Ваш ответ... ]</div>
+          <div id="management-tasks-container">
+            <div class="management-task-block" contenteditable="false" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px; position: relative; min-height: 60px;">
+               <div class="no-print" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 6px;">
+                   <select class="color-picker" style="font-size: 11px; padding: 2px 4px; border-radius: 4px; border: 1px solid #cbd5e1; background: white; cursor: pointer; outline: none; color: #0f172a;">
+                     <option value="#10b981">🟢 Зеленый</option>
+                     <option value="#ef4444">🔴 Красный</option>
+                     <option value="#0f172a">⚫ Черный</option>
+                   </select>
+                   <button class="delete-task-btn" style="background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-weight: bold; font-size: 12px;">✕</button>
+               </div>
+               <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; padding-right: 120px;">
+                   <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 200px; display: inline-block;">[ Кликните, удалите и впишите задачу... ]</span>
+               </div>
+               <div style="font-size: 13px;">
+                   <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
+                   [ <span class="task-status-text" contenteditable="true" style="color: #10b981; font-weight: bold; outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 100px; display: inline-block;">[ ваш ответ ]</span> ]
+               </div>
             </div>
           </div>
+          
+          <button class="no-print add-task-btn" contenteditable="false" style="background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; padding: 10px 15px; border-radius: 4px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; margin-bottom: 30px; font-weight: bold; transition: background 0.2s;">
+            + ДОБАВИТЬ ПОРУЧЕНИЕ
+          </button>
 
           <!-- RISKS -->
           <div class="section-title" style="--accent: #ef4444;">${sectionCounter++}. Риски, Инциденты и Улучшения</div>
@@ -1513,12 +1564,36 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     }
   }, [weekData]);
 
+  // Функция для очистки HTML перед экспортом
+  const getCleanHtml = () => {
+    if (!reportRef.current) return '';
+    const clone = reportRef.current.cloneNode(true);
+    
+    // Удаляем элементы, которые не должны попасть в экспорт (кнопки +, селекты цветов)
+    const noPrints = clone.querySelectorAll('.no-print');
+    noPrints.forEach(el => el.remove());
+
+    // Убираем атрибуты редактирования и пунктирные линии подсказок
+    const editables = clone.querySelectorAll('[contenteditable]');
+    editables.forEach(el => {
+        el.removeAttribute('contenteditable');
+        el.style.borderBottom = 'none';
+        el.style.outline = 'none';
+    });
+
+    return clone.innerHTML;
+  };
+
   const handleCopyHtml = async () => {
     try {
-      const htmlContent = reportRef.current.innerHTML;
+      const htmlContent = getCleanHtml();
       const fullHtml = `<html><body>${htmlContent}</body></html>`;
       const blobHtml = new Blob([fullHtml], { type: "text/html" });
-      const blobText = new Blob([reportRef.current.innerText], { type: "text/plain" });
+      
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlContent;
+      const blobText = new Blob([tempDiv.innerText], { type: "text/plain" });
+      
       const data = [new ClipboardItem({ ["text/plain"]: blobText, ["text/html"]: blobHtml })];
       
       await navigator.clipboard.write(data);
@@ -1535,7 +1610,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   };
 
   const handleDownloadHtml = () => {
-    const htmlContent = reportRef.current.innerHTML;
+    const htmlContent = getCleanHtml();
     const htmlString = `
       <!DOCTYPE html>
       <html>
@@ -1616,7 +1691,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             contentEditable={true} 
             suppressContentEditableWarning={true}
             onInput={() => { if(!weekData.isReportFrozen) setIsDirty(true); }}
-            className="bg-white shadow-2xl outline-none transition-all text-slate-900" 
+            className="bg-white shadow-2xl outline-none transition-all text-slate-900 text-left" 
             style={{ 
               width: '100%', 
               maxWidth: '900px', 
