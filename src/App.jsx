@@ -762,7 +762,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             )}
                           </td>
 
-                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-emerald-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
                         </tr>
                       );
                     })}
@@ -926,10 +926,8 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
       const parsedData = JSON.parse(cleanJson);
       
-      // УБРАН ДВОЙНОЙ ШТРАФ И ОБНУЛЕНИЕ! Если в новом JSON нет managementIndex, оставляем текущий
       let newIndex = parsedData.managementIndex !== undefined ? parsedData.managementIndex : formData.managementIndex;
       
-      // СОХРАНЕНИЕ ДЕТАЛЬНЫХ ЗАДАЧ (ТЕХДОЛГ / АРХИВ)
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
          setTasksArchive(prev => {
             const existingIds = new Set(prev.map(t => t.id));
@@ -1257,8 +1255,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
   // Расчеты для отчета
   const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
-  const top3Text = sortedIncidents.slice(0, 3).map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
   const top3 = sortedIncidents.slice(0, 3);
+  const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
   
   const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
   const totalIncidents = Number(weekData.incidentsClosed) || 0;
@@ -1270,7 +1268,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
 
   // Логика "Индекса выгорания" (🔥)
-  // Если у инженера больше 20 задач в очереди (wip) ИЛИ он закрыл > 100 инцидентов / > 15 задач инфраструктуры.
   const getBurnoutBadge = (wip, closed, type) => {
     const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) > 100) || (type === 'task' && Number(closed) > 15);
     if (isOverloaded) {
@@ -1286,11 +1283,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   sortedTaskPerformers = sortedTaskPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
   sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
 
-  // Получаем список ВЫПОЛНЕННЫХ задач из подробного архива БЕЗ ОПАСНОЙ СОРТИРОВКИ ДАТ
+  // Получаем список ВЫПОЛНЕННЫХ задач из подробного архива
   const completedDetailedTasks = (weekData.detailedTasks || [])
     .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
 
-  // Функция для отрисовки "прогресс-бара" (Совместимо с Word/HTML)
+  // Функция для отрисовки "прогресс-бара"
   const renderProgressBar = (value, max, color) => {
     const percentage = Math.min(Math.round((value / max) * 100), 100);
     return `
@@ -1303,7 +1300,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     `;
   };
 
-  // Функция для круговой мини-диаграммы типов работ (через CSS conic-gradient)
+  // Круговая диаграмма
   const renderPieChart = () => {
     if (!weekData.taskTypesDistribution || weekData.taskTypesDistribution.length === 0) return '';
     
@@ -1376,8 +1373,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         
         <!-- HEADER: LIGHT BANNER WITH GREEN LINE -->
         <div style="border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px;">
-          <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">Статус-отчет: Направление технической поддержки ОСО</h1>
-          <p style="margin: 0; color: #64748b; font-size: 14px;">Отчетный период: Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})</p>
+          <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
+          <p style="margin: 0; color: #64748b; font-size: 14px;">Статус направления технической поддержки ОСО | Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})</p>
         </div>
 
         <div style="padding: 0 10px;">
@@ -1435,6 +1432,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ` : ''}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Нагрузка администраторов (без учета тимлида)</h3>
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
           ${generateTableHtml(['Сотрудник', 'В работе (WIP)', 'Закрыто', 'Cycle Time'], taskRows.slice(0, 7))}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Выполненные ключевые задачи (Ценность)</h3>
@@ -1449,15 +1447,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
           <!-- MANAGEMENT (ПРОЕКТЫ) -->
-          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #f59e0b; padding-left: 10px; margin-top: 40px; margin-bottom: 20px; text-transform: uppercase;">${sectionCounter++}. Проекты и Поручения</h2>
+          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #f59e0b; padding-left: 10px; margin-top: 40px; margin-bottom: 20px; text-transform: uppercase;">${sectionCounter++}. Решения Руководства и Улучшения</h2>
+          
+          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Статусы по проектам и поручениям</h3>
           <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border: 1px solid #fde68a; font-size: 13px; margin-bottom: 30px;">
-            <p style="color: #92400e; margin: 0; font-style: italic;">[ Кликните на этот текст, удалите его и обновите статусы по проектным задачам... ]</p>
+            <p style="color: #92400e; margin: 0; font-style: italic;">[ Кликните на этот текст, удалите его и вставьте сюда статусы по проектам... ]</p>
           </div>
 
           <!-- RISKS -->
           <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #ef4444; padding-left: 10px; margin-top: 30px; margin-bottom: 20px; text-transform: uppercase;">${sectionCounter++}. Риски, Инциденты и Улучшения</h2>
           <ul style="font-size: 13px; color: #334155; padding-left: 20px; line-height: 1.6;">
-            <li style="margin-bottom: 8px;"><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
             <li style="margin-bottom: 8px;"><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
             <li style="margin-bottom: 8px;"><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
           </ul>
@@ -1518,7 +1517,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Status_Report_Week_${weekData.weekNumber}.html`;
+    a.download = `Executive_Summary_Week_${weekData.weekNumber}.html`;
     a.click();
     URL.revokeObjectURL(url);
   };
