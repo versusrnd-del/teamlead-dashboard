@@ -290,7 +290,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div className="w-full sm:w-auto">
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
-          <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
+          <p className="text-slate-400 text-sm">Оперативный статус направления техни поддержки</p>
           
           <div className="mt-4 bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 w-full max-w-md">
              <div className="flex justify-between items-center mb-2">
@@ -1225,10 +1225,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const [copiedId, setCopiedId] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Ссылка на div для копирования HTML
   const reportRef = useRef(null);
 
-  // Сброс локального состояния при переключении недели
   useEffect(() => {
     setIsDirty(false);
   }, [weekData.weekNumber]);
@@ -1253,7 +1251,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
      setIsDirty(false);
   };
 
-  // Расчеты для отчета
   const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
   const top3 = sortedIncidents.slice(0, 3);
   const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
@@ -1262,12 +1259,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const totalIncidents = Number(weekData.incidentsClosed) || 0;
   const managementIndex = Number(weekData.managementIndex) || 0;
 
-  // Определение "Температуры" (перегрузки)
   const incColor = totalIncidents >= 300 ? '#ef4444' : '#10b981'; 
   const taskColor = totalClosedCount >= 50 ? '#ef4444' : '#3b82f6'; 
   const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
 
-  // Логика "Индекса выгорания" (🔥)
   const getBurnoutBadge = (wip, closed, type) => {
     const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) > 100) || (type === 'task' && Number(closed) > 15);
     if (isOverloaded) {
@@ -1276,31 +1271,24 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     return '';
   };
 
-  // Фильтруем тимлида из таблиц линейного перформанса
   let sortedTaskPerformers = [...(weekData.taskPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
   let sortedIncPerformers = [...(weekData.topPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
   
   sortedTaskPerformers = sortedTaskPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
   sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
 
-  // Получаем список ВЫПОЛНЕННЫХ задач из подробного архива
   const completedDetailedTasks = (weekData.detailedTasks || [])
     .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
 
-  // Функция для отрисовки "прогресс-бара"
   const renderProgressBar = (value, max, color) => {
     const percentage = Math.min(Math.round((value / max) * 100), 100);
     return `
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 8px; width: 100%; background-color: #e2e8f0; border-radius: 4px;">
-        <tr>
-          ${percentage > 0 ? `<td width="${percentage}%" style="background-color: ${color}; height: 6px; border-radius: 4px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
-          ${percentage < 100 ? `<td width="${100 - percentage}%" style="height: 6px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
-        </tr>
-      </table>
+      <div style="background-color: #e2e8f0; border-radius: 4px; height: 6px; width: 100%; margin-top: 8px; overflow: hidden;">
+        <div style="background-color: ${color}; width: ${percentage}%; height: 100%; border-radius: 4px;"></div>
+      </div>
     `;
   };
 
-  // Круговая диаграмма
   const renderPieChart = () => {
     if (!weekData.taskTypesDistribution || weekData.taskTypesDistribution.length === 0) return '';
     
@@ -1323,32 +1311,26 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     `).join('');
 
     return `
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 20px;">
-        <tr>
-          <td width="80" style="vertical-align: top;">
-            <div style="width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(${gradientParts.join(', ')});"></div>
-          </td>
-          <td style="vertical-align: top; padding-left: 10px;">
-            ${legendHtml}
-          </td>
-        </tr>
-      </table>
+      <div style="display: flex; gap: 15px; margin-top: 15px; align-items: center;">
+        <div style="width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(${gradientParts.join(', ')}); flex-shrink: 0;"></div>
+        <div>${legendHtml}</div>
+      </div>
     `;
   };
 
   const getReportHtmlString = () => {
     const generateTableHtml = (headers, rows) => {
       return `
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; margin-bottom: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
+        <table class="data-table">
           <thead>
             <tr>
-              ${headers.map(h => `<th style="border-bottom: 2px solid #e2e8f0; padding: 10px 8px; text-align: left; color: #475569; font-size: 12px; text-transform: uppercase;">${h}</th>`).join('')}
+              ${headers.map(h => `<th>${h}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
             ${rows.map(r => `
               <tr>
-                ${r.map((cell, idx) => `<td style="border-bottom: 1px solid #f1f5f9; padding: 10px 8px; color: #1e293b; font-size: 13px; ${idx > 0 ? 'text-align: center;' : ''}">${cell}</td>`).join('')}
+                ${r.map((cell, idx) => `<td style="${idx > 0 ? 'text-align: center;' : ''}">${cell}</td>`).join('')}
               </tr>
             `).join('')}
           </tbody>
@@ -1360,8 +1342,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const incRows = sortedIncPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
 
     const topIncidentsHtml = top3.map(inc => `
-      <div style="margin-bottom: 10px; background: #f8fafc; padding: 10px; border-left: 3px solid #f59e0b; border-radius: 4px;">
-        <div style="font-weight: bold; color: #1e293b; font-size: 13px;">${safeString(inc.name)} <span style="color: #ef4444;">(${Number(inc.count)||0} шт.)</span></div>
+      <div class="incident-card">
+        <div style="font-weight: 700; font-size: 13px;">${safeString(inc.name)} <span style="color: #ef4444;">(${Number(inc.count)||0} шт.)</span></div>
         <div style="font-size: 12px; color: #475569; margin-top: 4px;">${safeString(inc.analysis)}</div>
       </div>
     `).join('');
@@ -1369,10 +1351,24 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     let sectionCounter = 1;
 
     return `
-      <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 850px; margin: 0 auto; line-height: 1.5; background-color: #ffffff;">
+      <style>
+        .report-container { font-family: 'Segoe UI', system-ui, sans-serif; color: #1e293b; line-height: 1.6; max-width: 900px; margin: 0 auto; background: #ffffff; }
+        .header { border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px; }
+        .kpi-grid { display: flex; gap: 20px; margin-bottom: 30px; }
+        .kpi-card { flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .data-table th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
+        .data-table td { padding: 10px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+        .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--accent); padding-left: 10px; margin: 40px 0 15px 0; text-transform: uppercase; color: #0f172a; }
+        .editable-box { background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; padding: 15px; font-size: 13px; color: #92400e; margin-bottom: 30px; font-style: italic; text-align: center; }
+        .incident-card { background: #f8fafc; border-left: 3px solid #f59e0b; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
+        ul.custom-list li { margin-bottom: 6px; }
+      </style>
+
+      <div class="report-container">
         
-        <!-- HEADER: LIGHT BANNER WITH GREEN LINE -->
-        <div style="border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px;">
+        <div class="header">
           <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
           <p style="margin: 0; color: #64748b; font-size: 14px;">Статус направления технической поддержки ОСО | Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})</p>
         </div>
@@ -1380,50 +1376,47 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <div style="padding: 0 10px;">
 
           <!-- METRICS -->
-          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #3b82f6; padding-left: 10px; margin-top: 0; margin-bottom: 15px; text-transform: uppercase;">${sectionCounter++}. Операционная сводка (KPI)</h2>
+          <div class="section-title" style="--accent: #3b82f6;">${sectionCounter++}. Операционная сводка (KPI)</div>
           
-          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 30px;">
-            <tr>
-              <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-top: 4px solid ${incColor}; vertical-align: top;">
-                <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Инциденты (1 линия)</div>
-                <div style="font-size: 24px; font-weight: bold; color: ${incColor}; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
-                <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
-                ${renderProgressBar(totalIncidents, 400, incColor)}
-              </td>
-              <td width="2%"></td>
-              <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-top: 4px solid ${taskColor}; vertical-align: top;">
-                <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
-                <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
-                <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
-                ${renderProgressBar(totalClosedCount, 100, taskColor)}
-              </td>
-              <td width="2%"></td>
-              <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-top: 4px solid ${indexColor}; vertical-align: top;">
-                <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Индекс SLA</div>
-                <div style="font-size: 24px; font-weight: bold; color: ${indexColor}; margin-bottom: 5px;">${managementIndex}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
-                <div style="font-size: 12px; color: #64748b;">Возвраты: ${weekData.reopenRate || 0}%</div>
-                ${renderProgressBar(managementIndex, 100, indexColor)}
-              </td>
-            </tr>
-          </table>
+          <div class="kpi-grid">
+            <div class="kpi-card" style="border-top: 4px solid ${incColor};">
+              <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Инциденты (1 линия)</div>
+              <div style="font-size: 24px; font-weight: bold; color: ${incColor}; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
+              <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
+              ${renderProgressBar(totalIncidents, 400, incColor)}
+            </div>
+            
+            <div class="kpi-card" style="border-top: 4px solid ${taskColor};">
+              <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
+              <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
+              <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
+              ${renderProgressBar(totalClosedCount, 100, taskColor)}
+            </div>
+            
+            <div class="kpi-card" style="border-top: 4px solid ${indexColor};">
+              <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Индекс SLA</div>
+              <div style="font-size: 24px; font-weight: bold; color: ${indexColor}; margin-bottom: 5px;">${managementIndex}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
+              <div style="font-size: 12px; color: #64748b;">Возвраты: ${weekData.reopenRate || 0}%</div>
+              ${renderProgressBar(managementIndex, 100, indexColor)}
+            </div>
+          </div>
 
           <!-- ПЕРВАЯ ЛИНИЯ -->
-          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #10b981; padding-left: 10px; margin-top: 30px; margin-bottom: 15px; text-transform: uppercase;">${sectionCounter++}. Блок 1-й Линии (Инциденты и Телефония)</h2>
+          <div class="section-title" style="--accent: #10b981;">${sectionCounter++}. Блок 1-й Линии (Инциденты и Телефония)</div>
           
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
-          ${generateTableHtml(['Сотрудник', 'Закрыто', 'Ср. Время', 'CSAT'], incRows.slice(0, 5))}
+          ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'CSAT'], incRows.slice(0, 5))}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
           ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
-          <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; border: 1px dashed #cbd5e1; font-size: 13px; color: #94a3b8; font-style: italic; text-align: center; margin-bottom: 30px;">
+          <div class="editable-box" style="background-color: #f1f5f9; border-color: #cbd5e1; color: #64748b;">
             [ Кликните на этот текст, удалите его и вставьте сюда скопированную таблицу из модуля телефонии ]
           </div>
 
           <!-- ИНФРАСТРУКТУРА -->
-          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #a855f7; padding-left: 10px; margin-top: 40px; margin-bottom: 15px; text-transform: uppercase;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</h2>
+          <div class="section-title" style="--accent: #a855f7;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</div>
           
           ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Распределение фокуса (Ценность vs Рутина)</h3>
@@ -1432,33 +1425,33 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ` : ''}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Нагрузка администраторов (без учета тимлида)</h3>
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
-          ${generateTableHtml(['Сотрудник', 'В работе (WIP)', 'Закрыто', 'Cycle Time'], taskRows.slice(0, 7))}
+          ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time'], taskRows.slice(0, 7))}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Выполненные ключевые задачи (Ценность)</h3>
-          <ul style="font-size: 13px; color: #94a3b8; font-style: italic; padding-left: 20px; list-style-type: square; margin-bottom: 15px;">
+          <ul class="custom-list" style="color: #94a3b8; font-style: italic; margin-bottom: 15px;">
             <li>[ Кликните на этот текст, удалите его и впишите достижения вручную... ]</li>
           </ul>
           ${completedDetailedTasks.length > 0 ? `
             <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 5px;">Автоматическая сводка из Jira:</p>
-            <ul style="font-size: 13px; color: #334155; padding-left: 20px; list-style-type: square; margin-top: 5px;">
-              ${completedDetailedTasks.map(t => `<li style="margin-bottom: 6px;"><b>${t.id}</b>: ${t.title} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
+            <ul class="custom-list">
+              ${completedDetailedTasks.map(t => `<li><b>${t.id}</b>: ${t.title} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
             </ul>
           ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
           <!-- MANAGEMENT (ПРОЕКТЫ) -->
-          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #f59e0b; padding-left: 10px; margin-top: 40px; margin-bottom: 20px; text-transform: uppercase;">${sectionCounter++}. Решения Руководства и Улучшения</h2>
+          <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Решения Руководства и Улучшения</div>
           
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Статусы по проектам и поручениям</h3>
-          <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border: 1px solid #fde68a; font-size: 13px; margin-bottom: 30px;">
-            <p style="color: #92400e; margin: 0; font-style: italic;">[ Кликните на этот текст, удалите его и вставьте сюда статусы по проектам... ]</p>
+          <div class="editable-box">
+            [ Кликните на этот текст, удалите его и вставьте сюда статусы по проектам... ]
           </div>
 
           <!-- RISKS -->
-          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #ef4444; padding-left: 10px; margin-top: 30px; margin-bottom: 20px; text-transform: uppercase;">${sectionCounter++}. Риски, Инциденты и Улучшения</h2>
-          <ul style="font-size: 13px; color: #334155; padding-left: 20px; line-height: 1.6;">
-            <li style="margin-bottom: 8px;"><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
-            <li style="margin-bottom: 8px;"><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
+          <div class="section-title" style="--accent: #ef4444;">${sectionCounter++}. Риски, Инциденты и Улучшения</div>
+          <ul class="custom-list" style="line-height: 1.6;">
+            <li><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
+            <li><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
+            <li><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
           </ul>
 
         </div>
@@ -1507,7 +1500,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <title>ОТЧЕТ РУКОВОДИТЕЛЮ - Неделя ${weekData.weekNumber}</title>
       </head>
       <body style="background-color: #f8fafc; padding: 40px;">
-        <div style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 850px; margin: 0 auto; overflow: hidden; padding: 40px 0;">
+        <div style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 900px; margin: 0 auto; overflow: hidden; padding: 40px 0;">
           ${htmlContent}
         </div>
       </body>
@@ -1528,7 +1521,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       <div className="w-full max-w-4xl flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
-          <p className="text-slate-400 text-sm">Отредактируйте текст прямо на белом листе и скопируйте в Word</p>
+          <p className="text-slate-400 text-sm">Отредактируйте текст прямо на белом листе и скачайте HTML</p>
         </div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
@@ -1564,11 +1557,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <div className="flex gap-2 w-full sm:w-auto">
             <button onClick={handleCopyHtml} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-colors ${copiedId === 'html' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg'}`}>
               {copiedId === 'html' ? <Check size={18} /> : <Copy size={18} />} 
-              <span className="hidden sm:inline">{copiedId === 'html' ? 'Успешно скопировано!' : 'Копировать в Word / Почту'}</span>
+              <span className="hidden sm:inline">{copiedId === 'html' ? 'Успешно скопировано!' : 'Копировать'}</span>
               <span className="sm:hidden">{copiedId === 'html' ? 'ОК' : 'Copy'}</span>
             </button>
-            <button onClick={handleDownloadHtml} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded-lg transition-colors shadow-lg" title="Скачать как HTML файл (для PDF)">
-              <Download size={18} />
+            <button onClick={handleDownloadHtml} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg transition-colors shadow-lg flex items-center gap-2" title="Скачать как HTML файл (для PDF)">
+              <Download size={18} /> <span className="hidden sm:inline">Скачать HTML</span>
             </button>
           </div>
         </div>
@@ -1582,7 +1575,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             className="bg-white shadow-2xl outline-none transition-all text-slate-900" 
             style={{ 
               width: '100%', 
-              maxWidth: '850px', 
+              maxWidth: '900px', 
               minHeight: '1120px', 
               padding: '0' 
             }}
