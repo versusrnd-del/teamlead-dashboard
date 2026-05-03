@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -1228,6 +1228,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const [doneTasksText, setDoneTasksText] = useState('');
   const [managementPlansText, setManagementPlansText] = useState('');
 
+  // Ссылка на div для копирования HTML
+  const reportRef = useRef(null);
+
   // Расчеты для отчета
   const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
   const top3Text = sortedIncidents.slice(0, 3).map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
@@ -1239,16 +1242,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const sortedIncPerformers = [...(weekData.topPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
 
   // Получаем список ВЫПОЛНЕННЫХ задач из подробного архива
-  // ИСПРАВЛЕНИЕ: Убрана опасная сортировка дат, которая вешала браузер
   const completedDetailedTasks = (weekData.detailedTasks || [])
     .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
 
-  // Функция, генерирующая HTML-строку со встроенными стилями (для копирования в Word/Outlook)
+  // Функция, генерирующая HTML-строку со встроенными стилями (WORD-FRIENDLY, ТАБЛИЧНАЯ ВЕРСТКА)
   const getReportHtmlString = () => {
     // Вспомогательная функция для генерации таблиц
     const generateTableHtml = (headers, rows) => {
       return `
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; margin-bottom: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
           <thead>
             <tr>
               ${headers.map(h => `<th style="border-bottom: 2px solid #e2e8f0; padding: 10px 8px; text-align: left; color: #475569; font-size: 12px; text-transform: uppercase;">${h}</th>`).join('')}
@@ -1269,7 +1271,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const incRows = sortedIncPerformers.map(p => [getFullName(p.name), p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
 
     return `
-      <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 800px; margin: 0 auto; line-height: 1.5;">
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 800px; margin: 0 auto; line-height: 1.5; background-color: #ffffff;">
         
         <!-- HEADER -->
         <div style="border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px;">
@@ -1277,28 +1279,33 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <p style="margin: 0; color: #64748b; font-size: 14px;">Отчетный период: Неделя ${weekData.weekNumber} (${safeString(weekData.dates)}) | Отдел: OSO_Support</p>
         </div>
 
-        <!-- 1. METRICS -->
-        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #3b82f6; padding-left: 10px; margin-top: 30px;">1. Операционная сводка (KPI)</h2>
-        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-          <div style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-            <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Инциденты (1 линия)</div>
-            <div style="font-size: 24px; font-weight: bold; color: #10b981;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
-            <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Очередь: ${weekData.incidentsQueue || 0}</div>
-          </div>
-          <div style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-            <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Задачи (Инфра)</div>
-            <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
-            <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
-          </div>
-          <div style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-            <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Индекс SLA</div>
-            <div style="font-size: 24px; font-weight: bold; color: ${weekData.managementIndex >= 70 ? '#10b981' : '#ef4444'};">${weekData.managementIndex || 0}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
-            <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Возвраты: ${weekData.reopenRate || 0}%</div>
-          </div>
-        </div>
+        <!-- 1. METRICS (ИСПОЛЬЗУЕМ ТАБЛИЦУ ДЛЯ WORD-СОВМЕСТИМОСТИ) -->
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #3b82f6; padding-left: 10px; margin-top: 30px; margin-bottom: 15px;">1. Операционная сводка (KPI)</h2>
+        
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+          <tr>
+            <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; vertical-align: top;">
+              <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Инциденты (1 линия)</div>
+              <div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
+              <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
+            </td>
+            <td width="2%"></td> <!-- SPACER -->
+            <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; vertical-align: top;">
+              <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
+              <div style="font-size: 24px; font-weight: bold; color: #3b82f6; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
+              <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
+            </td>
+            <td width="2%"></td> <!-- SPACER -->
+            <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; vertical-align: top;">
+              <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Индекс SLA</div>
+              <div style="font-size: 24px; font-weight: bold; color: ${weekData.managementIndex >= 70 ? '#10b981' : '#ef4444'}; margin-bottom: 5px;">${weekData.managementIndex || 0}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
+              <div style="font-size: 12px; color: #64748b;">Возвраты: ${weekData.reopenRate || 0}%</div>
+            </td>
+          </tr>
+        </table>
 
         <!-- 2. TEAM -->
-        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #8b5cf6; padding-left: 10px; margin-top: 30px;">2. Нагрузка и Исполнители</h2>
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #8b5cf6; padding-left: 10px; margin-top: 30px; margin-bottom: 15px;">2. Нагрузка и Исполнители</h2>
         
         <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Инфраструктура (Задачи)</h3>
         ${generateTableHtml(['Сотрудник', 'В работе (WIP)', 'Закрыто', 'Cycle Time'], taskRows.slice(0, 7))}
@@ -1307,24 +1314,24 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         ${generateTableHtml(['Сотрудник', 'Закрыто', 'Ср. Время', 'CSAT'], incRows.slice(0, 5))}
 
         <!-- 3. DETAILED TASKS -->
-        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #10b981; padding-left: 10px; margin-top: 30px;">3. Выполненные задачи за неделю</h2>
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #10b981; padding-left: 10px; margin-top: 30px; margin-bottom: 15px;">3. Выполненные задачи за неделю</h2>
         <div style="font-size: 13px; color: #334155; margin-bottom: 15px;">
            ${doneTasksText ? doneTasksText.split('\n').map(line => `<p style="margin: 4px 0;">${line}</p>`).join('') : ''}
         </div>
         ${completedDetailedTasks.length > 0 ? `
-          <ul style="font-size: 13px; color: #334155; padding-left: 20px; list-style-type: square;">
+          <ul style="font-size: 13px; color: #334155; padding-left: 20px; list-style-type: square; margin-top: 10px;">
             ${completedDetailedTasks.map(t => `<li style="margin-bottom: 6px;"><b>${t.id}</b>: ${t.title} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
           </ul>
         ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
         <!-- 4. MANAGEMENT -->
-        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #f59e0b; padding-left: 10px; margin-top: 30px;">4. Проекты и Поручения</h2>
-        <div style="background: #fffbeb; padding: 15px; border-radius: 8px; border: 1px solid #fde68a; font-size: 13px;">
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #f59e0b; padding-left: 10px; margin-top: 30px; margin-bottom: 15px;">4. Проекты и Поручения</h2>
+        <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border: 1px solid #fde68a; font-size: 13px;">
           ${managementPlansText ? managementPlansText.split('\n').map(line => `<p style="margin: 4px 0;">${line}</p>`).join('') : '<p style="color: #92400e; margin: 0; font-style: italic;">Данные не заполнены</p>'}
         </div>
 
         <!-- 5. RISKS -->
-        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #ef4444; padding-left: 10px; margin-top: 30px;">5. Риски, Инциденты и Улучшения</h2>
+        <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #ef4444; padding-left: 10px; margin-top: 30px; margin-bottom: 15px;">5. Риски, Инциденты и Улучшения</h2>
         <ul style="font-size: 13px; color: #334155; padding-left: 20px;">
           <li style="margin-bottom: 8px;"><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
           <li style="margin-bottom: 8px;"><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
@@ -1335,12 +1342,21 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     `;
   };
 
-  // Копирование Rich Text (HTML) в буфер обмена
+  // Обновляем содержимое div'а при изменении данных
+  useEffect(() => {
+    if (reportRef.current) {
+      reportRef.current.innerHTML = getReportHtmlString();
+    }
+  }, [weekData, doneTasksText, managementPlansText]);
+
+  // Копирование Rich Text (HTML) из DOM (чтобы захватить ручные правки пользователя!)
   const handleCopyHtml = async () => {
     try {
-      const htmlString = getReportHtmlString();
-      const blobHtml = new Blob([htmlString], { type: "text/html" });
-      const blobText = new Blob([htmlString.replace(/<[^>]+>/g, '')], { type: "text/plain" });
+      const htmlContent = reportRef.current.innerHTML;
+      // Оборачиваем в базовые теги, чтобы буфер обмена точно понял, что это полноценный HTML
+      const fullHtml = `<html><body>${htmlContent}</body></html>`;
+      const blobHtml = new Blob([fullHtml], { type: "text/html" });
+      const blobText = new Blob([reportRef.current.innerText], { type: "text/plain" });
       const data = [new ClipboardItem({ ["text/plain"]: blobText, ["text/html"]: blobHtml })];
       
       await navigator.clipboard.write(data);
@@ -1348,17 +1364,18 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
       console.error('Failed to copy: ', err);
-      // Фолбэк для старых браузеров
+      // Фолбэк
       const textArea = document.createElement("textarea");
-      textArea.value = "Ошибка копирования HTML. Ваш браузер не поддерживает Clipboard API."; 
+      textArea.value = "Ошибка копирования. Используйте сочетание Ctrl+A и Ctrl+C внутри белого окна отчета."; 
       document.body.appendChild(textArea); textArea.select();
       document.execCommand('copy'); document.body.removeChild(textArea);
       setCopiedId('html'); setTimeout(() => setCopiedId(null), 2000);
     }
   };
 
-  // Скачивание как HTML файл
+  // Скачивание как HTML файл (с учетом ручных правок)
   const handleDownloadHtml = () => {
+    const htmlContent = reportRef.current.innerHTML;
     const htmlString = `
       <!DOCTYPE html>
       <html>
@@ -1368,7 +1385,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       </head>
       <body style="background-color: #f8fafc; padding: 40px;">
         <div style="background-color: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 800px; margin: 0 auto;">
-          ${getReportHtmlString()}
+          ${htmlContent}
         </div>
       </body>
       </html>
@@ -1435,7 +1452,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           </div>
         </div>
 
-        {/* ПРАВАЯ КОЛОНКА: ИТОГОВЫЙ ОТЧЕТ */}
+        {/* ПРАВАЯ КОЛОНКА: ИТОГОВЫЙ ОТЧЕТ (РЕДАКТИРУЕМЫЙ!) */}
         <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-xl flex flex-col overflow-hidden h-full">
           <div className="bg-indigo-500/10 p-4 border-b border-indigo-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center gap-2">
@@ -1454,9 +1471,20 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </button>
             </div>
           </div>
+          
+          {/* ПОДСКАЗКА О РЕДАКТИРОВАНИИ */}
+          <div className="bg-slate-900 py-1.5 px-4 text-[10px] text-amber-500/80 uppercase font-bold tracking-widest text-center flex items-center justify-center gap-2 border-b border-slate-800">
+            <Edit3 size={12}/> Кликни на белый лист ниже, чтобы отредактировать текст перед копированием!
+          </div>
+
           <div className="p-0 flex-1 relative bg-slate-950">
-             {/* РЕНДЕР ПРЕВЬЮ ИЗ HTML СТРОКИ */}
-            <div className="w-full h-[520px] overflow-y-auto custom-scrollbar p-6 bg-white" dangerouslySetInnerHTML={{ __html: getReportHtmlString() }} />
+             {/* РЕНДЕР ИЗ HTML СТРОКИ С ВОЗМОЖНОСТЬЮ РУЧНОЙ ПРАВКИ */}
+            <div 
+              ref={reportRef}
+              contentEditable={true} 
+              suppressContentEditableWarning={true}
+              className="w-full h-[520px] overflow-y-auto custom-scrollbar p-8 bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/30 transition-all" 
+            />
           </div>
         </div>
       </div>
