@@ -924,8 +924,8 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
       const parsedData = JSON.parse(cleanJson);
       
-      // УБРАН ДВОЙНОЙ ШТРАФ! БЕРЕМ ИНДЕКС КАК ЕСТЬ ИЗ JSON!
-      let newIndex = parsedData.managementIndex !== undefined ? parsedData.managementIndex : 100;
+      // УБРАН ДВОЙНОЙ ШТРАФ И ОБНУЛЕНИЕ! Если в новом JSON нет managementIndex, оставляем текущий
+      let newIndex = parsedData.managementIndex !== undefined ? parsedData.managementIndex : formData.managementIndex;
       
       // СОХРАНЕНИЕ ДЕТАЛЬНЫХ ЗАДАЧ (ТЕХДОЛГ / АРХИВ)
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
