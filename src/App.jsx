@@ -1221,15 +1221,51 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
 
 // --- ВКЛАДКА: НОВЫЙ СТАТУС-ОТЧЕТ (ELITE REPORT) ---
 
-const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect }) => {
+const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek }) => {
   const [copiedId, setCopiedId] = useState(null);
+  const [isDirty, setIsDirty] = useState(false);
   
   // Локальный стейт для ручного ввода данных руководителю
-  const [doneTasksText, setDoneTasksText] = useState('');
-  const [managementPlansText, setManagementPlansText] = useState('');
+  const [doneTasksText, setDoneTasksText] = useState(weekData.doneTasksText || '');
+  const [managementPlansText, setManagementPlansText] = useState(weekData.managementPlansText || '');
 
   // Ссылка на div для копирования HTML
   const reportRef = useRef(null);
+
+  // Сброс локального состояния при переключении недели
+  useEffect(() => {
+    setDoneTasksText(weekData.doneTasksText || '');
+    setManagementPlansText(weekData.managementPlansText || '');
+    setIsDirty(false);
+  }, [weekData.weekNumber]);
+
+  const handleTextareaBlur = () => {
+     onSaveWeek({ ...weekData, doneTasksText, managementPlansText });
+  };
+
+  const handleFreezeReport = () => {
+     if (reportRef.current) {
+        onSaveWeek({ 
+           ...weekData, 
+           doneTasksText, 
+           managementPlansText,
+           customReportHtml: reportRef.current.innerHTML,
+           isReportFrozen: true
+        });
+        setIsDirty(false);
+     }
+  };
+
+  const handleUnfreezeReport = () => {
+     onSaveWeek({
+        ...weekData,
+        doneTasksText,
+        managementPlansText,
+        customReportHtml: null,
+        isReportFrozen: false
+     });
+     setIsDirty(false);
+  };
 
   // Расчеты для отчета
   const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
@@ -1244,6 +1280,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   // Получаем список ВЫПОЛНЕННЫХ задач из подробного архива
   const completedDetailedTasks = (weekData.detailedTasks || [])
     .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
+
+  // Функция для отрисовки "прогресс-бара" внутри HTML для Word/Почты
+  const renderProgressBar = (value, max, color) => {
+    const percentage = Math.min(Math.round((value / max) * 100), 100);
+    return `
+      <div style="background-color: #e2e8f0; border-radius: 4px; height: 6px; width: 100%; margin-top: 8px; overflow: hidden;">
+        <div style="background-color: ${color}; width: ${percentage}%; height: 100%; border-radius: 4px;"></div>
+      </div>
+    `;
+  };
 
   // Функция, генерирующая HTML-строку со встроенными стилями (WORD-FRIENDLY, ТАБЛИЧНАЯ ВЕРСТКА)
   const getReportHtmlString = () => {
@@ -1270,13 +1316,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const taskRows = sortedTaskPerformers.map(p => [getFullName(p.name), p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`]);
     const incRows = sortedIncPerformers.map(p => [getFullName(p.name), p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
 
+    const indexColor = weekData.managementIndex >= 70 ? '#10b981' : (weekData.managementIndex <= 0 ? '#ef4444' : '#f59e0b');
+
     return `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 800px; margin: 0 auto; line-height: 1.5; background-color: #ffffff;">
         
         <!-- HEADER -->
         <div style="border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px;">
-          <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">Статус-отчет: Техподдержка и Инфраструктура</h1>
-          <p style="margin: 0; color: #64748b; font-size: 14px;">Отчетный период: Неделя ${weekData.weekNumber} (${safeString(weekData.dates)}) | Отдел: OSO_Support</p>
+          <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">Статус-отчет: Направление технической поддержки ОСО</h1>
+          <p style="margin: 0; color: #64748b; font-size: 14px;">Отчетный период: Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})</p>
         </div>
 
         <!-- 1. METRICS (ИСПОЛЬЗУЕМ ТАБЛИЦУ ДЛЯ WORD-СОВМЕСТИМОСТИ) -->
@@ -1288,18 +1336,21 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Инциденты (1 линия)</div>
               <div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
               <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
+              ${renderProgressBar(totalIncidents, 400, '#10b981')}
             </td>
             <td width="2%"></td> <!-- SPACER -->
             <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; vertical-align: top;">
               <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
               <div style="font-size: 24px; font-weight: bold; color: #3b82f6; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
               <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
+              ${renderProgressBar(totalClosedCount, 100, '#3b82f6')}
             </td>
             <td width="2%"></td> <!-- SPACER -->
             <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; vertical-align: top;">
               <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Индекс SLA</div>
-              <div style="font-size: 24px; font-weight: bold; color: ${weekData.managementIndex >= 70 ? '#10b981' : '#ef4444'}; margin-bottom: 5px;">${weekData.managementIndex || 0}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
+              <div style="font-size: 24px; font-weight: bold; color: ${indexColor}; margin-bottom: 5px;">${weekData.managementIndex || 0}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
               <div style="font-size: 12px; color: #64748b;">Возвраты: ${weekData.reopenRate || 0}%</div>
+              ${renderProgressBar(weekData.managementIndex || 0, 100, indexColor)}
             </td>
           </tr>
         </table>
@@ -1342,10 +1393,19 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     `;
   };
 
-  // Обновляем содержимое div'а при изменении данных
+  // Инициализация контента при смене недели или снятии блокировки
   useEffect(() => {
     if (reportRef.current) {
-      reportRef.current.innerHTML = getReportHtmlString();
+        if (weekData.isReportFrozen && weekData.customReportHtml) {
+            reportRef.current.innerHTML = weekData.customReportHtml;
+        }
+    }
+  }, [weekData.weekNumber, weekData.isReportFrozen]);
+
+  // Автоматическое обновление контента, если отчет НЕ зафиксирован
+  useEffect(() => {
+    if (reportRef.current && !weekData.isReportFrozen) {
+        reportRef.current.innerHTML = getReportHtmlString();
     }
   }, [weekData, doneTasksText, managementPlansText]);
 
@@ -1435,7 +1495,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <h3 className="text-slate-200 font-bold mb-2 flex items-center gap-2"><Target size={18} className="text-emerald-400"/> 3. Выполненные ключевые задачи (Мануал)</h3>
             <p className="text-xs text-slate-500 mb-3">Скопируй сюда ручные пояснения (система автоматически добавит ниже список всех задач из Jira).</p>
             <textarea 
-              value={doneTasksText} onChange={(e)=>setDoneTasksText(e.target.value)}
+              value={doneTasksText} 
+              onChange={(e)=>setDoneTasksText(e.target.value)}
+              onBlur={handleTextareaBlur}
               placeholder="Пример:&#10;PSI DSS:&#10;- Обновили ОС Win10 до Win11...&#10;&#10;ZABBIX:&#10;- Подключили новый хост..."
               className="w-full h-48 bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-300 outline-none focus:border-emerald-500 custom-scrollbar"
             />
@@ -1445,7 +1507,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <h3 className="text-slate-200 font-bold mb-2 flex items-center gap-2"><LayoutDashboard size={18} className="text-blue-400"/> 4. Статус по проектам и поручениям руководства</h3>
             <p className="text-xs text-slate-500 mb-3">Вставь сюда статусы по проектным задачам из бэклога руководства</p>
             <textarea 
-              value={managementPlansText} onChange={(e)=>setManagementPlansText(e.target.value)}
+              value={managementPlansText} 
+              onChange={(e)=>setManagementPlansText(e.target.value)}
+              onBlur={handleTextareaBlur}
               placeholder="Пример:&#10;- Распределение ВМ csd2016: в работе, ждем фидбек.&#10;- Замена Win10: тестирование проведено успешно."
               className="w-full h-48 bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-300 outline-none focus:border-blue-500 custom-scrollbar"
             />
@@ -1454,36 +1518,54 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
         {/* ПРАВАЯ КОЛОНКА: ИТОГОВЫЙ ОТЧЕТ (РЕДАКТИРУЕМЫЙ!) */}
         <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-xl flex flex-col overflow-hidden h-full">
-          <div className="bg-indigo-500/10 p-4 border-b border-indigo-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          
+          {/* СТАТУС БАР */}
+          <div className="bg-slate-900 py-2 px-4 text-[10px] font-bold uppercase tracking-widest flex items-center justify-between border-b border-slate-800">
             <div className="flex items-center gap-2">
-               <FileText size={18} className="text-indigo-400" />
-               <h3 className="font-bold text-slate-200">Финальный отчет</h3>
+              {weekData.isReportFrozen ? (
+                <><Lock size={14} className="text-amber-500"/> <span className="text-amber-500/80">Отчет зафиксирован (Включены ручные правки)</span></>
+              ) : (
+                <><Activity size={14} className="text-emerald-500"/> <span className="text-emerald-500/80">Автообновление (Данные ИИ)</span></>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <Edit3 size={12}/> Кликни на лист для правки
+            </div>
+          </div>
+
+          <div className="bg-slate-800/80 p-4 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex gap-2 w-full sm:w-auto">
+               {weekData.isReportFrozen ? (
+                  <button onClick={handleUnfreezeReport} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors shadow-lg flex items-center gap-1.5" title="Сбросить правки и пересчитать по ИИ">
+                     <RefreshCcw size={14} /> <span className="hidden sm:inline">Сбросить правки</span>
+                  </button>
+               ) : (
+                  <button onClick={() => { handleFreezeReport(); setIsDirty(false); }} className={`${isDirty ? 'bg-amber-500 animate-pulse text-slate-900' : 'bg-amber-600 text-white'} hover:bg-amber-500 px-3 py-2 rounded-lg text-xs font-bold transition-colors shadow-lg flex items-center gap-1.5`} title="Сохранить текущий вид и отключить автообновление">
+                     <Save size={14} /> <span className="hidden sm:inline">Зафиксировать</span>
+                  </button>
+               )}
             </div>
             
             <div className="flex gap-2 w-full sm:w-auto">
-              <button onClick={handleCopyHtml} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${copiedId === 'html' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg'}`}>
-                {copiedId === 'html' ? <Check size={16} /> : <Copy size={16} />} 
+              <button onClick={handleCopyHtml} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${copiedId === 'html' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg'}`}>
+                {copiedId === 'html' ? <Check size={14} /> : <Copy size={14} />} 
                 <span className="hidden sm:inline">{copiedId === 'html' ? 'Скопировано!' : 'Копировать в Word/Mail'}</span>
                 <span className="sm:hidden">{copiedId === 'html' ? 'ОК' : 'Copy Word'}</span>
               </button>
               <button onClick={handleDownloadHtml} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg transition-colors shadow-lg" title="Скачать как HTML файл">
-                <Download size={16} />
+                <Download size={14} />
               </button>
             </div>
           </div>
           
-          {/* ПОДСКАЗКА О РЕДАКТИРОВАНИИ */}
-          <div className="bg-slate-900 py-1.5 px-4 text-[10px] text-amber-500/80 uppercase font-bold tracking-widest text-center flex items-center justify-center gap-2 border-b border-slate-800">
-            <Edit3 size={12}/> Кликни на белый лист ниже, чтобы отредактировать текст перед копированием!
-          </div>
-
           <div className="p-0 flex-1 relative bg-slate-950">
              {/* РЕНДЕР ИЗ HTML СТРОКИ С ВОЗМОЖНОСТЬЮ РУЧНОЙ ПРАВКИ */}
             <div 
               ref={reportRef}
               contentEditable={true} 
               suppressContentEditableWarning={true}
-              className="w-full h-[520px] overflow-y-auto custom-scrollbar p-8 bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/30 transition-all" 
+              onInput={() => { if(!weekData.isReportFrozen) setIsDirty(true); }}
+              className="w-full h-[470px] overflow-y-auto custom-scrollbar p-8 bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/30 transition-all text-slate-900" 
             />
           </div>
         </div>
@@ -2026,7 +2108,7 @@ const App = () => {
     switch(activeTab) {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} />;
-      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
+      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
       case 'achievements': return <AchievementsBoard achievements={achievements} />;
