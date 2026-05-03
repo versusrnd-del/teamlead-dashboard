@@ -68,7 +68,7 @@ const generateMonthWeeks = (year, month) => {
   return weeks;
 };
 
-// Заменяет логины в тексте
+// Заменяет ЛЮБЫЕ логины в тексте на ФИО
 const replaceLoginsWithNames = (text) => {
   if (typeof text !== 'string') return String(text || '');
   let result = text;
@@ -110,7 +110,7 @@ const defaultWeekData = {
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных AI-анализа...",
-  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: []
+  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: []
 };
 
 const defaultProcesses = [
@@ -365,7 +365,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(weekData.urgentQueue) || 0}</span></div>
         </div>
         
-        {/* КАРТОЧКА 5 - Бэклог */}
+        {/* КАРТОЧКА 5 - Бэклог с Тултипом */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Бэклог</h3>
@@ -383,7 +383,38 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             </div>
             <p className="text-xs text-slate-500 mt-1">Закрыто напрямую: <span className="text-blue-400 font-bold">{Number(weekData.backlogCompleted) || 0}</span></p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Старше 30 дней:</span><span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1"><Clock size={12} /> {Number(weekData.backlogOld30) || 0}</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center">
+            <span className="text-slate-400 text-xs">Старше 30 дней:</span>
+            
+            <div className="group relative flex items-center justify-center">
+              <span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1 cursor-help">
+                <Clock size={12} /> {Number(weekData.backlogOld30) || 0}
+              </span>
+              
+              {/* Всплывающее меню для старых задач (Stale Backlog) */}
+              {weekData.staleBacklog && weekData.staleBacklog.length > 0 && (
+                <div className="absolute bottom-full right-0 mb-2 w-80 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-xs text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                  <div className="font-bold text-red-400 mb-2 border-b border-slate-700 pb-1 flex items-center gap-1.5">
+                    <AlertTriangle size={14}/> Топ старых задач (Кандидаты на Drop)
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                    {weekData.staleBacklog.map((stale, i) => (
+                      <div key={i} className="bg-slate-900/50 p-2 rounded border border-slate-700/50">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-red-300 font-bold">{stale.id}</span>
+                          <span className="text-slate-500 text-[10px]">{stale.days} дн.</span>
+                        </div>
+                        <div className="text-slate-300 font-medium mb-1 line-clamp-2">{stale.title}</div>
+                        <div className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded inline-block">ИИ: {stale.action}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="absolute top-full right-4 border-4 border-transparent border-t-slate-600"></div>
+                </div>
+              )}
+            </div>
+
+          </div>
         </div>
       </div>
 
@@ -537,7 +568,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                {weekData.shieldHero && (
                  <div className="bg-indigo-500/5 p-4 rounded-lg border border-indigo-500/20 h-full flex flex-col">
                    <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Shield size={14}/> Герой щита (Срочная линия)</h4>
-                   <p className="text-sm text-slate-300">{getFullName(weekData.shieldHero)}</p>
+                   {/* ПЕРЕВОДИМ ИМЯ ГЕРОЯ ЩИТА НА ЛЕТУ */}
+                   <p className="text-sm text-slate-300">{replaceLoginsWithNames(weekData.shieldHero)}</p>
                  </div>
                )}
             </div>
@@ -610,10 +642,11 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                         <span className="text-[9px] text-slate-400 border-b border-slate-600 border-dashed cursor-help hover:text-white transition-colors">
                                           {tId}
                                         </span>
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
-                                          <div className="font-bold text-amber-400 mb-1 border-b border-slate-700 pb-1">Возврат: {tId}</div>
-                                          {tTitle && <div className="text-[10px] text-slate-200 font-bold mb-1 line-clamp-2">{tTitle}</div>}
-                                          <div className="text-slate-400 leading-tight">{tReason}</div>
+                                        {/* УЛУЧШЕННЫЙ ТУЛТИП ВОЗВРАТА */}
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
+                                          <div className="font-bold text-amber-400 mb-1.5 border-b border-slate-700 pb-1.5">Возврат: {tId}</div>
+                                          {tTitle && <div className="text-[11px] text-white font-medium mb-1.5 line-clamp-2 leading-snug">{tTitle}</div>}
+                                          <div className="text-slate-400 leading-relaxed bg-slate-900/50 p-2 rounded">{tReason}</div>
                                           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                         </div>
                                       </div>
@@ -710,10 +743,11 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                         <span className="text-[9px] text-slate-400 border-b border-slate-600 border-dashed cursor-help hover:text-white transition-colors">
                                           {tId}
                                         </span>
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
-                                          <div className="font-bold text-amber-400 mb-1 border-b border-slate-700 pb-1">Возврат: {tId}</div>
-                                          {tTitle && <div className="text-[10px] text-slate-200 font-bold mb-1 line-clamp-2">{tTitle}</div>}
-                                          <div className="text-slate-400 leading-tight">{tReason}</div>
+                                        {/* УЛУЧШЕННЫЙ ТУЛТИП ВОЗВРАТА */}
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
+                                          <div className="font-bold text-amber-400 mb-1.5 border-b border-slate-700 pb-1.5">Возврат: {tId}</div>
+                                          {tTitle && <div className="text-[11px] text-white font-medium mb-1.5 line-clamp-2 leading-snug">{tTitle}</div>}
+                                          <div className="text-slate-400 leading-relaxed bg-slate-900/50 p-2 rounded">{tReason}</div>
                                           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                         </div>
                                       </div>
