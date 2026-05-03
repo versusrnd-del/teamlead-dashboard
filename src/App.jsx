@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -329,8 +329,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           </div>
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center">
             <span className="text-slate-400 text-xs">Статус:</span>
-            <span className={`${Number(weekData.managementIndex) >= 70 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : (Number(weekData.managementIndex) === 0 ? 'bg-slate-500/10 text-slate-400 border-slate-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20')} px-2 py-0.5 rounded font-bold text-xs border`}>
-              {Number(weekData.managementIndex) >= 70 ? 'Управляемо' : (Number(weekData.managementIndex) === 0 ? 'Нет данных' : 'Зона риска')}
+            <span className={`${Number(weekData.managementIndex) >= 70 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : (Number(weekData.managementIndex) <= 0 ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20')} px-2 py-0.5 rounded font-bold text-xs border`}>
+              {Number(weekData.managementIndex) >= 70 ? 'Управляемо' : (Number(weekData.managementIndex) <= 0 ? 'Критично' : 'Зона риска')}
             </span>
           </div>
         </div>
@@ -366,7 +366,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
         
         {/* КАРТОЧКА 5 - Бэклог с Тултипом (УДАЛЕН overflow-hidden) */}
-        <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative flex flex-col justify-between">
+        <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative flex flex-col justify-between z-10">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Бэклог</h3>
             <div className="flex flex-col gap-1 mb-1">
@@ -924,12 +924,8 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
       const parsedData = JSON.parse(cleanJson);
       
-      let newIndex = formData.managementIndex !== undefined ? formData.managementIndex : 100;
-      if (parsedData.slaMetrics && Array.isArray(parsedData.slaMetrics)) {
-        const totalViolations = parsedData.slaMetrics.reduce((sum, sla) => sum + (Number(sla.violations) || 0), 0);
-        if (totalViolations > 50) newIndex -= 30;
-        else if (totalViolations > 20) newIndex -= 15;
-      }
+      // УБРАН ДВОЙНОЙ ШТРАФ! БЕРЕМ ИНДЕКС КАК ЕСТЬ ИЗ JSON!
+      let newIndex = parsedData.managementIndex !== undefined ? parsedData.managementIndex : 100;
       
       // СОХРАНЕНИЕ ДЕТАЛЬНЫХ ЗАДАЧ (ТЕХДОЛГ / АРХИВ)
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
@@ -1234,8 +1230,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
   // Расчеты для отчета
   const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
-  const top3 = sortedIncidents.slice(0, 3);
-  const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
+  const top3Text = sortedIncidents.slice(0, 3).map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
   
   const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
   const totalIncidents = Number(weekData.incidentsClosed) || 0;
@@ -1288,17 +1283,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <div style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
             <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Инциденты (1 линия)</div>
             <div style="font-size: 24px; font-weight: bold; color: #10b981;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
-            <div style="font-size: 12px; color: #64748b; mt-1">Очередь: ${weekData.incidentsQueue || 0}</div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Очередь: ${weekData.incidentsQueue || 0}</div>
           </div>
           <div style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
             <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Задачи (Инфра)</div>
             <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
-            <div style="font-size: 12px; color: #64748b; mt-1">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
           </div>
           <div style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
             <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Индекс SLA</div>
             <div style="font-size: 24px; font-weight: bold; color: ${weekData.managementIndex >= 70 ? '#10b981' : '#ef4444'};">${weekData.managementIndex || 0}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
-            <div style="font-size: 12px; color: #64748b; mt-1">Возвраты: ${weekData.reopenRate || 0}%</div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Возвраты: ${weekData.reopenRate || 0}%</div>
           </div>
         </div>
 
@@ -1320,20 +1315,20 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <ul style="font-size: 13px; color: #334155; padding-left: 20px; list-style-type: square;">
             ${completedDetailedTasks.map(t => `<li style="margin-bottom: 6px;"><b>${t.id}</b>: ${t.title} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
           </ul>
-        ` : '<p style="font-size: 13px; color: #64748b;">Список задач не загружен.</p>'}
+        ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
         <!-- 4. MANAGEMENT -->
         <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #f59e0b; padding-left: 10px; margin-top: 30px;">4. Проекты и Поручения</h2>
         <div style="background: #fffbeb; padding: 15px; border-radius: 8px; border: 1px solid #fde68a; font-size: 13px;">
-          ${managementPlansText ? managementPlansText.split('\n').map(line => `<p style="margin: 4px 0;">${line}</p>`).join('') : '<p style="color: #92400e; margin: 0;">Нет данных</p>'}
+          ${managementPlansText ? managementPlansText.split('\n').map(line => `<p style="margin: 4px 0;">${line}</p>`).join('') : '<p style="color: #92400e; margin: 0; font-style: italic;">Данные не заполнены</p>'}
         </div>
 
         <!-- 5. RISKS -->
         <h2 style="font-size: 16px; color: #1e293b; border-left: 4px solid #ef4444; padding-left: 10px; margin-top: 30px;">5. Риски, Инциденты и Улучшения</h2>
         <ul style="font-size: 13px; color: #334155; padding-left: 20px;">
           <li style="margin-bottom: 8px;"><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
-          <li style="margin-bottom: 8px;"><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk)}</li>
-          <li style="margin-bottom: 8px;"><b>План расшивки:</b> ${safeString(weekData.nextFocus)}</li>
+          <li style="margin-bottom: 8px;"><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
+          <li style="margin-bottom: 8px;"><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
         </ul>
 
       </div>
@@ -1345,7 +1340,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     try {
       const htmlString = getReportHtmlString();
       const blobHtml = new Blob([htmlString], { type: "text/html" });
-      const blobText = new Blob([eliteReportContent], { type: "text/plain" });
+      const blobText = new Blob([htmlString.replace(/<[^>]+>/g, '')], { type: "text/plain" });
       const data = [new ClipboardItem({ ["text/plain"]: blobText, ["text/html"]: blobHtml })];
       
       await navigator.clipboard.write(data);
@@ -1355,45 +1350,56 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       console.error('Failed to copy: ', err);
       // Фолбэк для старых браузеров
       const textArea = document.createElement("textarea");
-      textArea.value = eliteReportContent; document.body.appendChild(textArea); textArea.select();
+      textArea.value = "Ошибка копирования HTML. Ваш браузер не поддерживает Clipboard API."; 
+      document.body.appendChild(textArea); textArea.select();
       document.execCommand('copy'); document.body.removeChild(textArea);
       setCopiedId('html'); setTimeout(() => setCopiedId(null), 2000);
     }
   };
 
-  // Plain Text Preview Content
-  const eliteReportContent = `ЕЖЕНЕДЕЛЬНЫЙ СТАТУС-ОТЧЕТ: ИНФРАСТРУКТУРА И 1-Я ЛИНИЯ
-Отчетный период: Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})
+  // Скачивание как HTML файл
+  const handleDownloadHtml = () => {
+    const htmlString = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Статус-отчет Неделя ${weekData.weekNumber}</title>
+      </head>
+      <body style="background-color: #f8fafc; padding: 40px;">
+        <div style="background-color: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 800px; margin: 0 auto;">
+          ${getReportHtmlString()}
+        </div>
+      </body>
+      </html>
+    `;
+    const blob = new Blob([htmlString], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Status_Report_Week_${weekData.weekNumber}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-1. ОПЕРАЦИОННАЯ СВОДКА (KPI)
--------------------------------------------------
-• Инциденты (1-я линия): Решено ${totalIncidents} шт. | Очередь: ${weekData.incidentsQueue || 0}
-• Задачи (Инфра): Закрыто ${totalClosedCount} шт. | Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})
-• Индекс SLA: ${weekData.managementIndex || 0}/100 | Возвраты: ${weekData.reopenRate || 0}%
+  // Оставляем старые "быстрые" отчеты как дополнительные
+  const quickReports = [
+    {
+      id: 'team', title: 'Быстрый статус для команды (в Чат)', icon: Users, color: 'emerald',
+      content: `Привет, команда! Итоги ${weekData.weekNumber || ''} недели (${safeString(weekData.dates)}):\n\n✅ 1-я линия: закрыто ${weekData.incidentsClosed || 0} инцидентов. 🔥 Топ-3 проблемы: ${top3Text}.\n🚀 Инфраструктура: отбили ${weekData.urgentCompleted || 0} внеплановых задач. Всего закрыли ${totalClosedCount} задач (Спринт: ${weekData.sprintCompleted || 0}).\n\n🏆 Успех недели: ${safeString(weekData.mainWin) || 'Выдержали темп!'}\n🙏 За Кайдзен спасибо: ${safeString(weekData.thanks) || 'Всю команду!'}\n\n🎯 Фокус на след. неделю: ${safeString(weekData.nextFocus)}`
+    },
+    {
+      id: 'retro', title: 'Отчет для Ретроспективы (Аудит)', icon: BookOpen, color: 'fuchsia',
+      content: `Рефлексия (Этап 2). Неделя ${weekData.weekNumber || ''}.\n\n🎯 Процессная гипотеза:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики:\n- Ср. время решения (Cycle Time): ${weekData.avgCycleTime || 0} дн.\n- Возврат (Reopen Rate): ${weekData.reopenRate || 0}%\n- Capacity: ${totalClosedCount} задач.\n- Возраст техдолга: ${weekData.backlogOld30 || 0} задач висят > 30 дней.\n\n💡 Аудит процесса:\n${safeString(weekData.mainInsight)}\n\n🚧 Bottlenecks (Ограничения):\n${safeString(weekData.mainRisk)}`
+    }
+  ];
 
-2. НАГРУЗКА И ТОП ИСПОЛНИТЕЛЕЙ
--------------------------------------------------
-[Инфраструктура - Задачи]
-${sortedTaskPerformers.slice(0, 5).map(p => `• ${getFullName(p.name)}: WIP ${p.wip || 0} | Закрыто ${p.closed} | Cycle: ${Number(p.avgTimeMin)||0} дн.`).join('\n')}
-
-[1-я Линия - Инциденты]
-${sortedIncPerformers.slice(0, 5).map(p => `• ${getFullName(p.name)}: Закрыто ${p.closed} | Время: ${Number(p.avgTimeMin)||0} м. | CSAT: ${formatCSAT(p.csat)}`).join('\n')}
-
-3. ВЫПОЛНЕННЫЕ ЗАДАЧИ
--------------------------------------------------
-${doneTasksText.trim() ? doneTasksText + '\n\n' : ''}Список из Jira:
-${completedDetailedTasks.length > 0 ? completedDetailedTasks.map(t => `${t.id}: ${t.title} (${getFullName(t.assignee)})`).join('\n') : 'Нет данных'}
-
-4. СТАТУС ПО ПРОЕКТАМ И ПОРУЧЕНИЯМ
--------------------------------------------------
-${managementPlansText.trim() ? managementPlansText : 'Нет данных'}
-
-5. РИСКИ И УЛУЧШЕНИЯ
--------------------------------------------------
-• Топ-драйверы: ${top3Text || 'Нет данных'}
-• Риски: ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}
-• План: ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}
-`;
+  const handleCopy = (text, id) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text; document.body.appendChild(textArea); textArea.select();
+    try { document.execCommand('copy'); setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); } catch (err) {}
+    document.body.removeChild(textArea);
+  };
 
   return (
     <div className="animate-in fade-in duration-500 max-w-6xl pb-10">
@@ -1443,6 +1449,9 @@ ${managementPlansText.trim() ? managementPlansText : 'Нет данных'}
                 <span className="hidden sm:inline">{copiedId === 'html' ? 'Скопировано!' : 'Копировать в Word/Mail'}</span>
                 <span className="sm:hidden">{copiedId === 'html' ? 'ОК' : 'Copy Word'}</span>
               </button>
+              <button onClick={handleDownloadHtml} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg transition-colors shadow-lg" title="Скачать как HTML файл">
+                <Download size={16} />
+              </button>
             </div>
           </div>
           <div className="p-0 flex-1 relative bg-slate-950">
@@ -1450,6 +1459,26 @@ ${managementPlansText.trim() ? managementPlansText : 'Нет данных'}
             <div className="w-full h-[520px] overflow-y-auto custom-scrollbar p-6 bg-white" dangerouslySetInnerHTML={{ __html: getReportHtmlString() }} />
           </div>
         </div>
+      </div>
+
+      {/* ДОПОЛНИТЕЛЬНЫЕ ОТЧЕТЫ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {quickReports.map((report) => {
+          const Icon = report.icon; const isCopied = copiedId === report.id;
+          return (
+            <div key={report.id} className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm flex flex-col overflow-hidden h-64">
+              <div className={`bg-slate-900/50 p-4 border-b border-slate-700/50 flex justify-between items-center`}>
+                <div className="flex items-center gap-2"><Icon size={18} className={`text-${report.color}-400`} /><h3 className="font-medium text-slate-200 text-sm">{report.title}</h3></div>
+              </div>
+              <div className="p-4 flex-1"><textarea readOnly value={report.content} className="w-full h-full bg-transparent text-slate-400 text-xs resize-none outline-none focus:ring-0 custom-scrollbar" /></div>
+              <div className="p-3 bg-slate-900/30 border-t border-slate-700/50">
+                <button onClick={() => handleCopy(report.content, report.id)} className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-colors ${isCopied ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600'}`}>
+                  {isCopied ? <Check size={14} /> : <Copy size={14} />} {isCopied ? 'Скопировано!' : 'Копировать'}
+                </button>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   );
