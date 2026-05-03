@@ -760,7 +760,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             )}
                           </td>
 
-                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-emerald-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
                         </tr>
                       );
                     })}
@@ -924,10 +924,8 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
       const parsedData = JSON.parse(cleanJson);
       
-      // УБРАН ДВОЙНОЙ ШТРАФ И ОБНУЛЕНИЕ! Если в новом JSON нет managementIndex, оставляем текущий
       let newIndex = parsedData.managementIndex !== undefined ? parsedData.managementIndex : formData.managementIndex;
       
-      // СОХРАНЕНИЕ ДЕТАЛЬНЫХ ЗАДАЧ (ТЕХДОЛГ / АРХИВ)
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
          setTasksArchive(prev => {
             const existingIds = new Set(prev.map(t => t.id));
@@ -1080,7 +1078,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
           <h3 className="text-lg font-medium text-white uppercase tracking-tighter mb-4 flex items-center gap-2"><Star size={18} className="text-amber-400" /> Кайдзен и победы потока</h3>
           <div className="space-y-4 text-left">
-            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Главная системная победа</label><input type="text" name="mainWin" value={safeString(formData.mainWin)} onChange={handleChange} placeholder="Например: Справились с аномальным потоком" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-amber-500" /></div>
+            <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Главная систем победа</label><input type="text" name="mainWin" value={safeString(formData.mainWin)} onChange={handleChange} placeholder="Например: Справились с аномальным потоком" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-amber-500" /></div>
             <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60 ml-1">Кого хотим отметить за процессное улучшение?</label><textarea name="thanks" value={safeString(formData.thanks)} onChange={handleChange} rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none custom-scrollbar focus:border-amber-500" /></div>
           </div>
         </div>
@@ -1261,19 +1259,28 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const totalIncidents = Number(weekData.incidentsClosed) || 0;
   const managementIndex = Number(weekData.managementIndex) || 0;
 
+  // Определение "Температуры" (перегрузки)
+  const incColor = totalIncidents >= 300 ? '#ef4444' : '#10b981'; 
+  const taskColor = totalClosedCount >= 50 ? '#ef4444' : '#3b82f6'; 
+  const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
+
+  // Логика "Индекса выгорания" (🔥)
+  // Если у инженера больше 20 задач в очереди (wip) ИЛИ он закрыл > 100 инцидентов / > 15 задач инфраструктуры.
+  const getBurnoutBadge = (wip, closed, type) => {
+    const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) > 100) || (type === 'task' && Number(closed) > 15);
+    if (isOverloaded) {
+       return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания">🔥</span>`;
+    }
+    return '';
+  };
+
   const sortedTaskPerformers = [...(weekData.taskPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
   const sortedIncPerformers = [...(weekData.topPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
 
-  // Получаем список ВЫПОЛНЕННЫХ задач из подробного архива БЕЗ ОПАСНОЙ СОРТИРОВКИ ДАТ!
   const completedDetailedTasks = (weekData.detailedTasks || [])
     .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
 
-  // Цветовая логика для "Красных температур"
-  const incColor = totalIncidents >= 300 ? '#ef4444' : '#10b981'; // Если >= 300 инцидентов - красный
-  const taskColor = totalClosedCount >= 50 ? '#ef4444' : '#3b82f6'; // Если >= 50 задач - красный
-  const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981'; // Если индекс < 70 - красный
-
-  // Функция для отрисовки "прогресс-бара" внутри HTML для Word/Почты через вложенные таблицы
+  // Функция для отрисовки "прогресс-бара" (Совместимо с Word/HTML)
   const renderProgressBar = (value, max, color) => {
     const percentage = Math.min(Math.round((value / max) * 100), 100);
     return `
@@ -1286,9 +1293,43 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     `;
   };
 
-  // Функция, генерирующая HTML-строку со встроенными стилями (WORD-FRIENDLY, ТАБЛИЧНАЯ ВЕРСТКА)
+  // Функция для круговой мини-диаграммы типов работ (через CSS conic-gradient)
+  const renderPieChart = () => {
+    if (!weekData.taskTypesDistribution || weekData.taskTypesDistribution.length === 0) return '';
+    
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+    let gradientParts = [];
+    let currentPercent = 0;
+    
+    weekData.taskTypesDistribution.forEach((item, index) => {
+      const p = Number(item.percent) || 0;
+      const color = colors[index % colors.length];
+      gradientParts.push(`${color} ${currentPercent}% ${currentPercent + p}%`);
+      currentPercent += p;
+    });
+
+    const legendHtml = weekData.taskTypesDistribution.map((item, idx) => `
+      <div style="margin-bottom: 4px; font-size: 12px; color: #475569;">
+        <span style="display: inline-block; width: 8px; height: 8px; background-color: ${colors[idx % colors.length]}; border-radius: 50%; margin-right: 6px;"></span>
+        ${safeString(item.name)}: <b>${item.percent}%</b>
+      </div>
+    `).join('');
+
+    return `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 20px;">
+        <tr>
+          <td width="80" style="vertical-align: top;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(${gradientParts.join(', ')});"></div>
+          </td>
+          <td style="vertical-align: top; padding-left: 10px;">
+            ${legendHtml}
+          </td>
+        </tr>
+      </table>
+    `;
+  };
+
   const getReportHtmlString = () => {
-    // Вспомогательная функция для генерации таблиц
     const generateTableHtml = (headers, rows) => {
       return `
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; margin-bottom: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
@@ -1308,31 +1349,22 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       `;
     };
 
-    const taskRows = sortedTaskPerformers.map(p => [getFullName(p.name), p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`]);
-    const incRows = sortedIncPerformers.map(p => [getFullName(p.name), p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
+    const taskRows = sortedTaskPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(p.wip, p.closed, 'task')}`, p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`]);
+    const incRows = sortedIncPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
 
     return `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 850px; margin: 0 auto; line-height: 1.5; background-color: #ffffff;">
         
-        <!-- HEADER: DARK BANNER -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #0f172a; color: #ffffff; margin-bottom: 30px;">
-          <tr>
-            <td style="padding: 24px 30px;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Executive Summary</h1>
-              <p style="margin: 6px 0 0 0; font-size: 14px; color: #94a3b8;">Направление технической поддержки ОСО</p>
-            </td>
-            <td style="padding: 24px 30px; text-align: right; vertical-align: bottom;">
-              <p style="margin: 0; font-size: 14px; font-weight: bold; color: #f8fafc;">Неделя ${weekData.weekNumber}</p>
-              <p style="margin: 4px 0 0 0; font-size: 12px; color: #94a3b8;">${safeString(weekData.dates)}</p>
-            </td>
-          </tr>
-        </table>
+        <!-- HEADER -->
+        <div style="border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px;">
+          <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
+          <p style="margin: 0; color: #64748b; font-size: 14px;">Статус направления технической поддержки ОСО | Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})</p>
+        </div>
 
-        <!-- INNER PADDING CONTAINER -->
-        <div style="padding: 0 30px 30px 30px;">
+        <div style="padding: 0 10px;">
 
           <!-- 1. METRICS -->
-          <h2 style="font-size: 16px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 0; margin-bottom: 20px; text-transform: uppercase;">1. Операционная сводка (KPI)</h2>
+          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #3b82f6; padding-left: 10px; margin-top: 0; margin-bottom: 15px; text-transform: uppercase;">1. Операционная сводка (KPI)</h2>
           
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 30px;">
             <tr>
@@ -1342,14 +1374,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
                 ${renderProgressBar(totalIncidents, 400, incColor)}
               </td>
-              <td width="2%"></td> <!-- SPACER -->
+              <td width="2%"></td>
               <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-top: 4px solid ${taskColor}; vertical-align: top;">
                 <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
                 <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
                 <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
                 ${renderProgressBar(totalClosedCount, 100, taskColor)}
               </td>
-              <td width="2%"></td> <!-- SPACER -->
+              <td width="2%"></td>
               <td width="32%" style="background-color: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-top: 4px solid ${indexColor}; vertical-align: top;">
                 <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Индекс SLA</div>
                 <div style="font-size: 24px; font-weight: bold; color: ${indexColor}; margin-bottom: 5px;">${managementIndex}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
@@ -1359,20 +1391,28 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </tr>
           </table>
 
-          <!-- 2. TEAM -->
-          <h2 style="font-size: 16px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 30px; margin-bottom: 20px; text-transform: uppercase;">2. Нагрузка и Исполнители</h2>
-          
+          <!-- NEW: ТИПЫ РАБОТ -->
+          ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
+            <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #f59e0b; padding-left: 10px; margin-top: 30px; margin-bottom: 10px; text-transform: uppercase;">2. Распределение фокуса инфраструктуры (Ценность vs Рутина)</h2>
+            ${renderPieChart()}
+            <div style="margin-bottom: 30px;"></div>
+          ` : ''}
+
+          <!-- 2/3. TEAM -->
+          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #8b5cf6; padding-left: 10px; margin-top: 30px; margin-bottom: 15px; text-transform: uppercase;">${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? '3' : '2'}. Нагрузка и Исполнители</h2>
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Сотрудники, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
+
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Инфраструктура (Задачи)</h3>
           ${generateTableHtml(['Сотрудник', 'В работе (WIP)', 'Закрыто', 'Cycle Time'], taskRows.slice(0, 7))}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Первая линия (Инциденты)</h3>
           ${generateTableHtml(['Сотрудник', 'Закрыто', 'Ср. Время', 'CSAT'], incRows.slice(0, 5))}
 
-          <!-- 3. DETAILED TASKS -->
-          <h2 style="font-size: 16px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 30px; margin-bottom: 20px; text-transform: uppercase;">3. Выполненные задачи за неделю (Ценность)</h2>
+          <!-- 4. DETAILED TASKS -->
+          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #10b981; padding-left: 10px; margin-top: 30px; margin-bottom: 20px; text-transform: uppercase;">4. Выполненные ключевые задачи</h2>
           
           <ul style="font-size: 13px; color: #94a3b8; font-style: italic; padding-left: 20px; list-style-type: square; margin-bottom: 15px;">
-            <li>[ Нажмите сюда, сотрите этот текст и впишите ключевые достижения вручную... ]</li>
+            <li>[ Нажмите сюда, сотрите этот текст и впишите достижения вручную... ]</li>
           </ul>
 
           ${completedDetailedTasks.length > 0 ? `
@@ -1382,14 +1422,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </ul>
           ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
-          <!-- 4. MANAGEMENT -->
-          <h2 style="font-size: 16px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 30px; margin-bottom: 20px; text-transform: uppercase;">4. Статусы по проектам и поручениям руководства</h2>
+          <!-- 5. MANAGEMENT -->
+          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #f59e0b; padding-left: 10px; margin-top: 30px; margin-bottom: 20px; text-transform: uppercase;">5. Статусы по проектам руководства</h2>
           <div style="font-size: 13px; color: #94a3b8; font-style: italic; margin-bottom: 15px;">
             <p>[ Нажмите сюда и обновите статусы по проектным задачам... ]</p>
           </div>
 
-          <!-- 5. RISKS -->
-          <h2 style="font-size: 16px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 30px; margin-bottom: 20px; text-transform: uppercase;">5. Риски, Инциденты и Улучшения</h2>
+          <!-- 6. RISKS -->
+          <h2 style="font-size: 16px; color: #0f172a; border-left: 4px solid #ef4444; padding-left: 10px; margin-top: 30px; margin-bottom: 20px; text-transform: uppercase;">6. Риски, Инциденты и Улучшения</h2>
           <ul style="font-size: 13px; color: #334155; padding-left: 20px; line-height: 1.6;">
             <li style="margin-bottom: 8px;"><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
             <li style="margin-bottom: 8px;"><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
@@ -1401,7 +1441,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     `;
   };
 
-  // Единый UseEffect, который отвечает за наполнение HTML-отчета
   useEffect(() => {
     if (reportRef.current) {
         if (weekData.isReportFrozen && weekData.customReportHtml) {
@@ -1412,7 +1451,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     }
   }, [weekData]);
 
-  // Копирование Rich Text (HTML) из DOM (чтобы захватить ручные правки пользователя!)
   const handleCopyHtml = async () => {
     try {
       const htmlContent = reportRef.current.innerHTML;
@@ -1426,7 +1464,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
       console.error('Failed to copy: ', err);
-      // Фолбэк для старых браузеров
       const textArea = document.createElement("textarea");
       textArea.value = "Ошибка копирования HTML. Воспользуйтесь выделением текста (Ctrl+A) и копированием (Ctrl+C) прямо внутри белого поля."; 
       document.body.appendChild(textArea); textArea.select();
@@ -1435,7 +1472,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     }
   };
 
-  // Скачивание как HTML файл (с учетом ручных правок)
   const handleDownloadHtml = () => {
     const htmlContent = reportRef.current.innerHTML;
     const htmlString = `
@@ -1443,10 +1479,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Статус-отчет Неделя ${weekData.weekNumber}</title>
+        <title>ОТЧЕТ РУКОВОДИТЕЛЮ - Неделя ${weekData.weekNumber}</title>
       </head>
       <body style="background-color: #f8fafc; padding: 40px;">
-        <div style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 850px; margin: 0 auto; overflow: hidden;">
+        <div style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 850px; margin: 0 auto; overflow: hidden; padding: 40px 0;">
           ${htmlContent}
         </div>
       </body>
@@ -1456,46 +1492,24 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Status_Report_Week_${weekData.weekNumber}.html`;
+    a.download = `Executive_Summary_Week_${weekData.weekNumber}.html`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  // Оставляем старые "быстрые" отчеты как дополнительные
-  const quickReports = [
-    {
-      id: 'team', title: 'Быстрый статус для команды (в Чат)', icon: Users, color: 'emerald',
-      content: `Привет, команда! Итоги ${weekData.weekNumber || ''} недели (${safeString(weekData.dates)}):\n\n✅ 1-я линия: закрыто ${weekData.incidentsClosed || 0} инцидентов. 🔥 Топ-3 проблемы: ${top3Text}.\n🚀 Инфраструктура: отбили ${weekData.urgentCompleted || 0} внеплановых задач. Всего закрыли ${totalClosedCount} задач (Спринт: ${weekData.sprintCompleted || 0}).\n\n🏆 Успех недели: ${safeString(weekData.mainWin) || 'Выдержали темп!'}\n🙏 За Кайдзен спасибо: ${safeString(weekData.thanks) || 'Всю команду!'}\n\n🎯 Фокус на след. неделю: ${safeString(weekData.nextFocus)}`
-    },
-    {
-      id: 'retro', title: 'Отчет для Ретроспективы (Аудит)', icon: BookOpen, color: 'fuchsia',
-      content: `Рефлексия (Этап 2). Неделя ${weekData.weekNumber || ''}.\n\n🎯 Процессная гипотеза:\n${safeString(weekData.trainingHypothesis)}\n\n📊 Метрики:\n- Ср. время решения (Cycle Time): ${weekData.avgCycleTime || 0} дн.\n- Возврат (Reopen Rate): ${weekData.reopenRate || 0}%\n- Capacity: ${totalClosedCount} задач.\n- Возраст техдолга: ${weekData.backlogOld30 || 0} задач висят > 30 дней.\n\n💡 Аудит процесса:\n${safeString(weekData.mainInsight)}\n\n🚧 Bottlenecks (Ограничения):\n${safeString(weekData.mainRisk)}`
-    }
-  ];
-
-  const handleCopy = (text, id) => {
-    const textArea = document.createElement("textarea");
-    textArea.value = text; document.body.appendChild(textArea); textArea.select();
-    try { document.execCommand('copy'); setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); } catch (err) {}
-    document.body.removeChild(textArea);
   };
 
   return (
     <div className="animate-in fade-in duration-500 pb-10 flex flex-col items-center">
       
-      {/* TOOLBAR FOR THE WHITE PAPER */}
       <div className="w-full max-w-4xl flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Генератор Отчетов (Executive Summary)</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
           <p className="text-slate-400 text-sm">Отредактируйте текст прямо на белом листе и скопируйте в Word</p>
         </div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
-      {/* THE WHITE PAPER CONTAINER */}
       <div className="w-full max-w-4xl bg-slate-800 rounded-xl border border-slate-700/50 shadow-2xl flex flex-col overflow-hidden mb-8">
         
-        {/* СТАТУС БАР */}
         <div className="bg-slate-900 py-3 px-6 text-[10px] font-bold uppercase tracking-widest flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-2">
             {weekData.isReportFrozen ? (
@@ -1509,7 +1523,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           </div>
         </div>
 
-        {/* ПАНЕЛЬ КНОПОК */}
         <div className="bg-slate-800/80 px-6 py-4 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex gap-2 w-full sm:w-auto">
              {weekData.isReportFrozen ? (
@@ -1527,7 +1540,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <button onClick={handleCopyHtml} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-colors ${copiedId === 'html' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg'}`}>
               {copiedId === 'html' ? <Check size={18} /> : <Copy size={18} />} 
               <span className="hidden sm:inline">{copiedId === 'html' ? 'Успешно скопировано!' : 'Копировать в Word / Почту'}</span>
-              <span className="sm:hidden">{copiedId === 'html' ? 'ОК' : 'Copy Word'}</span>
+              <span className="sm:hidden">{copiedId === 'html' ? 'ОК' : 'Copy'}</span>
             </button>
             <button onClick={handleDownloadHtml} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded-lg transition-colors shadow-lg" title="Скачать как HTML файл (для PDF)">
               <Download size={18} />
@@ -1535,9 +1548,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           </div>
         </div>
         
-        {/* СИМУЛЯЦИЯ РАБОЧЕГО СТОЛА И ЛИСТА А4 */}
         <div className="p-8 bg-slate-300 flex justify-center custom-scrollbar overflow-y-auto" style={{ maxHeight: '70vh' }}>
-           {/* РЕНДЕР ИЗ HTML СТРОКИ С ВОЗМОЖНОСТЬЮ РУЧНОЙ ПРАВКИ */}
           <div 
             ref={reportRef}
             contentEditable={true} 
@@ -1547,31 +1558,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             style={{ 
               width: '100%', 
               maxWidth: '850px', 
-              minHeight: '1120px', // Примерная пропорция А4
+              minHeight: '1120px', 
               padding: '0' 
             }}
           />
         </div>
-      </div>
-
-      {/* ДОПОЛНИТЕЛЬНЫЕ ОТЧЕТЫ (ЧАТЫ) */}
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6">
-        {quickReports.map((report) => {
-          const Icon = report.icon; const isCopied = copiedId === report.id;
-          return (
-            <div key={report.id} className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm flex flex-col overflow-hidden h-64">
-              <div className={`bg-slate-900/50 p-4 border-b border-slate-700/50 flex justify-between items-center`}>
-                <div className="flex items-center gap-2"><Icon size={18} className={`text-${report.color}-400`} /><h3 className="font-medium text-slate-200 text-sm">{report.title}</h3></div>
-              </div>
-              <div className="p-4 flex-1"><textarea readOnly value={report.content} className="w-full h-full bg-transparent text-slate-400 text-xs resize-none outline-none focus:ring-0 custom-scrollbar" /></div>
-              <div className="p-3 bg-slate-900/30 border-t border-slate-700/50">
-                <button onClick={() => handleCopy(report.content, report.id)} className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-colors ${isCopied ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600'}`}>
-                  {isCopied ? <Check size={14} /> : <Copy size={14} />} {isCopied ? 'Скопировано!' : 'Копировать'}
-                </button>
-              </div>
-            </div>
-          )
-        })}
       </div>
     </div>
   );
