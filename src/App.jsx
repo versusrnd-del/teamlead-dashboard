@@ -28,6 +28,8 @@ const USER_DICTIONARY = {
 const BASE_CAPACITY = 50; 
 const TEAM_LEAD_ID = "u01002"; // ID тимлида для исключения из таблиц отчета
 const TEAM_LEAD_NAME = "Виктор С.";
+// Список администраторов 3-й линии (для скрытия из инцидентов 1-й линии)
+const THIRD_LINE_ADMINS = ["Антон Лысов", "Петр Скляренко", "Максим Нестеров", "Роман Нор", "e0197"];
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const availableYears = Array.from({ length: 31 }, (_, i) => 2020 + i);
@@ -296,7 +298,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   const cycleVal = Number(weekData.avgCycleTime) || 0;
   const cycleColor = cycleVal > 14 ? 'text-red-400' : (cycleVal > 7 ? 'text-amber-400' : 'text-emerald-400');
 
-  // Хелпер для отрисовки профиля сложности
   const getContextBadge = (context) => {
     if (!context || context.trim() === '') return <span className="text-slate-600">-</span>;
     const lower = context.toLowerCase();
@@ -321,6 +322,20 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       </div>
     );
   };
+
+  // ФИЛЬТРАЦИЯ ТАБЛИЦ ДЛЯ ЭКРАНА
+  let filteredTopPerformers = (weekData.topPerformers || []).filter(p => {
+     const fName = getFullName(p.name);
+     const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
+     const isThirdLine = THIRD_LINE_ADMINS.includes(fName) || THIRD_LINE_ADMINS.includes(p.name);
+     return !isTeamLead && !isThirdLine;
+  });
+
+  let filteredTaskPerformers = (weekData.taskPerformers || []).filter(p => {
+     const fName = getFullName(p.name);
+     const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
+     return !isTeamLead;
+  });
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -654,7 +669,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
-                  {weekData.topPerformers && weekData.topPerformers.map((perf, idx) => {
+                  {filteredTopPerformers.map((perf, idx) => {
                     const commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
                     const contextStr = safeString(perf.taskContext);
                     return (
@@ -705,7 +720,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       </tr>
                     );
                   })}
-                  {(!weekData.topPerformers || weekData.topPerformers.length === 0) && <tr><td colSpan="8" className="py-4 text-center text-slate-500">Данные не загружены</td></tr>}
+                  {(!filteredTopPerformers || filteredTopPerformers.length === 0) && <tr><td colSpan="8" className="py-4 text-center text-slate-500">Данные не загружены</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -732,7 +747,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/50">
-                    {weekData.taskPerformers.map((perf, idx) => {
+                    {filteredTaskPerformers.map((perf, idx) => {
                       const commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
                       const contextStr = safeString(perf.taskContext);
                       return (
@@ -1038,8 +1053,11 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             firstLineTotal += op.total;
             firstLineMissed += op.missed; 
 
-            let namePart = op.name.split(' ')[0]; 
-            let perf = jiraData?.find(p => p.name.includes(namePart) || getFullName(p.name).includes(namePart));
+            // БЕРЕМ ИМЕННО ФАМИЛИЮ ДЛЯ ПОИСКА (ФИКС "ТРОЙНОГО МАКСИМА")
+            let nameParts = op.name.trim().split(' ');
+            let searchName = nameParts.length > 1 ? nameParts[1] : nameParts[0]; 
+
+            let perf = jiraData?.find(p => getFullName(p.name).toLowerCase().includes(searchName.toLowerCase()) || p.name.toLowerCase().includes(searchName.toLowerCase()));
             let closedTickets = perf ? perf.closed : 0;
 
             if (op.missed > 0) {
@@ -1061,9 +1079,10 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             }
         } else {
             // Вторая линия (помощь).
-            let namePart = op.name.split(' ')[0]; 
-            let perf = jiraData?.find(p => p.name.includes(namePart) || getFullName(p.name).includes(namePart));
-            let closedTickets = perf ? perf.closed : 0;
+            let nameParts2 = op.name.trim().split(' ');
+            let searchName2 = nameParts2.length > 1 ? nameParts2[1] : nameParts2[0];
+            let perf2 = jiraData?.find(p => getFullName(p.name).toLowerCase().includes(searchName2.toLowerCase()) || p.name.toLowerCase().includes(searchName2.toLowerCase()));
+            let closedTickets = perf2 ? perf2.closed : 0;
 
             if (closedTickets >= 10 || op.answered > 10) {
                 // ПРОВЕРКА НА АВАРИЮ (МАССОВЫЙ СБОЙ)
@@ -1617,7 +1636,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
       const top3 = sortedIncidents.slice(0, 3);
       const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
-      
+
       const totalIncidentsFromList = (weekData.topIncidents || []).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
       const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
       const totalIncidents = Number(weekData.incidentsClosed) || 0;
@@ -1635,19 +1654,44 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         return '';
       };
 
-      let sortedTaskPerformers = [...(weekData.taskPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
-      let sortedIncPerformers = [...(weekData.topPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
-      
-      sortedTaskPerformers = sortedTaskPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
-      sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
+      const THIRD_LINE_ADMINS = ["Антон Лысов", "Петр Скляренко", "Максим Нестеров", "Роман Нор", "e0197"];
+
+      let sortedTaskPerformers = [...(weekData.taskPerformers || [])]
+        .filter(p => {
+           const fName = getFullName(p.name);
+           // Убираем Тимлида из Инфраструктуры
+           return p.name !== TEAM_LEAD_ID && fName !== TEAM_LEAD_NAME && !String(p.name).includes('Виктор');
+        })
+        .sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
+        
+      let sortedIncPerformers = [...(weekData.topPerformers || [])]
+        .filter(p => {
+           const fName = getFullName(p.name);
+           const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
+           const isThirdLine = THIRD_LINE_ADMINS.includes(fName) || THIRD_LINE_ADMINS.includes(p.name);
+           // Убираем Тимлида И 3-ю линию из Инцидентов
+           return !isTeamLead && !isThirdLine;
+        })
+        .sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
 
       const completedDetailedTasks = (weekData.detailedTasks || [])
         .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved))
+        .filter(t => {
+           // Убираем Тимлида из списка видимых задач
+           const fName = getFullName(t.assignee);
+           return fName !== TEAM_LEAD_NAME && t.assignee !== TEAM_LEAD_ID && !String(t.assignee).includes('Виктор');
+        })
         .sort((a, b) => {
             const idA = parseInt(String(a.id).replace(/\D/g, '')) || 0;
             const idB = parseInt(String(b.id).replace(/\D/g, '')) || 0;
             return idB - idA;
         });
+
+      // Фильтруем Тимлида из Телефонии
+      const visibleTelephony = (weekData.telephonyData || []).filter(row => {
+         const fName = getFullName(row.name);
+         return fName !== TEAM_LEAD_NAME && row.name !== TEAM_LEAD_ID && !String(row.name).includes('Виктор');
+      });
 
       const renderProgressBar = (value, max, color) => {
         const percentage = Math.min(Math.round((value / max) * 100), 100);
@@ -1715,10 +1759,25 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         `;
       };
 
-      const taskRows = sortedTaskPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(p.wip, p.closed, 'task')}`, p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`]);
-      const incRows = sortedIncPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
+      // ХЕЛПЕР ДЛЯ ОТЧЕТА: профиль AI строкой (чтобы нормально рендерилось в письме)
+      const getContextStringHtml = (context) => {
+        if (!context || context.trim() === '') return '-';
+        const lower = context.toLowerCase();
+        let color = '#64748b'; // серый
+        let shortText = context;
+        if (lower.includes('баланс') || lower.includes('микс')) {
+          color = '#3b82f6'; // синий
+        } else if (lower.includes('сложн') || lower.includes('архитектур') || lower.includes('спасат') || lower.includes('высок')) {
+          color = '#d946ef'; // фуксия
+        }
+        if(shortText.length > 15) shortText = shortText.substring(0, 14) + '...';
+        return `<span style="color: ${color}; font-weight: bold; font-size: 11px;" title="${context}">${shortText}</span>`;
+      };
 
-      // ИСПРАВЛЕННЫЙ БЛОК ТОП-3 ИНЦИДЕНТОВ С ПРАВИЛЬНЫМИ ПРОЦЕНТАМИ
+      const taskRows = sortedTaskPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(p.wip, p.closed, 'task')}`, p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`, getContextStringHtml(p.taskContext)]);
+      const incRows = sortedIncPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, p.closed || 0, `${p.avgTimeMin || 0} мин.`, getContextStringHtml(p.taskContext), formatCSAT(p.csat)]);
+
+      // БЛОК ТОП-3 ИНЦИДЕНТОВ С ПРАВИЛЬНЫМИ ПРОЦЕНТАМИ
       const topIncidentsHtml = top3.map((inc, idx) => {
         const count = Number(inc.count) || 0;
         // Считаем процент от суммы всех найденных проблем, как на главном дашборде
@@ -1745,7 +1804,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         `;
       }).join('');
       
-      const telephonyHtml = weekData.telephonyData && weekData.telephonyData.length > 0 ? `
+      const telephonyHtml = visibleTelephony && visibleTelephony.length > 0 ? `
         <table class="data-table" style="margin-bottom: 10px;">
           <thead>
             <tr>
@@ -1758,7 +1817,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </tr>
           </thead>
           <tbody>
-            ${weekData.telephonyData.map(row => `
+            ${visibleTelephony.map(row => `
               <tr>
                 <td style="font-weight: 500;">${row.name}</td>
                 <td style="text-align: center;">${row.total}</td>
@@ -1782,6 +1841,31 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <div style="white-space: pre-wrap;">${safeString(weekData.telephonyInsight)}</div>
         </div>
       ` : '';
+
+      // КРАСИВЫЙ БЛОК ДЛЯ ДЕТАЛЬНЫХ ЗАДАЧ
+      const detailedTasksHtmlRendered = completedDetailedTasks.map(t => {
+        let contextHtml = '';
+        if (t.comments && t.comments.trim() !== '') {
+           contextHtml = `
+             <div style="font-size: 12px; color: #334155; margin-top: 8px; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+               <span style="font-weight: 800; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">Детали решения:</span><br/>
+               <div style="margin-top: 4px; white-space: pre-wrap; line-height: 1.5;">${safeString(t.comments)}</div>
+             </div>`;
+        }
+        return `
+          <div style="margin-bottom: 20px; border-left: 3px solid #94a3b8; padding-left: 14px; padding-bottom: 5px;">
+             <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 4px;">
+               <span style="color: #3b82f6;">${t.id}</span>: ${safeString(t.title)}
+             </div>
+             <div style="font-size: 12px; color: #64748b;">
+               Исполнитель: <span style="font-weight: 600; color: #1e293b;">${getFullName(t.assignee)}</span>
+               <span style="margin: 0 8px; color: #cbd5e1;">|</span>
+               Статус: <span style="background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${t.status || 'Закрыто'}</span>
+             </div>
+             ${contextHtml}
+          </div>
+        `;
+      }).join('');
 
       let sectionCounter = 1;
 
@@ -1824,7 +1908,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <div class="kpi-card" style="border-top: 4px solid ${taskColor};">
                 <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
                 <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
-                <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} ({'>'}30д: ${weekData.backlogOld30 || 0})</div>
+                <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
                 ${renderProgressBar(totalClosedCount, 100, taskColor)}
               </div>
               
@@ -1841,7 +1925,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
             <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
-            ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'CSAT'], incRows.slice(0, 5))}
+            ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'Профиль', 'CSAT'], incRows.slice(0, 5))}
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
             ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
@@ -1861,17 +1945,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Нагрузка администраторов (без учета тимлида)</h3>
             <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
-            ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time'], taskRows.slice(0, 7))}
+            ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time', 'Профиль'], taskRows.slice(0, 7))}
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Выполненные ключевые задачи (Ценность)</h3>
             <ul class="custom-list" style="color: #94a3b8; font-style: italic; margin-bottom: 15px;">
               <li><span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и впишите достижения вручную... ]</span></li>
             </ul>
             ${completedDetailedTasks.length > 0 ? `
-              <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 5px;">Автоматическая сводка из Jira:</p>
-              <ul class="custom-list">
-                ${completedDetailedTasks.map(t => `<li><b>${t.id}</b>: ${t.title} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
-              </ul>
+              <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 10px;">Автоматическая сводка из Jira:</p>
+              <div>
+                ${detailedTasksHtmlRendered}
+              </div>
             ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
             <!-- MANAGEMENT (ПРОЕКТЫ) -->
