@@ -27,7 +27,7 @@ const USER_DICTIONARY = {
 };
 
 const BASE_CAPACITY = 50; 
-const TEAM_LEAD_ID = "u01002"; // ID тимлида для исключения из таблиц отчета
+const TEAM_LEAD_ID = "u01002"; 
 const TEAM_LEAD_NAME = "Виктор С.";
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -525,7 +525,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
               )}
             </div>
 
-            {/* НОВЫЙ БЛОК: ТИПЫ РАБОТ */}
+            {/* НОВЫЕ БЛОК: ТИПЫ РАБОТ */}
             <div className="xl:col-span-1 border-t xl:border-t-0 xl:border-l border-slate-700/50 pt-6 xl:pt-0 xl:pl-6">
                {weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? (
                  <>
@@ -1097,8 +1097,22 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             ></textarea>
             <div className="flex flex-wrap items-center gap-3">
               <button type="button" onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><DownloadCloud size={14} /> Загрузить JSON</button>
+              
+              {/* КНОПКА ОЧИСТКИ ЗАДАЧ */}
+              <button type="button" onClick={() => {
+                if(window.confirm('Точно удалить все задачи из памяти этой недели? Это действие очистит архив задач.')) {
+                    setFormData(prev => ({ ...prev, detailedTasks: [] }));
+                    setIsSaved(false);
+                    setImportStatus('cleared');
+                    setTimeout(() => setImportStatus(null), 3000);
+                }
+              }} className="bg-red-900/40 hover:bg-red-800/60 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg">
+                <Trash2 size={14} /> Очистить список задач
+              </button>
+
               {importStatus === 'success' && <span className="text-emerald-400 text-xs font-bold flex items-center gap-1"><Check size={14}/> Успешно!</span>}
               {importStatus === 'error' && <span className="text-red-400 text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> Ошибка формата.</span>}
+              {importStatus === 'cleared' && <span className="text-amber-400 text-xs font-bold flex items-center gap-1"><Check size={14}/> Память очищена! Сохраните отчет.</span>}
             </div>
           </div>
         </div>
@@ -1475,7 +1489,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
 
   const getBurnoutBadge = (wip, closed, type) => {
-    // Изменили порог выгорания для инцидентов со 100 на 80+ на основе твоей экспертизы
     const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) >= 80) || (type === 'task' && Number(closed) > 15);
     if (isOverloaded) {
        return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания (Норма 50-60)">🔥</span>`;
