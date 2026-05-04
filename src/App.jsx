@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3, PhoneCall, ListTodo, AlertCircle
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3, PhoneCall
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -73,9 +73,13 @@ const generateMonthWeeks = (year, month) => {
 // Вычисление разницы в неделях
 const getWeeksDiff = (createdKey, currentKey) => {
   if (!createdKey || !currentKey) return 0;
-  const [y1, w1] = createdKey.split('-').map(Number);
-  const [y2, w2] = currentKey.split('-').map(Number);
-  return ((y2 - y1) * 52) + (w2 - w1);
+  try {
+    const [y1, w1] = createdKey.split('-').map(Number);
+    const [y2, w2] = currentKey.split('-').map(Number);
+    return ((y2 - y1) * 52) + (w2 - w1);
+  } catch (e) {
+    return 0;
+  }
 };
 
 const replaceLoginsWithNames = (text) => {
@@ -1477,17 +1481,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       createdWeekKey: selectedKey,
       completedWeekKey: null
     };
-    setProjectTasks([...projectTasks, newTask]);
+    setProjectTasks([...(projectTasks || []), newTask]);
     setNewTaskTitle('');
     setNewTaskComment('в работе');
   };
 
   const handleUpdateProjectTask = (id, field, value) => {
-    setProjectTasks(projectTasks.map(t => t.id === id ? { ...t, [field]: value } : t));
+    setProjectTasks((projectTasks || []).map(t => t.id === id ? { ...t, [field]: value } : t));
   };
 
   const handleCompleteProjectTask = (id) => {
-    setProjectTasks(projectTasks.map(t => {
+    setProjectTasks((projectTasks || []).map(t => {
       if (t.id === id) {
         return { 
           ...t, 
@@ -1501,51 +1505,55 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
   const handleDeleteProjectTask = (id) => {
     if (window.confirm("Удалить поручение навсегда?")) {
-      setProjectTasks(projectTasks.filter(t => t.id !== id));
+      setProjectTasks((projectTasks || []).filter(t => t.id !== id));
     }
   };
 
   // Фильтруем задачи, которые должны попасть в отчет ТЕКУЩЕЙ недели
-  const tasksForThisWeek = projectTasks.filter(t => 
+  const tasksForThisWeek = (projectTasks || []).filter(t => 
     t.status === 'active' || t.completedWeekKey === selectedKey
   );
 
   // --- ГЕНЕРАЦИЯ HTML ДЛЯ ЗАДАЧ ---
   const generateTasksHtml = () => {
-    if (tasksForThisWeek.length === 0) {
-      return `<p style="font-size: 13px; color: #64748b; font-style: italic;">На этой неделе нет активных поручений.</p>`;
-    }
-    
-    return tasksForThisWeek.map(t => {
-      const isCompleted = t.status === 'completed';
-      const bgColor = isCompleted ? '#f0fdf4' : '#ffffff';
-      const borderColor = isCompleted ? '#bbf7d0' : '#e2e8f0';
-      const leftBorderColor = isCompleted ? '#22c55e' : t.color;
-      const titleColor = isCompleted ? '#166534' : '#0f172a';
-      const titleText = isCompleted ? `<s>${safeString(t.title)}</s>` : safeString(t.title);
+    try {
+      if (tasksForThisWeek.length === 0) {
+        return `<p style="font-size: 13px; color: #64748b; font-style: italic;">На этой неделе нет активных поручений.</p>`;
+      }
       
-      const statusBadge = isCompleted 
-        ? `<span style="color: #16a34a; font-weight: bold; background: #dcfce3; padding: 2px 6px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">Выполнено</span>`
-        : `[ <span style="color: ${t.color}; font-weight: bold;">${safeString(t.comment)}</span> ]`;
+      return tasksForThisWeek.map(t => {
+        const isCompleted = t.status === 'completed';
+        const bgColor = isCompleted ? '#f0fdf4' : '#ffffff';
+        const borderColor = isCompleted ? '#bbf7d0' : '#e2e8f0';
+        const leftBorderColor = isCompleted ? '#22c55e' : t.color;
+        const titleColor = isCompleted ? '#166534' : '#0f172a';
+        const titleText = isCompleted ? `<s>${safeString(t.title)}</s>` : safeString(t.title);
+        
+        const statusBadge = isCompleted 
+          ? `<span style="color: #16a34a; font-weight: bold; background: #dcfce3; padding: 2px 6px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">Выполнено</span>`
+          : `[ <span style="color: ${t.color}; font-weight: bold;">${safeString(t.comment)}</span> ]`;
 
-      return `
-        <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-left: 4px solid ${leftBorderColor}; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px;">
-           <div style="font-weight: 700; font-size: 14px; color: ${titleColor}; margin-bottom: 6px;">
-               ${titleText}
-           </div>
-           ${!isCompleted ? `
-             <div style="font-size: 13px; text-align: left;">
-                 <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
-                 ${statusBadge}
+        return `
+          <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-left: 4px solid ${leftBorderColor}; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px;">
+             <div style="font-weight: 700; font-size: 14px; color: ${titleColor}; margin-bottom: 6px;">
+                 ${titleText}
              </div>
-           ` : `
-             <div style="font-size: 13px; text-align: left; margin-top: 4px;">
-                 ${statusBadge} <span style="color: #475569; margin-left: 8px;">Итог: ${safeString(t.comment)}</span>
-             </div>
-           `}
-        </div>
-      `;
-    }).join('');
+             ${!isCompleted ? `
+               <div style="font-size: 13px; text-align: left;">
+                   <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
+                   ${statusBadge}
+               </div>
+             ` : `
+               <div style="font-size: 13px; text-align: left; margin-top: 4px;">
+                   ${statusBadge} <span style="color: #475569; margin-left: 8px;">Итог: ${safeString(t.comment)}</span>
+               </div>
+             `}
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      return `<p style="color: red;">Ошибка отрисовки задач: ${e.message}</p>`;
+    }
   };
 
   // Авто-обновление блока задач внутри отчета (если он не заморожен)
@@ -1559,268 +1567,292 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
 
   // --- ДАННЫЕ ДЛЯ ОТЧЕТА ---
-  const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
-  const top3 = sortedIncidents.slice(0, 3);
-  const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
-  
-  const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
-  const totalIncidents = Number(weekData.incidentsClosed) || 0;
-  const managementIndex = Number(weekData.managementIndex) || 0;
-
-  const incColor = totalIncidents >= 300 ? '#ef4444' : '#10b981'; 
-  const taskColor = totalClosedCount >= 50 ? '#ef4444' : '#3b82f6'; 
-  const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
-
-  const getBurnoutBadge = (wip, closed, type) => {
-    const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) >= 80) || (type === 'task' && Number(closed) > 15);
-    if (isOverloaded) {
-       return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания (Норма 50-60)">🔥</span>`;
-    }
-    return '';
-  };
-
-  let sortedTaskPerformers = [...(weekData.taskPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
-  let sortedIncPerformers = [...(weekData.topPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
-  
-  sortedTaskPerformers = sortedTaskPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
-  sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
-
-  const completedDetailedTasks = (weekData.detailedTasks || [])
-    .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved))
-    .sort((a, b) => {
-        const idA = parseInt(String(a.id).replace(/\D/g, '')) || 0;
-        const idB = parseInt(String(b.id).replace(/\D/g, '')) || 0;
-        return idB - idA;
-    });
-
-  const renderProgressBar = (value, max, color) => {
-    const percentage = Math.min(Math.round((value / max) * 100), 100);
-    return `
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 8px; width: 100%; background-color: #e2e8f0; border-radius: 4px;">
-        <tr>
-          ${percentage > 0 ? `<td width="${percentage}%" style="background-color: ${color}; height: 6px; border-radius: 4px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
-          ${percentage < 100 ? `<td width="${100 - percentage}%" style="height: 6px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
-        </tr>
-      </table>
-    `;
-  };
-
-  const renderPieChart = () => {
-    if (!weekData.taskTypesDistribution || weekData.taskTypesDistribution.length === 0) return '';
-    
-    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
-    let gradientParts = [];
-    let currentPercent = 0;
-    
-    weekData.taskTypesDistribution.forEach((item, index) => {
-      const p = Number(item.percent) || 0;
-      const color = colors[index % colors.length];
-      gradientParts.push(`${color} ${currentPercent}% ${currentPercent + p}%`);
-      currentPercent += p;
-    });
-
-    const legendHtml = weekData.taskTypesDistribution.map((item, idx) => `
-      <div style="margin-bottom: 4px; font-size: 12px; color: #475569;">
-        <span style="display: inline-block; width: 8px; height: 8px; background-color: ${colors[idx % colors.length]}; border-radius: 50%; margin-right: 6px;"></span>
-        ${safeString(item.name)}: <b>${item.percent}%</b>
-      </div>
-    `).join('');
-
-    return `
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 20px;">
-        <tr>
-          <td width="80" style="vertical-align: top;">
-            <div style="width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(${gradientParts.join(', ')});"></div>
-          </td>
-          <td style="vertical-align: top; padding-left: 10px;">
-            ${legendHtml}
-          </td>
-        </tr>
-      </table>
-    `;
-  };
-
   const getReportHtmlString = () => {
-    const generateTableHtml = (headers, rows) => {
-      return `
-        <table class="data-table">
+    try {
+      const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
+      const top3 = sortedIncidents.slice(0, 3);
+      const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
+      
+      const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
+      const totalIncidents = Number(weekData.incidentsClosed) || 0;
+      const managementIndex = Number(weekData.managementIndex) || 0;
+
+      const incColor = totalIncidents >= 300 ? '#ef4444' : '#10b981'; 
+      const taskColor = totalClosedCount >= 50 ? '#ef4444' : '#3b82f6'; 
+      const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
+
+      const getBurnoutBadge = (wip, closed, type) => {
+        const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) >= 80) || (type === 'task' && Number(closed) > 15);
+        if (isOverloaded) {
+           return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания (Норма 50-60)">🔥</span>`;
+        }
+        return '';
+      };
+
+      let sortedTaskPerformers = [...(weekData.taskPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
+      let sortedIncPerformers = [...(weekData.topPerformers || [])].sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
+      
+      sortedTaskPerformers = sortedTaskPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
+      sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
+
+      const completedDetailedTasks = (weekData.detailedTasks || [])
+        .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved))
+        .sort((a, b) => {
+            const idA = parseInt(String(a.id).replace(/\D/g, '')) || 0;
+            const idB = parseInt(String(b.id).replace(/\D/g, '')) || 0;
+            return idB - idA;
+        });
+
+      const renderProgressBar = (value, max, color) => {
+        const percentage = Math.min(Math.round((value / max) * 100), 100);
+        return `
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 8px; width: 100%; background-color: #e2e8f0; border-radius: 4px;">
+            <tr>
+              ${percentage > 0 ? `<td width="${percentage}%" style="background-color: ${color}; height: 6px; border-radius: 4px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
+              ${percentage < 100 ? `<td width="${100 - percentage}%" style="height: 6px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
+            </tr>
+          </table>
+        `;
+      };
+
+      const renderPieChart = () => {
+        if (!weekData.taskTypesDistribution || weekData.taskTypesDistribution.length === 0) return '';
+        
+        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+        let gradientParts = [];
+        let currentPercent = 0;
+        
+        weekData.taskTypesDistribution.forEach((item, index) => {
+          const p = Number(item.percent) || 0;
+          const color = colors[index % colors.length];
+          gradientParts.push(`${color} ${currentPercent}% ${currentPercent + p}%`);
+          currentPercent += p;
+        });
+
+        const legendHtml = weekData.taskTypesDistribution.map((item, idx) => `
+          <div style="margin-bottom: 4px; font-size: 12px; color: #475569;">
+            <span style="display: inline-block; width: 8px; height: 8px; background-color: ${colors[idx % colors.length]}; border-radius: 50%; margin-right: 6px;"></span>
+            ${safeString(item.name)}: <b>${item.percent}%</b>
+          </div>
+        `).join('');
+
+        return `
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 20px;">
+            <tr>
+              <td width="80" style="vertical-align: top;">
+                <div style="width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(${gradientParts.join(', ')});"></div>
+              </td>
+              <td style="vertical-align: top; padding-left: 10px;">
+                ${legendHtml}
+              </td>
+            </tr>
+          </table>
+        `;
+      };
+
+      const generateTableHtml = (headers, rows) => {
+        return `
+          <table class="data-table">
+            <thead>
+              <tr>
+                ${headers.map(h => `<th>${h}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  ${r.map((cell, idx) => `<td style="${idx > 0 ? 'text-align: center;' : ''}">${cell}</td>`).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      };
+
+      const taskRows = sortedTaskPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(p.wip, p.closed, 'task')}`, p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`]);
+      const incRows = sortedIncPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
+
+      const topIncidentsHtml = top3.map(inc => `
+        <div class="incident-card">
+          <div style="font-weight: 700; font-size: 13px;">${safeString(inc.name)} <span style="color: #ef4444;">(${Number(inc.count)||0} шт.)</span></div>
+          <div style="font-size: 12px; color: #475569; margin-top: 4px;">${safeString(inc.analysis)}</div>
+        </div>
+      `).join('');
+      
+      const telephonyHtml = weekData.telephonyData && weekData.telephonyData.length > 0 ? `
+        <table class="data-table" style="margin-bottom: 10px;">
           <thead>
             <tr>
-              ${headers.map(h => `<th>${h}</th>`).join('')}
+              <th>Оператор</th>
+              <th style="text-align: center;">Всего</th>
+              <th style="text-align: center;">Отвечено</th>
+              <th style="text-align: center;">Пропущено</th>
+              <th style="text-align: center;">Ср. ожидание</th>
+              <th style="text-align: center;">Ср. разговор</th>
             </tr>
           </thead>
           <tbody>
-            ${rows.map(r => `
+            ${weekData.telephonyData.map(row => `
               <tr>
-                ${r.map((cell, idx) => `<td style="${idx > 0 ? 'text-align: center;' : ''}">${cell}</td>`).join('')}
+                <td style="font-weight: 500;">${row.name}</td>
+                <td style="text-align: center;">${row.total}</td>
+                <td style="text-align: center; color: #10b981; font-weight: bold;">${row.answered}</td>
+                <td style="text-align: center; color: ${row.missed > 0 ? '#ef4444' : '#64748b'}; font-weight: ${row.missed > 0 ? 'bold' : 'normal'};">${row.missed}</td>
+                <td style="text-align: center;">${row.avgWait}</td>
+                <td style="text-align: center;">${row.avgTalk}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
+      ` : `
+        <div class="editable-box" style="background-color: #f1f5f9; border-color: #cbd5e1; color: #64748b; font-style: italic; text-align: center; margin-bottom: 30px;">
+          <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Загрузите статистику телефонии на вкладке "Заполнить неделю" или вставьте таблицу сюда ]</span>
+        </div>
       `;
-    };
-
-    const taskRows = sortedTaskPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(p.wip, p.closed, 'task')}`, p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`]);
-    const incRows = sortedIncPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
-
-    const topIncidentsHtml = top3.map(inc => `
-      <div class="incident-card">
-        <div style="font-weight: 700; font-size: 13px;">${safeString(inc.name)} <span style="color: #ef4444;">(${Number(inc.count)||0} шт.)</span></div>
-        <div style="font-size: 12px; color: #475569; margin-top: 4px;">${safeString(inc.analysis)}</div>
-      </div>
-    `).join('');
-    
-    const telephonyHtml = weekData.telephonyData && weekData.telephonyData.length > 0 ? `
-      <table class="data-table" style="margin-bottom: 10px;">
-        <thead>
-          <tr>
-            <th>Оператор</th>
-            <th style="text-align: center;">Всего</th>
-            <th style="text-align: center;">Отвечено</th>
-            <th style="text-align: center;">Пропущено</th>
-            <th style="text-align: center;">Ср. ожидание</th>
-            <th style="text-align: center;">Ср. разговор</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${weekData.telephonyData.map(row => `
-            <tr>
-              <td style="font-weight: 500;">${row.name}</td>
-              <td style="text-align: center;">${row.total}</td>
-              <td style="text-align: center; color: #10b981; font-weight: bold;">${row.answered}</td>
-              <td style="text-align: center; color: ${row.missed > 0 ? '#ef4444' : '#64748b'}; font-weight: ${row.missed > 0 ? 'bold' : 'normal'};">${row.missed}</td>
-              <td style="text-align: center;">${row.avgWait}</td>
-              <td style="text-align: center;">${row.avgTalk}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    ` : `
-      <div class="editable-box" style="background-color: #f1f5f9; border-color: #cbd5e1; color: #64748b; font-style: italic; text-align: center; margin-bottom: 30px;">
-        <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Загрузите статистику телефонии на вкладке "Заполнить неделю" или вставьте таблицу сюда ]</span>
-      </div>
-    `;
-    
-    const telephonyInsightHtml = weekData.telephonyInsight ? `
-      <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px; color: #92400e; margin-bottom: 30px;">
-        <div style="font-weight: bold; margin-bottom: 5px;">🤖 AI-Анализ телефонии и выгорания:</div>
-        <div style="white-space: pre-wrap;">${safeString(weekData.telephonyInsight)}</div>
-      </div>
-    ` : '';
-
-    let sectionCounter = 1;
-
-    return `
-      <style>
-        .report-container { font-family: 'Segoe UI', system-ui, sans-serif; color: #1e293b; line-height: 1.6; max-width: 900px; margin: 0 auto; background: #ffffff; text-align: left; }
-        .header { border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px; }
-        .kpi-grid { display: flex; gap: 20px; margin-bottom: 30px; }
-        .kpi-card { flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
-        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .data-table th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
-        .data-table td { padding: 10px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
-        .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--accent); padding-left: 10px; margin: 40px 0 15px 0; text-transform: uppercase; color: #0f172a; }
-        .editable-box { background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; padding: 15px; font-size: 13px; color: #92400e; margin-bottom: 30px; font-style: italic; text-align: center; }
-        .incident-card { background: #f8fafc; border-left: 3px solid #f59e0b; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
-        ul.custom-list li { margin-bottom: 6px; }
-      </style>
-
-      <div class="report-container">
-        
-        <div class="header">
-          <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
-          <p style="margin: 0; color: #64748b; font-size: 14px;">Статус направления технической поддержки ОСО | Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})</p>
+      
+      const telephonyInsightHtml = weekData.telephonyInsight ? `
+        <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px; color: #92400e; margin-bottom: 30px;">
+          <div style="font-weight: bold; margin-bottom: 5px;">🤖 AI-Анализ телефонии и выгорания:</div>
+          <div style="white-space: pre-wrap;">${safeString(weekData.telephonyInsight)}</div>
         </div>
+      ` : '';
 
-        <div style="padding: 0 10px;">
+      let sectionCounter = 1;
 
-          <div class="section-title" style="--accent: #3b82f6;">${sectionCounter++}. Операционная сводка (KPI)</div>
+      return `
+        <style>
+          .report-container { font-family: 'Segoe UI', system-ui, sans-serif; color: #1e293b; line-height: 1.6; max-width: 900px; margin: 0 auto; background: #ffffff; text-align: left; }
+          .header { border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px; }
+          .kpi-grid { display: flex; gap: 20px; margin-bottom: 30px; }
+          .kpi-card { flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+          .data-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          .data-table th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
+          .data-table td { padding: 10px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+          .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--accent); padding-left: 10px; margin: 40px 0 15px 0; text-transform: uppercase; color: #0f172a; }
+          .editable-box { background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; padding: 15px; font-size: 13px; color: #92400e; margin-bottom: 30px; font-style: italic; text-align: center; }
+          .incident-card { background: #f8fafc; border-left: 3px solid #f59e0b; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+          ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
+          ul.custom-list li { margin-bottom: 6px; }
+        </style>
+
+        <div class="report-container">
           
-          <div class="kpi-grid">
-            <div class="kpi-card" style="border-top: 4px solid ${incColor};">
-              <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Инциденты (1 линия)</div>
-              <div style="font-size: 24px; font-weight: bold; color: ${incColor}; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
-              <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
-              ${renderProgressBar(totalIncidents, 400, incColor)}
-            </div>
-            
-            <div class="kpi-card" style="border-top: 4px solid ${taskColor};">
-              <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
-              <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
-              <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
-              ${renderProgressBar(totalClosedCount, 100, taskColor)}
-            </div>
-            
-            <div class="kpi-card" style="border-top: 4px solid ${indexColor};">
-              <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Индекс SLA</div>
-              <div style="font-size: 24px; font-weight: bold; color: ${indexColor}; margin-bottom: 5px;">${managementIndex}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
-              <div style="font-size: 12px; color: #64748b;">Возвраты: ${weekData.reopenRate || 0}%</div>
-              ${renderProgressBar(managementIndex, 100, indexColor)}
-            </div>
+          <div class="header">
+            <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
+            <p style="margin: 0; color: #64748b; font-size: 14px;">Статус направления технической поддержки ОСО | Неделя ${weekData.weekNumber} (${safeString(weekData.dates)})</p>
           </div>
 
-          <div class="section-title" style="--accent: #10b981;">${sectionCounter++}. Блок 1-й Линии (Инциденты и Телефония)</div>
-          
-          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
-          ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'CSAT'], incRows.slice(0, 5))}
+          <div style="padding: 0 10px;">
 
-          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
-          ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
+            <div class="section-title" style="--accent: #3b82f6;">${sectionCounter++}. Операционная сводка (KPI)</div>
+            
+            <div class="kpi-grid">
+              <div class="kpi-card" style="border-top: 4px solid ${incColor};">
+                <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Инциденты (1 линия)</div>
+                <div style="font-size: 24px; font-weight: bold; color: ${incColor}; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
+                <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
+                ${renderProgressBar(totalIncidents, 400, incColor)}
+              </div>
+              
+              <div class="kpi-card" style="border-top: 4px solid ${taskColor};">
+                <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
+                <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
+                <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
+                ${renderProgressBar(totalClosedCount, 100, taskColor)}
+              </div>
+              
+              <div class="kpi-card" style="border-top: 4px solid ${indexColor};">
+                <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Индекс SLA</div>
+                <div style="font-size: 24px; font-weight: bold; color: ${indexColor}; margin-bottom: 5px;">${managementIndex}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
+                <div style="font-size: 12px; color: #64748b;">Возвраты: ${weekData.reopenRate || 0}%</div>
+                ${renderProgressBar(managementIndex, 100, indexColor)}
+              </div>
+            </div>
 
-          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
-          ${telephonyHtml}
-          ${telephonyInsightHtml}
+            <div class="section-title" style="--accent: #10b981;">${sectionCounter++}. Блок 1-й Линии (Инциденты и Телефония)</div>
+            
+            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
+            <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
+            ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'CSAT'], incRows.slice(0, 5))}
 
-          <div class="section-title" style="--accent: #a855f7;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</div>
-          
-          ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
-            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Распределение фокуса (Ценность vs Рутина)</h3>
-            ${renderPieChart()}
-            <div style="margin-bottom: 20px;"></div>
-          ` : ''}
+            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
+            ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
 
-          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Нагрузка администраторов (без учета тимлида)</h3>
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
-          ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time'], taskRows.slice(0, 7))}
+            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
+            ${telephonyHtml}
+            ${telephonyInsightHtml}
 
-          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Выполненные ключевые задачи (Ценность)</h3>
-          <ul class="custom-list" style="color: #94a3b8; font-style: italic; margin-bottom: 15px;">
-            <li><span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и впишите достижения вручную... ]</span></li>
-          </ul>
-          ${completedDetailedTasks.length > 0 ? `
-            <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 5px;">Автоматическая сводка из Jira:</p>
-            <ul class="custom-list">
-              ${completedDetailedTasks.map(t => `<li><b>${t.id}</b>: ${t.title} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
+            <div class="section-title" style="--accent: #a855f7;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</div>
+            
+            ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
+              <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Распределение фокуса (Ценность vs Рутина)</h3>
+              ${renderPieChart()}
+              <div style="margin-bottom: 20px;"></div>
+            ` : ''}
+
+            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Нагрузка администраторов (без учета тимлида)</h3>
+            <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
+            ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time'], taskRows.slice(0, 7))}
+
+            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Выполненные ключевые задачи (Ценность)</h3>
+            <ul class="custom-list" style="color: #94a3b8; font-style: italic; margin-bottom: 15px;">
+              <li><span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и впишите достижения вручную... ]</span></li>
             </ul>
-          ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
+            ${completedDetailedTasks.length > 0 ? `
+              <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 5px;">Автоматическая сводка из Jira:</p>
+              <ul class="custom-list">
+                ${completedDetailedTasks.map(t => `<li><b>${t.id}</b>: ${t.title} <span style="color: #64748b;">(${getFullName(t.assignee)})</span></li>`).join('')}
+              </ul>
+            ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
-          <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
-          
-          <div id="management-tasks-container">
-             ${generateTasksHtml()}
+            <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
+            
+            <div id="management-tasks-container">
+               ${generateTasksHtml()}
+            </div>
+
+            <div class="section-title" style="--accent: #ef4444;">${sectionCounter++}. Риски, Инциденты и Улучшения</div>
+            <ul class="custom-list" style="line-height: 1.6;">
+              <li><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
+              <li><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
+              <li><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
+            </ul>
+
           </div>
-
-          <div class="section-title" style="--accent: #ef4444;">${sectionCounter++}. Риски, Инциденты и Улучшения</div>
-          <ul class="custom-list" style="line-height: 1.6;">
-            <li><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
-            <li><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
-            <li><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
-          </ul>
-
         </div>
-      </div>
-    `;
+      `;
+    } catch (err) {
+      console.error("Error generating report HTML:", err);
+      return `
+        <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 20px; border-radius: 8px;">
+           <h3 style="color: #b91c1c; margin-top: 0;">⚠️ Ошибка отрисовки HTML</h3>
+           <p style="color: #7f1d1d; font-size: 14px;">${err.message}</p>
+           <p style="color: #7f1d1d; font-size: 12px;">Пожалуйста, проверьте целостность JSON-данных или обратитесь к разработчику.</p>
+        </div>
+      `;
+    }
   };
 
+  useEffect(() => {
+    if (reportRef.current) {
+        if (weekData.isReportFrozen && weekData.customReportHtml) {
+            reportRef.current.innerHTML = weekData.customReportHtml;
+        } else {
+            reportRef.current.innerHTML = getReportHtmlString();
+        }
+    }
+  }, [weekData]);
+
+  // Функция для очистки HTML перед экспортом
   const getCleanHtml = () => {
     if (!reportRef.current) return '';
     const clone = reportRef.current.cloneNode(true);
     
+    // Удаляем элементы, которые не должны попасть в экспорт (кнопки +, селекты цветов)
     const noPrints = clone.querySelectorAll('.no-print');
     noPrints.forEach(el => el.remove());
 
+    // Убираем атрибуты редактирования и пунктирные линии подсказок
     const editables = clone.querySelectorAll('[contenteditable]');
     editables.forEach(el => {
         el.removeAttribute('contenteditable');
@@ -1896,7 +1928,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       {!weekData.isReportFrozen && (
         <div className="w-full max-w-4xl bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm mb-6 overflow-hidden">
           <div className="bg-fuchsia-500/10 py-3 px-6 border-b border-fuchsia-500/20 flex items-center gap-2">
-            <ListTodo size={18} className="text-fuchsia-400" />
+            <FileText size={18} className="text-fuchsia-400" />
             <h2 className="text-sm font-bold text-white uppercase tracking-wider">Портфель поручений руководства (Глобальный)</h2>
           </div>
           
@@ -1956,7 +1988,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                           {/* AI Подсказка по срокам */}
                           {!isCompleted && weeksActive > 0 && (
                              <div className={`text-[10px] font-bold flex items-center gap-1 mt-2 w-max px-2 py-0.5 rounded ${weeksActive >= 2 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
-                               <AlertCircle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
+                               <AlertTriangle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
                              </div>
                           )}
                        </div>
@@ -2054,7 +2086,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   );
 };
 
-// --- ВКЛАДКА: ПРОЦЕССЫ И ЭСКАЛАЦИИ ---
+// --- ПРОЦЕССЫ, КАЙДЗЕН, ПРОФИЛИ И АДМИНКА (Без изменений) ---
 
 const ProcessesMap = ({ processes }) => {
   const getStatusBadge = (status) => {
@@ -2100,8 +2132,6 @@ const ProcessesMap = ({ processes }) => {
     </div>
   );
 };
-
-// --- ВКЛАДКА: ОБРАТНАЯ СВЯЗЬ (КАЙДЗЕН) ---
 
 const AchievementsBoard = ({ achievements }) => {
   const teamAchievements = achievements.filter(a => a.type === 'team');
@@ -2176,8 +2206,6 @@ const AchievementsBoard = ({ achievements }) => {
     </div>
   );
 };
-
-// --- ВКЛАДКА: ПРОФИЛИ КОМАНДЫ (МАТРИЦА КОМПЕТЕНЦИЙ) ---
 
 const TeamProfilesBoard = ({ profiles }) => {
   const getDelegationText = (level) => {
@@ -2267,8 +2295,6 @@ const TeamProfilesBoard = ({ profiles }) => {
   );
 };
 
-// --- ВКЛАДКА: НАСТРОЙКИ ДОСТУПА (АДМИНКА) ---
-
 const AdminSettings = ({ users, onAddUser, onUpdateUser, onDeleteUser }) => {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -2350,321 +2376,4 @@ const AdminSettings = ({ users, onAddUser, onUpdateUser, onDeleteUser }) => {
                     {editId === u.id ? (
                       <form onSubmit={(e) => handleUpdate(e, u.id)} className="flex items-center justify-end gap-2">
                         <input type="password" placeholder="Новый пароль" required value={editPassword} onChange={e=>setEditPassword(e.target.value)} className="w-32 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none" />
-                        <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded text-xs font-bold">Сохр.</button>
-                        <button type="button" onClick={() => setEditId(null)} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-xs font-bold">Отмена</button>
-                      </form>
-                    ) : (
-                      <div className="flex items-center justify-end gap-3">
-                        <button onClick={() => setEditId(u.id)} className="text-slate-400 hover:text-white text-xs font-bold transition-colors">Сменить пароль</button>
-                        {u.username !== 'admin' && (
-                          <button onClick={() => onDeleteUser(u.id)} className="text-red-400 hover:text-red-300 transition-colors p-1"><Trash2 size={16} /></button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
-// --- ОСНОВНОЕ ПРИЛОЖЕНИЕ ---
-
-const App = () => {
-  const [activeTab, setActiveTab] = useState('pulse'); 
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [dbStatus, setDbStatus] = useState('loading'); 
-  const isReadyToSave = useRef(false);
-  const [supabaseClient, setSupabaseClient] = useState(null);
-
-  // AUTH STATE
-  const [currentUser, setCurrentUser] = useState(null);
-  const [authUsers, setAuthUsers] = useState([]);
-  const [loginError, setLoginError] = useState('');
-
-  // ДАННЫЕ
-  const [weeksHistory, setWeeksHistory] = useState(() => {
-    try { const saved = localStorage.getItem('teamlead_history_data_v8'); if (saved) return JSON.parse(saved); } catch (e) {}
-    return { [`${defaultWeekData.year}-${defaultWeekData.weekNumber}`]: defaultWeekData };
-  });
-
-  const [selectedWeekKey, setSelectedWeekKey] = useState(() => {
-    const keys = Object.keys(weeksHistory);
-    return keys.length > 0 ? keys.sort().pop() : `${defaultWeekData.year}-${defaultWeekData.weekNumber}`;
-  });
-
-  const [processes, setProcesses] = useState(() => { try { const saved = localStorage.getItem('teamlead_processes_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProcesses; });
-  const [achievements, setAchievements] = useState(() => { try { const saved = localStorage.getItem('teamlead_achievements_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultAchievements; });
-  const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_profiles_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProfiles; });
-  const [tasksArchive, setTasksArchive] = useState(() => { try { const saved = localStorage.getItem('teamlead_tasks_archive_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
-  
-  // НОВЫЙ ГЛОБАЛЬНЫЙ СТЕЙТ ПРОЕКТНЫХ ПОРУЧЕНИЙ РУКОВОДСТВА
-  const [projectTasks, setProjectTasks] = useState(() => { try { const saved = localStorage.getItem('teamlead_project_tasks_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
-
-  // Инициализация (загрузка из облака или кэша)
-  useEffect(() => {
-    let mounted = true;
-    
-    const initData = async (client) => {
-      let cloudData = null;
-      if (client) {
-        try {
-          const { data, error } = await client.from('app_state').select('*');
-          if (data && !error) { cloudData = data; setDbStatus('connected'); } 
-          else { setDbStatus('error'); }
-        } catch (e) { setDbStatus('error'); }
-      } else { setDbStatus('local'); }
-
-      if (!mounted) return;
-
-      // 1. ЗАГРУЗКА ДАННЫХ
-      if (cloudData && cloudData.length > 0) {
-        const hRow = cloudData.find(r => r.key_name === 'history'); if (hRow) { setWeeksHistory(hRow.value_data); setSelectedWeekKey(Object.keys(hRow.value_data).sort().pop()); }
-        const procRow = cloudData.find(r => r.key_name === 'processes'); if (procRow) setProcesses(procRow.value_data);
-        const achRow = cloudData.find(r => r.key_name === 'achievements'); if (achRow) setAchievements(achRow.value_data);
-        const profRow = cloudData.find(r => r.key_name === 'profiles'); if (profRow) setProfiles(profRow.value_data);
-        const taskRow = cloudData.find(r => r.key_name === 'tasks_archive'); if (taskRow) setTasksArchive(taskRow.value_data);
-        const projTaskRow = cloudData.find(r => r.key_name === 'project_tasks'); if (projTaskRow) setProjectTasks(projTaskRow.value_data);
-      }
-
-      // 2. ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ (АВТОРИЗАЦИЯ)
-      let loadedAuthUsers = [];
-      if (cloudData) {
-        const authRow = cloudData.find(r => r.key_name === 'auth_users');
-        if (authRow) loadedAuthUsers = authRow.value_data;
-      } else {
-        try { const localAuth = localStorage.getItem('teamlead_auth_v8'); if (localAuth) loadedAuthUsers = JSON.parse(localAuth); } catch (e) {}
-      }
-
-      if (!loadedAuthUsers || loadedAuthUsers.length === 0) {
-        const defaultHash = await hashPassword('Wmg82bpe'); 
-        loadedAuthUsers = [{ id: Date.now(), username: 'admin', passwordHash: defaultHash, role: 'admin' }];
-        
-        if (client && dbStatus !== 'error') {
-           await client.from('app_state').upsert({ key_name: 'auth_users', value_data: loadedAuthUsers });
-        } else {
-           localStorage.setItem('teamlead_auth_v8', JSON.stringify(loadedAuthUsers));
-        }
-      }
-      setAuthUsers(loadedAuthUsers);
-
-      try {
-        const session = localStorage.getItem('teamlead_session');
-        if (session) {
-          const { u, h } = JSON.parse(session);
-          const foundUser = loadedAuthUsers.find(user => user.username === u && user.passwordHash === h);
-          if (foundUser) setCurrentUser(foundUser);
-        }
-      } catch(e) {}
-
-      setIsLoaded(true);
-      setTimeout(() => { if (mounted) isReadyToSave.current = true; }, 1000);
-    };
-
-    let url = '';
-    let key = '';
-    try {
-      const env = typeof import.meta !== 'undefined' ? import.meta.env : {};
-      url = env.VITE_SUPABASE_URL || '';
-      key = env.VITE_SUPABASE_ANON_KEY || '';
-    } catch (e) {}
-
-    if (url && key) {
-      if (window.supabase) {
-        const client = window.supabase.createClient(url, key);
-        setSupabaseClient(client);
-        initData(client);
-      } else {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js';
-        script.async = true;
-        script.onload = () => {
-          if (window.supabase) {
-            const client = window.supabase.createClient(url, key);
-            setSupabaseClient(client);
-            initData(client);
-          } else {
-            initData(null);
-          }
-        };
-        script.onerror = () => initData(null);
-        document.head.appendChild(script);
-      }
-    } else {
-      initData(null);
-    }
-
-    return () => { mounted = false; };
-  }, []);
-
-  // Синхронизация при изменениях
-  const saveToDb = async (key, data, localName) => {
-      if (!isReadyToSave.current) return;
-      localStorage.setItem(localName, JSON.stringify(data));
-      if (supabaseClient && dbStatus === 'connected') {
-          await supabaseClient.from('app_state').upsert({ key_name: key, value_data: data });
-      }
-  };
-
-  useEffect(() => { saveToDb('history', weeksHistory, 'teamlead_history_data_v8'); }, [weeksHistory]);
-  useEffect(() => { saveToDb('processes', processes, 'teamlead_processes_v8'); }, [processes]);
-  useEffect(() => { saveToDb('achievements', achievements, 'teamlead_achievements_v8'); }, [achievements]);
-  useEffect(() => { saveToDb('profiles', profiles, 'teamlead_profiles_v8'); }, [profiles]);
-  useEffect(() => { saveToDb('tasks_archive', tasksArchive, 'teamlead_tasks_archive_v8'); }, [tasksArchive]);
-  useEffect(() => { saveToDb('auth_users', authUsers, 'teamlead_auth_v8'); }, [authUsers]);
-  useEffect(() => { saveToDb('project_tasks', projectTasks, 'teamlead_project_tasks_v8'); }, [projectTasks]);
-
-  // ФУНКЦИИ АВТОРИЗАЦИИ
-  const handleLogin = async (username, password) => {
-    setLoginError('');
-    const inputHash = await hashPassword(password);
-    const user = authUsers.find(u => u.username === username && u.passwordHash === inputHash);
-    
-    if (user) {
-      setCurrentUser(user);
-      localStorage.setItem('teamlead_session', JSON.stringify({ u: user.username, h: user.passwordHash }));
-    } else {
-      setLoginError('Неверный логин или пароль');
-    }
-  };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('teamlead_session');
-    setActiveTab('pulse');
-  };
-
-  // УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ (АДМИНКА)
-  const handleAddUser = async (newUser) => {
-    const hash = await hashPassword(newUser.password);
-    const newEntry = { id: Date.now(), username: newUser.username, passwordHash: hash, role: newUser.role };
-    setAuthUsers([...authUsers, newEntry]);
-  };
-
-  const handleUpdatePassword = async (id, newPassword) => {
-    const hash = await hashPassword(newPassword);
-    setAuthUsers(authUsers.map(u => u.id === id ? { ...u, passwordHash: hash } : u));
-    if (currentUser && currentUser.id === id) {
-      localStorage.setItem('teamlead_session', JSON.stringify({ u: currentUser.username, h: hash }));
-      setCurrentUser({ ...currentUser, passwordHash: hash });
-    }
-  };
-
-  const handleDeleteUser = (id) => { setAuthUsers(authUsers.filter(u => u.id !== id)); };
-
-  const activeWeekData = weeksHistory[selectedWeekKey] || defaultWeekData;
-  const historyKeys = Object.keys(weeksHistory).sort().reverse(); 
-
-  const handleSaveWeek = (newData) => {
-    const key = `${newData.year}-${newData.weekNumber}`;
-    setWeeksHistory(prev => ({ ...prev, [key]: newData }));
-    setSelectedWeekKey(key);
-    setActiveTab('pulse');
-  };
-
-  const renderContent = () => {
-    switch(activeTab) {
-      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
-      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} />;
-      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} />;
-      case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
-      case 'processes': return <ProcessesMap processes={processes} />; 
-      case 'achievements': return <AchievementsBoard achievements={achievements} />;
-      case 'profiles': return <TeamProfilesBoard profiles={profiles} />;
-      case 'settings': return <AdminSettings users={authUsers} onAddUser={handleAddUser} onUpdateUser={handleUpdatePassword} onDeleteUser={handleDeleteUser} />;
-      default:
-        return (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 h-full mt-20">
-            <GitMerge size={64} className="mb-4 opacity-20" />
-            <h2 className="text-xl font-medium">Раздел в разработке</h2>
-          </div>
-        );
-    }
-  };
-
-  if (!isLoaded) return <div className="h-screen bg-slate-900 flex items-center justify-center text-emerald-400"><Activity className="animate-spin mr-3"/> Загрузка Control Room...</div>;
-  if (!currentUser) return <LoginScreen onLogin={handleLogin} error={loginError} />;
-
-  const navItems = [
-    { id: 'pulse', icon: Activity, label: 'Пульс команды', roles: ['admin', 'viewer'] },
-    { id: 'fill', icon: Pencil, label: 'Заполнить неделю', roles: ['admin'] },
-    { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
-    { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
-    { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
-    { id: 'achievements', icon: ActivitySquare, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
-    { id: 'profiles', icon: Users, label: 'Матрица компетенций', roles: ['admin', 'viewer'] },
-    { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
-  ].filter(item => item.roles.includes(currentUser.role));
-
-  return (
-    <div className="flex h-screen bg-slate-900 font-sans text-slate-200 overflow-hidden">
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.1); border-radius: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.6); border-radius: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.8); }
-      `}</style>
-      
-      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col flex-shrink-0 z-20 relative">
-        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40">
-            <LayoutDashboard size={20} className="text-emerald-400" />
-          </div>
-          <div>
-            <h1 className="font-black text-white text-lg leading-tight uppercase tracking-tighter">ЦЕНТР УПРАВЛЕНИЯ</h1>
-            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">ПАНЕЛЬ ТИМЛИДА</p>
-          </div>
-        </div>
-        
-        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2 custom-scrollbar">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id} onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200
-                  ${isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-900/10' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent'}`}
-              >
-                <Icon size={20} className={isActive ? 'text-emerald-400' : 'text-slate-500'} />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-        
-        <div className="p-4 border-t border-slate-800 space-y-3">
-          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800/50 flex items-center gap-3 shadow-inner">
-             <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : (dbStatus === 'error' ? 'bg-red-500' : 'bg-slate-500')}`}></div>
-             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{dbStatus === 'connected' ? 'СИНХРОНИЗАЦИЯ: ОК' : 'ЛОКАЛЬНЫЙ РЕЖИМ'}</div>
-          </div>
-          <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 flex items-center justify-between shadow-inner">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white uppercase flex-shrink-0">
-                {currentUser.username.substring(0, 2).toUpperCase()}
-              </div>
-              <div className="overflow-hidden leading-tight">
-                 <p className="text-sm font-bold text-slate-200 truncate">{currentUser.username}</p>
-                 <p className="text-[10px] text-slate-500 capitalize">{currentUser.role === 'admin' ? 'Админ' : 'Просмотр'}</p>
-              </div>
-            </div>
-            <button onClick={handleLogout} className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0" title="Выход"><LogOut size={18} /></button>
-          </div>
-        </div>
-      </aside>
-
-      <main className="flex-1 overflow-y-auto bg-slate-900 p-8 custom-scrollbar relative z-0">
-        <div className="max-w-7xl mx-auto">
-          {renderContent()}
-        </div>
-      </main>
-    </div>
-  );
-};
-
-export default App;
+                        <button type
