@@ -233,6 +233,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   const totalClosed = (Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0) + (Number(weekData.backlogCompleted) || 0);
   const loadPercentage = Math.min(Math.round((totalClosed / BASE_CAPACITY) * 100), 150);
   
+  // Здесь мы берем правильное значение для вычисления процентов Топ-3
+  const totalIncidentsCount = Number(weekData.incidentsClosed) || 0;
+  
   let loadStatus = 'Норма';
   let loadColor = 'bg-emerald-500';
   let loadTextColor = 'text-emerald-400';
@@ -788,12 +791,13 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><PieChart size={18} className="text-emerald-400" /> Топ инцидентов (Семантика)</h3>
-            <span className="text-xs font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded">Всего: {totalIncidentsFromList}</span>
+            <span className="text-xs font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded">Всего: {totalIncidentsFromList} / {Number(weekData.incidentsClosed)||0}</span>
           </div>
           <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px] pr-3 custom-scrollbar">
             {sortedIncidents.map((inc, idx) => {
               const count = Number(inc.count) || 0;
-              const percent = totalIncidentsFromList > 0 ? Math.round((count / totalIncidentsFromList) * 100) : 0;
+              const totalIncidentsCount = Number(weekData.incidentsClosed) || 1;
+              const percent = totalIncidentsCount > 0 ? Math.round((count / totalIncidentsCount) * 100) : 0;
               let bgColor = 'bg-slate-500'; let textColor = 'text-slate-400'; let accentColor = '#64748b';
               if (idx === 0) { bgColor = 'bg-red-500'; textColor = 'text-red-400'; accentColor = '#ef4444'; } 
               else if (idx === 1) { bgColor = 'bg-orange-500'; textColor = 'text-orange-400'; accentColor = '#f97316'; } 
@@ -1682,12 +1686,26 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const taskRows = sortedTaskPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(p.wip, p.closed, 'task')}`, p.wip || 0, p.closed || 0, `${p.avgTimeMin || 0} дн.`]);
       const incRows = sortedIncPerformers.map(p => [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, p.closed || 0, `${p.avgTimeMin || 0} мин.`, formatCSAT(p.csat)]);
 
-      const topIncidentsHtml = top3.map(inc => `
-        <div class="incident-card">
-          <div style="font-weight: 700; font-size: 13px;">${safeString(inc.name)} <span style="color: #ef4444;">(${Number(inc.count)||0} шт.)</span></div>
-          <div style="font-size: 12px; color: #475569; margin-top: 4px;">${safeString(inc.analysis)}</div>
-        </div>
-      `).join('');
+      // ИСПРАВЛЕННЫЙ БЛОК ТОП-3 ИНЦИДЕНТОВ С ПРАВИЛЬНЫМИ ПРОЦЕНТАМИ
+      const topIncidentsHtml = top3.map((inc, idx) => {
+        const count = Number(inc.count) || 0;
+        const totalClosedInc = Number(weekData.incidentsClosed) || 1; 
+        const pct = totalClosedInc > 0 ? Math.round((count / totalClosedInc) * 100) : 0;
+        
+        let borderCol = '#f59e0b';
+        if(idx === 0) borderCol = '#ef4444';
+        else if(idx === 1) borderCol = '#f97316';
+        
+        return `
+          <div class="incident-card" style="border-left-color: ${borderCol};">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+               <span style="font-weight: 700; font-size: 13px; color: #0f172a; padding-right: 15px;">${idx + 1}. ${safeString(inc.name)}</span>
+               <span style="font-size: 12px; font-weight: bold; color: ${borderCol}; white-space: nowrap;">${count} шт. (${pct}%)</span>
+            </div>
+            ${inc.analysis ? `<div style="font-size: 12px; color: #475569; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0;">${safeString(inc.analysis)}</div>` : ''}
+          </div>
+        `;
+      }).join('');
       
       const telephonyHtml = weekData.telephonyData && weekData.telephonyData.length > 0 ? `
         <table class="data-table" style="margin-bottom: 10px;">
