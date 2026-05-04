@@ -27,7 +27,7 @@ const USER_DICTIONARY = {
 };
 
 const BASE_CAPACITY = 50; 
-const TEAM_LEAD_ID = "u01002"; 
+const TEAM_LEAD_ID = "u01002"; // ID тимлида для исключения из таблиц отчета
 const TEAM_LEAD_NAME = "Виктор С.";
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -990,8 +990,8 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         let perf = jiraData?.find(p => p.name.includes(namePart) || getFullName(p.name).includes(namePart));
         
         if (op.missed > 0) {
-            if (perf && perf.closed >= 50) {
-                insights.push(`🔥 ${op.name}: Пропущено ${op.missed} вызовов. Причина: Перегруз (закрыто ${perf.closed} тикетов). Зона риска выгорания! Снизить нагрузку.`);
+            if (perf && perf.closed >= 80) { // ИЗМЕНЕНО: Порог выгорания 80+
+                insights.push(`🔥 ${op.name}: Пропущено ${op.missed} вызовов. Причина: Перегруз (закрыто ${perf.closed} тикетов, норма 50-60). Зона риска выгорания! Снизить нагрузку.`);
             } else {
                 insights.push(`👀 ${op.name}: Пропущено ${op.missed} вызовов при низкой загрузке в Jira. Обратить внимание на дисциплину (статусы АТС).`);
             }
@@ -1475,9 +1475,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
 
   const getBurnoutBadge = (wip, closed, type) => {
-    const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) > 100) || (type === 'task' && Number(closed) > 15);
+    // Изменили порог выгорания для инцидентов со 100 на 80+ на основе твоей экспертизы
+    const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) >= 80) || (type === 'task' && Number(closed) > 15);
     if (isOverloaded) {
-       return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания">🔥</span>`;
+       return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания (Норма 50-60)">🔥</span>`;
     }
     return '';
   };
@@ -1871,7 +1872,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             contentEditable={true} 
             suppressContentEditableWarning={true}
             onInput={() => { if(!weekData.isReportFrozen) setIsDirty(true); }}
-            className="bg-white shadow-2xl outline-none transition-all text-slate-900" 
+            className="bg-white shadow-2xl outline-none transition-all text-slate-900 text-left" 
             style={{ 
               width: '100%', 
               maxWidth: '900px', 
