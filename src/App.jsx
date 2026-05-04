@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3, PhoneCall
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -110,7 +110,7 @@ const defaultWeekData = {
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных AI-анализа...",
-  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: []
+  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: [], telephonyData: []
 };
 
 const defaultProcesses = [
@@ -760,7 +760,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             )}
                           </td>
 
-                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-emerald-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
                         </tr>
                       );
                     })}
@@ -872,6 +872,10 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
   const [importJson, setImportJson] = useState('');
   const [importStatus, setImportStatus] = useState(null);
 
+  // Новый стейт для телефонии
+  const [importTelephonyText, setImportTelephonyText] = useState('');
+  const [telephonyStatus, setTelephonyStatus] = useState(null);
+
   const [selectedYear, setSelectedYear] = useState(formData.year !== undefined ? formData.year : new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(formData.month !== undefined ? formData.month : new Date().getMonth());
   const [weeksOptions, setWeeksOptions] = useState([]);
@@ -948,6 +952,71 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     }
   };
 
+  // ПАРСЕР ТЕЛЕФОНИИ
+  const handleTelephonyImport = () => {
+    try {
+      const lines = importTelephonyText.split('\n');
+      const parsedData = [];
+      const timeRegex = /\b\d{2}:\d{2}:\d{2}\b/g;
+
+      for (let line of lines) {
+        const times = line.match(timeRegex);
+        if (!times || times.length < 2) continue; // Пропускаем строки без времени
+
+        // Ищем имя (два слова с большой буквы или дефисом)
+        const nameMatch = line.match(/^([А-ЯЁа-яёA-Za-z-]+\s+[А-ЯЁа-яёA-Za-z-]+)/);
+        if (!nameMatch) continue;
+        const name = nameMatch[1];
+
+        // Очищаем строку от имени и времени, чтобы найти только числа
+        let cleaned = line.replace(name, '').replace(timeRegex, ' ');
+        
+        let nums = [];
+        // Если юзер скопировал прямо из таблицы, там будут табы
+        if (line.includes('\t')) {
+            nums = cleaned.split('\t').map(s => s.trim()).filter(s => s.match(/^\d+$/));
+        } else {
+            // Если табов нет, пытаемся выдернуть просто все числа
+            nums = cleaned.match(/\d+/g) || [];
+        }
+
+        if (nums.length >= 2) {
+            const total = parseInt(nums[0]);
+            let answered = parseInt(nums[1]);
+            let missed = 0;
+            if (nums.length >= 3) {
+                // Последнее число перед временем - это обычно пропущенные
+                missed = parseInt(nums[nums.length - 1]);
+            }
+            
+            parsedData.push({
+                name: name.trim(),
+                total,
+                answered,
+                missed,
+                avgWait: times[0],
+                totalTalk: times[1],
+                avgTalk: times[2] || '-'
+            });
+        }
+      }
+      
+      if(parsedData.length > 0) {
+          setFormData(prev => ({ ...prev, telephonyData: parsedData }));
+          setTelephonyStatus('success');
+          setTimeout(() => setTelephonyStatus(null), 3000);
+          setIsSaved(false);
+          setImportTelephonyText('');
+      } else {
+          setTelephonyStatus('error');
+          setTimeout(() => setTelephonyStatus(null), 3000);
+      }
+    } catch(e) {
+        setTelephonyStatus('error');
+        setTimeout(() => setTelephonyStatus(null), 3000);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const cleanedIncidents = (formData.topIncidents || []).filter(inc => safeString(inc.name).trim() !== '' || (Number(inc.count) || 0) > 0);
@@ -964,21 +1033,45 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
-      <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 mb-8 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
-        <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> 🤖 Умный импорт (AI Parsing)</h3>
-        <p className="text-sm text-indigo-200/70 mb-4 relative z-10">Скормил CSV-выгрузку из Jira нейросети? Вставь полученный от неё JSON-код сюда. Если в JSON есть массив `detailedTasks` или `taskPerformers`, они автоматически уйдут в Архив и Пульс.</p>
-        
-        <div className="relative z-10 space-y-3">
-          <textarea 
-            value={importJson} onChange={(e) => setImportJson(e.target.value)}
-            placeholder='Вставь сюда сгенерированный JSON...'
-            className="w-full h-24 bg-slate-900/80 border border-indigo-500/30 rounded-lg p-3 text-indigo-100 text-sm font-mono focus:border-indigo-400 outline-none resize-none placeholder:text-indigo-400/30 custom-scrollbar"
-          ></textarea>
-          <div className="flex items-center gap-4">
-            <button type="button" onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg"><DownloadCloud size={16} /> Загрузить JSON</button>
-            {importStatus === 'success' && <span className="text-emerald-400 text-sm font-medium flex items-center gap-1"><Check size={16}/> Успешно! Нажми "Сохранить" внизу 👇</span>}
-            {importStatus === 'error' && <span className="text-red-400 text-sm font-medium flex items-center gap-1"><ShieldAlert size={16}/> Ошибка! Неверный формат JSON.</span>}
+      {/* БЛОКИ ИМПОРТА */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* ИМПОРТ JIRA */}
+        <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
+          <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> AI-Парсинг (JSON)</h3>
+          <p className="text-xs text-indigo-200/70 mb-4 relative z-10">Скормите CSV-выгрузку из Jira нейросети. Полученный от неё JSON вставьте сюда для автозаполнения.</p>
+          
+          <div className="relative z-10 space-y-3">
+            <textarea 
+              value={importJson} onChange={(e) => setImportJson(e.target.value)}
+              placeholder='Вставь сюда сгенерированный JSON...'
+              className="w-full h-20 bg-slate-900/80 border border-indigo-500/30 rounded-lg p-3 text-indigo-100 text-xs font-mono focus:border-indigo-400 outline-none resize-none placeholder:text-indigo-400/30 custom-scrollbar"
+            ></textarea>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><DownloadCloud size={14} /> Загрузить JSON</button>
+              {importStatus === 'success' && <span className="text-emerald-400 text-xs font-bold flex items-center gap-1"><Check size={14}/> Успешно!</span>}
+              {importStatus === 'error' && <span className="text-red-400 text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> Ошибка формата.</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* ИМПОРТ ТЕЛЕФОНИИ */}
+        <div className="bg-sky-900/20 p-6 rounded-xl border border-sky-500/40 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><PhoneCall size={80} className="text-sky-400" /></div>
+          <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><PhoneCall size={20} className="text-sky-400" /> Импорт Телефонии</h3>
+          <p className="text-xs text-sky-200/70 mb-4 relative z-10">Скопируйте таблицу со звонками (Ctrl+C) из вашей АТС/Excel и вставьте сюда как текст.</p>
+          
+          <div className="relative z-10 space-y-3">
+            <textarea 
+              value={importTelephonyText} onChange={(e) => setImportTelephonyText(e.target.value)}
+              placeholder='Оператор    Входящие вызовы    Всего...'
+              className="w-full h-20 bg-slate-900/80 border border-sky-500/30 rounded-lg p-3 text-sky-100 text-xs font-mono focus:border-sky-400 outline-none resize-none placeholder:text-sky-400/30 custom-scrollbar"
+            ></textarea>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={handleTelephonyImport} disabled={!importTelephonyText.trim()} className="bg-sky-600 hover:bg-sky-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><DownloadCloud size={14} /> Обработать звонки</button>
+              {telephonyStatus === 'success' && <span className="text-emerald-400 text-xs font-bold flex items-center gap-1"><Check size={14}/> Загружено!</span>}
+              {telephonyStatus === 'error' && <span className="text-red-400 text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> Не удалось распознать текст.</span>}
+            </div>
           </div>
         </div>
       </div>
@@ -1223,9 +1316,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const [copiedId, setCopiedId] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
 
+  // Ссылка на div для копирования HTML
   const reportRef = useRef(null);
 
-  // Сбрасываем флаг изменений при смене недели
+  // Сброс локального состояния при переключении недели
   useEffect(() => {
     setIsDirty(false);
   }, [weekData.weekNumber]);
@@ -1257,10 +1351,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 </select>
                 <button class="delete-task-btn" style="background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-weight: bold; font-size: 12px;">✕</button>
             </div>
-            <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; padding-right: 120px;">
+            <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; padding-right: 120px; text-align: left;">
                 <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 200px; display: inline-block;">Опишите поручение...</span>
             </div>
-            <div style="font-size: 13px;">
+            <div style="font-size: 13px; text-align: left;">
                 <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
                 [ <span class="task-status-text" contenteditable="true" style="color: #10b981; font-weight: bold; outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 100px; display: inline-block;">в работе</span> ]
             </div>
@@ -1422,6 +1516,38 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <div style="font-size: 12px; color: #475569; margin-top: 4px;">${safeString(inc.analysis)}</div>
       </div>
     `).join('');
+    
+    // ГЕНЕРАЦИЯ ТАБЛИЦЫ ТЕЛЕФОНИИ (если есть данные)
+    const telephonyHtml = weekData.telephonyData && weekData.telephonyData.length > 0 ? `
+      <table class="data-table" style="margin-bottom: 30px;">
+        <thead>
+          <tr>
+            <th>Оператор</th>
+            <th style="text-align: center;">Всего</th>
+            <th style="text-align: center;">Отвечено</th>
+            <th style="text-align: center;">Пропущено</th>
+            <th style="text-align: center;">Ср. ожидание</th>
+            <th style="text-align: center;">Ср. разговор</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${weekData.telephonyData.map(row => `
+            <tr>
+              <td style="font-weight: 500;">${row.name}</td>
+              <td style="text-align: center;">${row.total}</td>
+              <td style="text-align: center; color: #10b981; font-weight: bold;">${row.answered}</td>
+              <td style="text-align: center; color: ${row.missed > 0 ? '#ef4444' : '#64748b'}; font-weight: ${row.missed > 0 ? 'bold' : 'normal'};">${row.missed}</td>
+              <td style="text-align: center;">${row.avgWait}</td>
+              <td style="text-align: center;">${row.avgTalk}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : `
+      <div class="editable-box" style="background-color: #f1f5f9; border-color: #cbd5e1; color: #64748b; font-style: italic; text-align: center; margin-bottom: 30px;">
+        <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Загрузите статистику телефонии на вкладке "Заполнить неделю" или вставьте таблицу сюда ]</span>
+      </div>
+    `;
 
     let sectionCounter = 1;
 
@@ -1435,6 +1561,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         .data-table th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
         .data-table td { padding: 10px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
         .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--accent); padding-left: 10px; margin: 40px 0 15px 0; text-transform: uppercase; color: #0f172a; }
+        .editable-box { background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; padding: 15px; font-size: 13px; color: #92400e; margin-bottom: 30px; font-style: italic; text-align: center; }
         .incident-card { background: #f8fafc; border-left: 3px solid #f59e0b; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
         ul.custom-list li { margin-bottom: 6px; }
@@ -1449,7 +1576,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
         <div style="padding: 0 10px;">
 
-          <!-- METRICS -->
           <div class="section-title" style="--accent: #3b82f6;">${sectionCounter++}. Операционная сводка (KPI)</div>
           
           <div class="kpi-grid">
@@ -1475,7 +1601,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </div>
           </div>
 
-          <!-- ПЕРВАЯ ЛИНИЯ -->
           <div class="section-title" style="--accent: #10b981;">${sectionCounter++}. Блок 1-й Линии (Инциденты и Телефония)</div>
           
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
@@ -1486,11 +1611,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
-          <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; border: 1px dashed #cbd5e1; font-size: 13px; color: #94a3b8; font-style: italic; text-align: center; margin-bottom: 30px;">
-             <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и вставьте сюда скопированную таблицу из модуля телефонии ]</span>
-          </div>
+          ${telephonyHtml}
 
-          <!-- ИНФРАСТРУКТУРА -->
           <div class="section-title" style="--accent: #a855f7;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</div>
           
           ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
@@ -1514,7 +1636,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </ul>
           ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
-          <!-- MANAGEMENT (ПРОЕКТЫ) -->
           <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
           
           <div id="management-tasks-container">
@@ -1527,10 +1648,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                    </select>
                    <button class="delete-task-btn" style="background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-weight: bold; font-size: 12px;">✕</button>
                </div>
-               <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; padding-right: 120px;">
+               <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; padding-right: 120px; text-align: left;">
                    <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 200px; display: inline-block;">[ Кликните, удалите и впишите задачу... ]</span>
                </div>
-               <div style="font-size: 13px;">
+               <div style="font-size: 13px; text-align: left;">
                    <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
                    [ <span class="task-status-text" contenteditable="true" style="color: #10b981; font-weight: bold; outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 100px; display: inline-block;">[ ваш ответ ]</span> ]
                </div>
@@ -1541,7 +1662,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             + ДОБАВИТЬ ПОРУЧЕНИЕ
           </button>
 
-          <!-- RISKS -->
           <div class="section-title" style="--accent: #ef4444;">${sectionCounter++}. Риски, Инциденты и Улучшения</div>
           <ul class="custom-list" style="line-height: 1.6;">
             <li><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
@@ -1691,7 +1811,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             contentEditable={true} 
             suppressContentEditableWarning={true}
             onInput={() => { if(!weekData.isReportFrozen) setIsDirty(true); }}
-            className="bg-white shadow-2xl outline-none transition-all text-slate-900 text-left" 
+            className="bg-white shadow-2xl outline-none transition-all text-slate-900" 
             style={{ 
               width: '100%', 
               maxWidth: '900px', 
