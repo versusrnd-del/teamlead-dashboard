@@ -233,7 +233,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   const totalClosed = (Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0) + (Number(weekData.backlogCompleted) || 0);
   const loadPercentage = Math.min(Math.round((totalClosed / BASE_CAPACITY) * 100), 150);
   
-  // Здесь мы берем правильное значение для вычисления процентов Топ-3
   const totalIncidentsCount = Number(weekData.incidentsClosed) || 0;
   
   let loadStatus = 'Норма';
@@ -296,6 +295,32 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   
   const cycleVal = Number(weekData.avgCycleTime) || 0;
   const cycleColor = cycleVal > 14 ? 'text-red-400' : (cycleVal > 7 ? 'text-amber-400' : 'text-emerald-400');
+
+  // Хелпер для отрисовки профиля сложности
+  const getContextBadge = (context) => {
+    if (!context || context.trim() === '') return <span className="text-slate-600">-</span>;
+    const lower = context.toLowerCase();
+    let colorClass = 'bg-slate-500/10 text-slate-400 border-slate-500/20'; 
+    let shortText = context;
+    if (lower.includes('баланс') || lower.includes('микс')) {
+      colorClass = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+    } else if (lower.includes('сложн') || lower.includes('архитектур') || lower.includes('спасат') || lower.includes('высок')) {
+      colorClass = 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20';
+    }
+    if(shortText.length > 15) shortText = shortText.substring(0, 14) + '...';
+    
+    return (
+      <div className="group relative flex justify-center cursor-help">
+        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${colorClass}`}>
+          {shortText}
+        </span>
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-slate-800 border border-slate-600 rounded-lg shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center pointer-events-none">
+          {context}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -622,6 +647,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     <th className="pb-3 font-medium text-center" title="Work in Progress (Открыто сейчас)">WIP</th>
                     <th className="pb-3 font-medium text-center">Закрыто</th>
                     <th className="pb-3 font-medium text-center">Ср. Время</th>
+                    <th className="pb-3 font-medium text-center">Профиль (AI)</th>
                     <th className="pb-3 font-medium text-center">Логирование</th>
                     <th className="pb-3 font-medium text-center">Возвраты</th>
                     <th className="pb-3 font-medium text-center">CSAT</th>
@@ -630,6 +656,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                 <tbody className="divide-y divide-slate-700/50">
                   {weekData.topPerformers && weekData.topPerformers.map((perf, idx) => {
                     const commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
+                    const contextStr = safeString(perf.taskContext);
                     return (
                       <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
                         <td className="py-3 font-medium text-slate-200">{getFullName(perf.name)}</td>
@@ -638,6 +665,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                         </td>
                         <td className="py-3 text-center text-white font-bold">{Number(perf.closed) || 0}</td>
                         <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} м</td>
+                        <td className="py-3 text-center">{getContextBadge(contextStr)}</td>
                         <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
                         
                         <td className="py-3 text-center">
@@ -677,7 +705,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       </tr>
                     );
                   })}
-                  {(!weekData.topPerformers || weekData.topPerformers.length === 0) && <tr><td colSpan="7" className="py-4 text-center text-slate-500">Данные не загружены</td></tr>}
+                  {(!weekData.topPerformers || weekData.topPerformers.length === 0) && <tr><td colSpan="8" className="py-4 text-center text-slate-500">Данные не загружены</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -697,6 +725,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       <th className="pb-3 font-medium text-center" title="Work in Progress (Открыто сейчас)">WIP</th>
                       <th className="pb-3 font-medium text-center">Закрыто</th>
                       <th className="pb-3 font-medium text-center">Cycle Time</th>
+                      <th className="pb-3 font-medium text-center">Профиль (AI)</th>
                       <th className="pb-3 font-medium text-center">Логирование</th>
                       <th className="pb-3 font-medium text-center">Возвраты</th>
                       <th className="pb-3 font-medium text-center">Качество</th>
@@ -705,6 +734,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                   <tbody className="divide-y divide-slate-700/50">
                     {weekData.taskPerformers.map((perf, idx) => {
                       const commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
+                      const contextStr = safeString(perf.taskContext);
                       return (
                         <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
                           <td className="py-3 font-medium text-slate-200">{getFullName(perf.name)}</td>
@@ -739,6 +769,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             </div>
                           </td>
 
+                          <td className="py-3 text-center">{getContextBadge(contextStr)}</td>
                           <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
                           
                           <td className="py-3 text-center">
@@ -1587,6 +1618,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const top3 = sortedIncidents.slice(0, 3);
       const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
       
+      const totalIncidentsFromList = (weekData.topIncidents || []).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
       const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
       const totalIncidents = Number(weekData.incidentsClosed) || 0;
       const managementIndex = Number(weekData.managementIndex) || 0;
@@ -1689,8 +1721,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       // ИСПРАВЛЕННЫЙ БЛОК ТОП-3 ИНЦИДЕНТОВ С ПРАВИЛЬНЫМИ ПРОЦЕНТАМИ
       const topIncidentsHtml = top3.map((inc, idx) => {
         const count = Number(inc.count) || 0;
-        const totalClosedInc = Number(weekData.incidentsClosed) || 1; 
-        const pct = totalClosedInc > 0 ? Math.round((count / totalClosedInc) * 100) : 0;
+        // Считаем процент от суммы всех найденных проблем, как на главном дашборде
+        const pct = totalIncidentsFromList > 0 ? Math.round((count / totalIncidentsFromList) * 100) : 0;
         
         let borderCol = '#f59e0b';
         if(idx === 0) borderCol = '#ef4444';
@@ -1702,6 +1734,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                <span style="font-weight: 700; font-size: 13px; color: #0f172a; padding-right: 15px;">${idx + 1}. ${safeString(inc.name)}</span>
                <span style="font-size: 12px; font-weight: bold; color: ${borderCol}; white-space: nowrap;">${count} шт. (${pct}%)</span>
             </div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 6px; margin-bottom: 6px; width: 100%; background-color: #e2e8f0; border-radius: 2px;">
+              <tr>
+                ${pct > 0 ? `<td width="${pct}%" style="background-color: ${borderCol}; height: 4px; border-radius: 2px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
+                ${pct < 100 ? `<td width="${100 - pct}%" style="height: 4px; font-size: 0; line-height: 0;">&nbsp;</td>` : ''}
+              </tr>
+            </table>
             ${inc.analysis ? `<div style="font-size: 12px; color: #475569; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0;">${safeString(inc.analysis)}</div>` : ''}
           </div>
         `;
@@ -1786,7 +1824,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <div class="kpi-card" style="border-top: 4px solid ${taskColor};">
                 <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
                 <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
-                <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
+                <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} ({'>'}30д: ${weekData.backlogOld30 || 0})</div>
                 ${renderProgressBar(totalClosedCount, 100, taskColor)}
               </div>
               
