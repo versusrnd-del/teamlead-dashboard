@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
-
 const USER_DICTIONARY = {
   "obe1": "Петр Скляренко",
   "obe": "Петр Скляренко",
@@ -1521,6 +1520,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       }
       
       return tasksForThisWeek.map(t => {
+        const weeksActive = getWeeksDiff(t.createdWeekKey, selectedKey);
         const isCompleted = t.status === 'completed';
         const bgColor = isCompleted ? '#f0fdf4' : '#ffffff';
         const borderColor = isCompleted ? '#bbf7d0' : '#e2e8f0';
@@ -1532,6 +1532,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ? `<span style="color: #16a34a; font-weight: bold; background: #dcfce3; padding: 2px 6px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">Выполнено</span>`
           : `[ <span style="color: ${t.color}; font-weight: bold;">${safeString(t.comment)}</span> ]`;
 
+        // Стикеры просрочки для HTML-отчета
+        let delaySticker = '';
+        if (!isCompleted && weeksActive > 0) {
+          if (weeksActive >= 2) {
+              delaySticker = `<span style="display: inline-block; margin-top: 6px; background-color: #fef2f2; color: #ef4444; border: 1px solid #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">⚠️ Затянуто: ${weeksActive} нед.</span>`;
+          } else {
+              delaySticker = `<span style="display: inline-block; margin-top: 6px; background-color: #fffbeb; color: #d97706; border: 1px solid #fcd34d; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">⏳ В работе 2-ю неделю</span>`;
+          }
+        }
+
         return `
           <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-left: 4px solid ${leftBorderColor}; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px;">
              <div style="font-weight: 700; font-size: 14px; color: ${titleColor}; margin-bottom: 6px;">
@@ -1542,6 +1552,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                    <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
                    ${statusBadge}
                </div>
+               ${delaySticker}
              ` : `
                <div style="font-size: 13px; text-align: left; margin-top: 4px;">
                    ${statusBadge} <span style="color: #475569; margin-left: 8px;">Итог: ${safeString(t.comment)}</span>
