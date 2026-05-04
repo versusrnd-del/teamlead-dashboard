@@ -981,45 +981,39 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
   // ПАРСЕР ТЕЛЕФОНИИ И ГЕНЕРАТОР АНАЛИТИКИ (ИИ-Логика с разделением ролей)
   const generateTelephonyInsight = (teleData, jiraData) => {
     let insights = [];
-    let totalCalls = 0;
-    let totalMissed = 0;
+    let firstLineMissed = 0;
+    let firstLineTotal = 0;
     
     // Ключевые слова для определения 1-й линии
-    const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Антон Лысов", "Лысов Антон", "Никита Лысов", "Лысов Никита", "Нестеров"];
+    const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Лысов", "Нестеров", "стажер", "младший"];
     
     teleData.forEach(op => {
-        totalCalls += op.total;
-        
         // Проверяем, 1-я ли это линия
-        const isFirstLine = FIRST_LINE_KEYWORDS.some(k => op.name.includes(k)) || op.name.toLowerCase().includes("стажер");
+        const isFirstLine = FIRST_LINE_KEYWORDS.some(k => op.name.toLowerCase().includes(k.toLowerCase()));
         
-        let namePart = op.name.split(' ')[0]; 
-        let perf = jiraData?.find(p => p.name.includes(namePart) || getFullName(p.name).includes(namePart));
-        let closedTickets = perf ? perf.closed : 0;
-
         if (isFirstLine) {
-            totalMissed += op.missed; // Считаем пропущенные только для 1 линии как реальные потери бизнеса
+            firstLineTotal += op.total;
+            firstLineMissed += op.missed; 
+
+            let namePart = op.name.split(' ')[0]; 
+            let perf = jiraData?.find(p => p.name.includes(namePart) || getFullName(p.name).includes(namePart));
+            let closedTickets = perf ? perf.closed : 0;
+
             if (op.missed > 0) {
-                if (closedTickets >= 80) {
-                    insights.push(`🔥 ${op.name} (1 линия): Пропущено ${op.missed} вызовов. Причина: Перегруз (закрыто ${closedTickets} тикетов, норма 50-60). Зона риска выгорания! Снизить нагрузку.`);
+                if (closedTickets >= 80) { // ИЗМЕНЕНО: Порог выгорания 80+
+                    insights.push(`🔥 ${op.name}: Пропущено ${op.missed} вызовов. Причина: Перегруз (закрыто ${closedTickets} тикетов, норма 50-60). Зона риска выгорания!`);
                 } else {
-                    insights.push(`👀 ${op.name} (1 линия): Пропущено ${op.missed} вызовов при загрузке ${closedTickets} тикетов в Jira. Обратить внимание на дисциплину (статусы АТС).`);
+                    insights.push(`👀 ${op.name}: Пропущено ${op.missed} вызовов при загрузке ${closedTickets} тикетов. Обратить внимание на дисциплину.`);
                 }
             }
-        } else {
-            // Вторая линия (помощь)
-            if (closedTickets >= 30 || op.answered > 15) {
-                insights.push(`⚠️ ${op.name} (2 линия): Отвлечение на 1-ю линию! Отвечено на ${op.answered} звонков, закрыто ${closedTickets} инцидентов. Риск срыва спринта (тушение пожаров).`);
-            }
-            // Пропущенные вызовы 2-й линии мы сознательно игнорируем, они не обязаны сидеть на телефоне
         }
     });
     
-    let header = totalMissed > 0 
-        ? `⚠️ Внимание: Потеряно ${totalMissed} вызовов на 1-й линии (из ${totalCalls} общих).\n` 
+    let header = firstLineMissed > 0 
+        ? `⚠️ Внимание: Потеряно ${firstLineMissed} вызовов на 1-й линии (из ${firstLineTotal}).\n` 
         : `✅ Отличная работа: 1-я линия отработала без пропущенных вызовов.\n`;
         
-    if (insights.length === 0) insights.push("Отклонений в дисциплине и перегрузок не выявлено.");
+    if (insights.length === 0) insights.push("Отклонений в дисциплине и перегрузок на 1-й линии не выявлено.");
         
     return header + insights.join('\n');
   };
@@ -1508,7 +1502,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
 
   const getBurnoutBadge = (wip, closed, type) => {
-    // Изменили порог выгорания для инцидентов со 100 на 80+ на основе твоей экспертизы
     const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) >= 80) || (type === 'task' && Number(closed) > 15);
     if (isOverloaded) {
        return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания (Норма 50-60)">🔥</span>`;
