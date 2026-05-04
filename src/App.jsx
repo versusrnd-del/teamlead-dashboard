@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3, PhoneCall
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3, PhoneCall, ListTodo, AlertCircle
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -70,7 +70,14 @@ const generateMonthWeeks = (year, month) => {
   return weeks;
 };
 
-// Заменяет ЛЮБЫЕ логины в тексте на ФИО
+// Вычисление разницы в неделях
+const getWeeksDiff = (createdKey, currentKey) => {
+  if (!createdKey || !currentKey) return 0;
+  const [y1, w1] = createdKey.split('-').map(Number);
+  const [y2, w2] = currentKey.split('-').map(Number);
+  return ((y2 - y1) * 52) + (w2 - w1);
+};
+
 const replaceLoginsWithNames = (text) => {
   if (typeof text !== 'string') return String(text || '');
   let result = text;
@@ -81,7 +88,6 @@ const replaceLoginsWithNames = (text) => {
   return result;
 };
 
-// Строгий перевод логина в имя для таблиц
 const getFullName = (login) => {
   if (!login) return 'Неизвестно';
   const cleanLogin = String(login).trim().toLowerCase();
@@ -978,8 +984,8 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     }
   };
 
-  // ПАРСЕР ТЕЛЕФОНИИ И ГЕНЕРАТОР АНАЛИТИКИ (ИИ-Логика с разделением ролей)
-  const generateTelephonyInsight = (teleData, jiraData) => {
+  // ПАРСЕР ТЕЛЕФОНИИ И ГЕНЕРАТОР АНАЛИТИКИ С УЧЕТОМ АВАРИЙ
+  const generateTelephonyInsight = (teleData, jiraData, totalIncClosed, topIncName) => {
     let insights = [];
     let firstLineMissed = 0;
     let firstLineTotal = 0;
@@ -988,7 +994,6 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Лысов", "Нестеров", "стажер", "младший"];
     
     teleData.forEach(op => {
-        // Проверяем, 1-я ли это линия
         const isFirstLine = FIRST_LINE_KEYWORDS.some(k => op.name.toLowerCase().includes(k.toLowerCase()));
         
         if (isFirstLine) {
@@ -1000,30 +1005,35 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             let closedTickets = perf ? perf.closed : 0;
 
             if (op.missed > 0) {
-                if (closedTickets >= 80) {
-                    insights.push(`🔥 ${op.name} (1 линия): Пропущено ${op.missed} вызовов. Причина: Перегруз (закрыто ${closedTickets} тикетов, норма 50-60). Зона риска выгорания!`);
+                if (closedTickets >= 80) { 
+                    insights.push(`🔥 ${op.name}: Пропущено ${op.missed} вызовов. Причина: Перегруз (закрыто ${closedTickets} тикетов, норма 50-60). Зона риска выгорания!`);
                 } else if (closedTickets >= 50) {
                     if (op.missed <= 15) {
-                        insights.push(`👀 ${op.name} (1 линия): Норма в Jira выполнена (${closedTickets}), небольшой фон пропущенных (${op.missed}). Ситуация рабочая.`);
+                        insights.push(`👀 ${op.name}: Норма в Jira выполнена (${closedTickets}), небольшой фон пропущенных (${op.missed}). Ситуация рабочая.`);
                     } else {
-                        insights.push(`⚠️ ${op.name} (1 линия): Норма в Jira выполнена (${closedTickets}), но пропущенных много (${op.missed}). Проверить статусы АТС.`);
+                        insights.push(`⚠️ ${op.name}: Норма в Jira выполнена (${closedTickets}), но пропущенных много (${op.missed}). Проверить статусы АТС.`);
                     }
-                } else { // closedTickets < 50
+                } else { 
                     if (op.missed > 15) {
-                        insights.push(`🚨 КРИТИЧНО! ${op.name} (1 линия): Пропущено ${op.missed} вызовов, при этом выработка ниже нормы (всего ${closedTickets} тикетов). Острое нарушение дисциплины!`);
+                        insights.push(`🚨 КРИТИЧНО! ${op.name}: Пропущено ${op.missed} вызовов, при этом выработка ниже нормы (всего ${closedTickets} тикетов). Острое нарушение дисциплины!`);
                     } else {
-                        insights.push(`⚠️ ${op.name} (1 линия): Выработка ниже нормы (${closedTickets} тикетов) и есть пропуски (${op.missed}). Взять на контроль.`);
+                        insights.push(`⚠️ ${op.name}: Выработка ниже нормы (${closedTickets} тикетов) и есть пропуски (${op.missed}). Взять на контроль.`);
                     }
                 }
             }
         } else {
-            // Вторая линия (помощь). Игнорируем их пропуски, только ругаем если отвлекались
+            // Вторая линия (помощь).
             let namePart = op.name.split(' ')[0]; 
             let perf = jiraData?.find(p => p.name.includes(namePart) || getFullName(p.name).includes(namePart));
             let closedTickets = perf ? perf.closed : 0;
 
-            if (closedTickets >= 30 || op.answered > 15) {
-                insights.push(`⚠️ ${op.name} (2 линия): Отвлечение на 1-ю линию! Отвечено на ${op.answered} звонков, закрыто ${closedTickets} инцидентов. Риск срыва спринта (тушение пожаров).`);
+            if (closedTickets >= 10 || op.answered > 10) {
+                // ПРОВЕРКА НА АВАРИЮ (МАССОВЫЙ СБОЙ)
+                if (totalIncClosed >= 300) {
+                    insights.push(`🛡️ ${op.name} (2 линия): Помощь 1-й линии при аварии (>300 тикетов). Отвечено на ${op.answered} звонков, закрыто ${closedTickets} инцидентов. Драйвер: ${topIncName}. Оправдано!`);
+                } else {
+                    insights.push(`⚠️ ${op.name} (2 линия): Отвлечение на 1-ю линию (отвечено на ${op.answered} звонков, закрыто ${closedTickets} инцидентов). Аварий нет (<300 тикетов). Риск срыва планового спринта!`);
+                }
             }
         }
     });
@@ -1081,7 +1091,10 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
       }
       
       if(parsedData.length > 0) {
-          const insight = generateTelephonyInsight(parsedData, formData.topPerformers);
+          const totalIncClosed = formData.incidentsClosed || 0;
+          const topIncName = formData.topIncidents && formData.topIncidents.length > 0 ? formData.topIncidents[0].name : "Неизвестно";
+          
+          const insight = generateTelephonyInsight(parsedData, formData.topPerformers, totalIncClosed, topIncName);
           setFormData(prev => ({ ...prev, telephonyData: parsedData, telephonyInsight: insight }));
           setTelephonyStatus('success');
           setTimeout(() => setTelephonyStatus(null), 3000);
@@ -1416,77 +1429,20 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
 
 // --- ВКЛАДКА: НОВЫЙ СТАТУС-ОТЧЕТ (ELITE REPORT) ---
 
-const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek }) => {
+const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek, projectTasks, setProjectTasks }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
+  
+  // Состояния для формы новой задачи руководства
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskComment, setNewTaskComment] = useState('в работе');
+  const [newTaskColor, setNewTaskColor] = useState('#10b981'); // Зеленый по умолчанию
 
   const reportRef = useRef(null);
 
   useEffect(() => {
     setIsDirty(false);
   }, [weekData.weekNumber]);
-
-  useEffect(() => {
-    const container = reportRef.current;
-    if (!container) return;
-
-    const handleAddClick = (e) => {
-      const addBtn = e.target.closest('.add-task-btn');
-      if (addBtn) {
-         const tasksContainer = container.querySelector('#management-tasks-container');
-         if (!tasksContainer) return;
-         
-         const newTask = document.createElement('div');
-         newTask.className = 'management-task-block';
-         newTask.contentEditable = "false"; 
-         newTask.style.cssText = "background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px; position: relative;";
-         
-         newTask.innerHTML = `
-            <div class="no-print" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 6px;" contenteditable="false">
-                <select class="color-picker" style="font-size: 11px; padding: 2px 4px; border-radius: 4px; border: 1px solid #cbd5e1; background: white; cursor: pointer; outline: none; color: #0f172a;">
-                  <option value="#10b981">🟢 Зеленый</option>
-                  <option value="#ef4444">🔴 Красный</option>
-                  <option value="#0f172a">⚫ Черный</option>
-                </select>
-                <button class="delete-task-btn" style="background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-weight: bold; font-size: 12px;">✕</button>
-            </div>
-            <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; padding-right: 120px; text-align: left;">
-                <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 200px; display: inline-block;">Опишите поручение...</span>
-            </div>
-            <div style="font-size: 13px; text-align: left;">
-                <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
-                [ <span class="task-status-text" contenteditable="true" style="color: #10b981; font-weight: bold; outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 100px; display: inline-block;">в работе</span> ]
-            </div>
-         `;
-         tasksContainer.appendChild(newTask);
-         setIsDirty(true);
-      }
-
-      const delBtn = e.target.closest('.delete-task-btn');
-      if (delBtn) {
-         delBtn.closest('.management-task-block').remove();
-         setIsDirty(true);
-      }
-    };
-
-    const handleColorChange = (e) => {
-      if (e.target.classList.contains('color-picker')) {
-         const statusText = e.target.closest('.management-task-block').querySelector('.task-status-text');
-         if (statusText) {
-           statusText.style.color = e.target.value;
-           setIsDirty(true);
-         }
-      }
-    };
-
-    container.addEventListener('click', handleAddClick);
-    container.addEventListener('change', handleColorChange);
-
-    return () => {
-      container.removeEventListener('click', handleAddClick);
-      container.removeEventListener('change', handleColorChange);
-    };
-  }, []);
 
   const handleFreezeReport = () => {
      if (reportRef.current) {
@@ -1508,6 +1464,101 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
      setIsDirty(false);
   };
 
+  // --- ЛОГИКА УПРАВЛЕНИЯ ПОРУЧЕНИЯМИ ---
+  
+  const handleAddProjectTask = () => {
+    if (!newTaskTitle.trim()) return;
+    const newTask = {
+      id: Date.now().toString(),
+      title: newTaskTitle,
+      comment: newTaskComment,
+      color: newTaskColor,
+      status: 'active',
+      createdWeekKey: selectedKey,
+      completedWeekKey: null
+    };
+    setProjectTasks([...projectTasks, newTask]);
+    setNewTaskTitle('');
+    setNewTaskComment('в работе');
+  };
+
+  const handleUpdateProjectTask = (id, field, value) => {
+    setProjectTasks(projectTasks.map(t => t.id === id ? { ...t, [field]: value } : t));
+  };
+
+  const handleCompleteProjectTask = (id) => {
+    setProjectTasks(projectTasks.map(t => {
+      if (t.id === id) {
+        return { 
+          ...t, 
+          status: t.status === 'active' ? 'completed' : 'active', 
+          completedWeekKey: t.status === 'active' ? selectedKey : null 
+        };
+      }
+      return t;
+    }));
+  };
+
+  const handleDeleteProjectTask = (id) => {
+    if (window.confirm("Удалить поручение навсегда?")) {
+      setProjectTasks(projectTasks.filter(t => t.id !== id));
+    }
+  };
+
+  // Фильтруем задачи, которые должны попасть в отчет ТЕКУЩЕЙ недели
+  const tasksForThisWeek = projectTasks.filter(t => 
+    t.status === 'active' || t.completedWeekKey === selectedKey
+  );
+
+  // --- ГЕНЕРАЦИЯ HTML ДЛЯ ЗАДАЧ ---
+  const generateTasksHtml = () => {
+    if (tasksForThisWeek.length === 0) {
+      return `<p style="font-size: 13px; color: #64748b; font-style: italic;">На этой неделе нет активных поручений.</p>`;
+    }
+    
+    return tasksForThisWeek.map(t => {
+      const isCompleted = t.status === 'completed';
+      const bgColor = isCompleted ? '#f0fdf4' : '#ffffff';
+      const borderColor = isCompleted ? '#bbf7d0' : '#e2e8f0';
+      const leftBorderColor = isCompleted ? '#22c55e' : t.color;
+      const titleColor = isCompleted ? '#166534' : '#0f172a';
+      const titleText = isCompleted ? `<s>${safeString(t.title)}</s>` : safeString(t.title);
+      
+      const statusBadge = isCompleted 
+        ? `<span style="color: #16a34a; font-weight: bold; background: #dcfce3; padding: 2px 6px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">Выполнено</span>`
+        : `[ <span style="color: ${t.color}; font-weight: bold;">${safeString(t.comment)}</span> ]`;
+
+      return `
+        <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-left: 4px solid ${leftBorderColor}; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px;">
+           <div style="font-weight: 700; font-size: 14px; color: ${titleColor}; margin-bottom: 6px;">
+               ${titleText}
+           </div>
+           ${!isCompleted ? `
+             <div style="font-size: 13px; text-align: left;">
+                 <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
+                 ${statusBadge}
+             </div>
+           ` : `
+             <div style="font-size: 13px; text-align: left; margin-top: 4px;">
+                 ${statusBadge} <span style="color: #475569; margin-left: 8px;">Итог: ${safeString(t.comment)}</span>
+             </div>
+           `}
+        </div>
+      `;
+    }).join('');
+  };
+
+  // Авто-обновление блока задач внутри отчета (если он не заморожен)
+  useEffect(() => {
+    if (!reportRef.current || weekData.isReportFrozen) return;
+    const container = reportRef.current.querySelector('#management-tasks-container');
+    if (container) {
+      container.innerHTML = generateTasksHtml();
+    }
+  }, [projectTasks, selectedKey, weekData.isReportFrozen]);
+
+
+  // --- ДАННЫЕ ДЛЯ ОТЧЕТА ---
   const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
   const top3 = sortedIncidents.slice(0, 3);
   const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
@@ -1521,10 +1572,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const indexColor = managementIndex < 70 ? '#ef4444' : '#10b981';
 
   const getBurnoutBadge = (wip, closed, type) => {
-    // Изменили порог выгорания для инцидентов со 100 на 80+ на основе твоей экспертизы
     const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) >= 80) || (type === 'task' && Number(closed) > 15);
     if (isOverloaded) {
-       return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания (Норма 50-60)">🔥</span>`;
+       return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания">🔥</span>`;
     }
     return '';
   };
@@ -1536,12 +1586,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
 
   const completedDetailedTasks = (weekData.detailedTasks || [])
-    .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved))
-    .sort((a, b) => {
-        const idA = parseInt(String(a.id).replace(/\D/g, '')) || 0;
-        const idB = parseInt(String(b.id).replace(/\D/g, '')) || 0;
-        return idB - idA;
-    });
+    .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
 
   const renderProgressBar = (value, max, color) => {
     const percentage = Math.min(Math.round((value / max) * 100), 100);
@@ -1619,44 +1664,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <div style="font-size: 12px; color: #475569; margin-top: 4px;">${safeString(inc.analysis)}</div>
       </div>
     `).join('');
-    
-    const telephonyHtml = weekData.telephonyData && weekData.telephonyData.length > 0 ? `
-      <table class="data-table" style="margin-bottom: 10px;">
-        <thead>
-          <tr>
-            <th>Оператор</th>
-            <th style="text-align: center;">Всего</th>
-            <th style="text-align: center;">Отвечено</th>
-            <th style="text-align: center;">Пропущено</th>
-            <th style="text-align: center;">Ср. ожидание</th>
-            <th style="text-align: center;">Ср. разговор</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${weekData.telephonyData.map(row => `
-            <tr>
-              <td style="font-weight: 500;">${row.name}</td>
-              <td style="text-align: center;">${row.total}</td>
-              <td style="text-align: center; color: #10b981; font-weight: bold;">${row.answered}</td>
-              <td style="text-align: center; color: ${row.missed > 0 ? '#ef4444' : '#64748b'}; font-weight: ${row.missed > 0 ? 'bold' : 'normal'};">${row.missed}</td>
-              <td style="text-align: center;">${row.avgWait}</td>
-              <td style="text-align: center;">${row.avgTalk}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    ` : `
-      <div class="editable-box" style="background-color: #f1f5f9; border-color: #cbd5e1; color: #64748b; font-style: italic; text-align: center; margin-bottom: 30px;">
-        <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Загрузите статистику телефонии на вкладке "Заполнить неделю" или вставьте таблицу сюда ]</span>
-      </div>
-    `;
-    
-    const telephonyInsightHtml = weekData.telephonyInsight ? `
-      <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px; color: #92400e; margin-bottom: 30px;">
-        <div style="font-weight: bold; margin-bottom: 5px;">🤖 AI-Анализ телефонии и выгорания:</div>
-        <div style="white-space: pre-wrap;">${safeString(weekData.telephonyInsight)}</div>
-      </div>
-    ` : '';
 
     let sectionCounter = 1;
 
@@ -1670,7 +1677,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         .data-table th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
         .data-table td { padding: 10px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
         .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--accent); padding-left: 10px; margin: 40px 0 15px 0; text-transform: uppercase; color: #0f172a; }
-        .editable-box { background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; padding: 15px; font-size: 13px; color: #92400e; margin-bottom: 30px; font-style: italic; text-align: center; }
         .incident-card { background: #f8fafc; border-left: 3px solid #f59e0b; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
         ul.custom-list li { margin-bottom: 6px; }
@@ -1720,8 +1726,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
-          ${telephonyHtml}
-          ${telephonyInsightHtml}
+          <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; border: 1px dashed #cbd5e1; font-size: 13px; color: #94a3b8; font-style: italic; text-align: center; margin-bottom: 30px;">
+             <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и вставьте сюда скопированную таблицу из модуля телефонии ]</span>
+          </div>
 
           <div class="section-title" style="--accent: #a855f7;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</div>
           
@@ -1749,28 +1756,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
           
           <div id="management-tasks-container">
-            <div class="management-task-block" contenteditable="false" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px; position: relative; min-height: 60px;">
-               <div class="no-print" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 6px;">
-                   <select class="color-picker" style="font-size: 11px; padding: 2px 4px; border-radius: 4px; border: 1px solid #cbd5e1; background: white; cursor: pointer; outline: none; color: #0f172a;">
-                     <option value="#10b981">🟢 Зеленый</option>
-                     <option value="#ef4444">🔴 Красный</option>
-                     <option value="#0f172a">⚫ Черный</option>
-                   </select>
-                   <button class="delete-task-btn" style="background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-weight: bold; font-size: 12px;">✕</button>
-               </div>
-               <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px; padding-right: 120px; text-align: left;">
-                   <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 200px; display: inline-block;">[ Кликните, удалите и впишите задачу... ]</span>
-               </div>
-               <div style="font-size: 13px; text-align: left;">
-                   <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
-                   [ <span class="task-status-text" contenteditable="true" style="color: #10b981; font-weight: bold; outline: none; border-bottom: 1px dashed #cbd5e1; min-width: 100px; display: inline-block;">[ ваш ответ ]</span> ]
-               </div>
-            </div>
+             ${generateTasksHtml()}
           </div>
-          
-          <button class="no-print add-task-btn" contenteditable="false" style="background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; padding: 10px 15px; border-radius: 4px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; margin-bottom: 30px; font-weight: bold; transition: background 0.2s;">
-            + ДОБАВИТЬ ПОРУЧЕНИЕ
-          </button>
 
           <div class="section-title" style="--accent: #ef4444;">${sectionCounter++}. Риски, Инциденты и Улучшения</div>
           <ul class="custom-list" style="line-height: 1.6;">
@@ -1794,13 +1781,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     }
   }, [weekData]);
 
+  // Функция для очистки HTML перед экспортом
   const getCleanHtml = () => {
     if (!reportRef.current) return '';
     const clone = reportRef.current.cloneNode(true);
     
+    // Удаляем элементы, которые не должны попасть в экспорт (кнопки +, селекты цветов)
     const noPrints = clone.querySelectorAll('.no-print');
     noPrints.forEach(el => el.remove());
 
+    // Убираем атрибуты редактирования и пунктирные линии подсказок
     const editables = clone.querySelectorAll('[contenteditable]');
     editables.forEach(el => {
         el.removeAttribute('contenteditable');
@@ -1867,10 +1857,112 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       <div className="w-full max-w-4xl flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
-          <p className="text-slate-400 text-sm">Отредактируйте текст прямо на белом листе и скачайте HTML</p>
+          <p className="text-slate-400 text-sm">Сборка и экспорт статус-отчета за неделю</p>
         </div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
+
+      {/* НОВАЯ ПАНЕЛЬ УПРАВЛЕНИЯ ПОРУЧЕНИЯМИ */}
+      {!weekData.isReportFrozen && (
+        <div className="w-full max-w-4xl bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm mb-6 overflow-hidden">
+          <div className="bg-fuchsia-500/10 py-3 px-6 border-b border-fuchsia-500/20 flex items-center gap-2">
+            <ListTodo size={18} className="text-fuchsia-400" />
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">Портфель поручений руководства (Глобальный)</h2>
+          </div>
+          
+          <div className="p-6">
+            <div className="space-y-4 mb-6">
+              {tasksForThisWeek.map(t => {
+                const weeksActive = getWeeksDiff(t.createdWeekKey, selectedKey);
+                const isCompleted = t.status === 'completed';
+                
+                return (
+                  <div key={t.id} className={`p-4 rounded-lg border ${isCompleted ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-slate-900/50 border-slate-700/50'} flex flex-col gap-3 relative transition-all`}>
+                    
+                    {/* Кнопка удаления */}
+                    <button onClick={() => handleDeleteProjectTask(t.id)} className="absolute top-3 right-3 text-slate-500 hover:text-red-400 transition-colors p-1" title="Удалить навсегда">
+                      <Trash2 size={16} />
+                    </button>
+
+                    <div className="flex gap-4 items-start pr-8">
+                       {/* Чекбокс */}
+                       <button onClick={() => handleCompleteProjectTask(t.id)} className={`mt-1 flex-shrink-0 w-6 h-6 rounded border flex items-center justify-center transition-colors ${isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-800 border-slate-600 text-transparent hover:border-emerald-500'}`}>
+                         <Check size={14} />
+                       </button>
+
+                       <div className="flex-1 space-y-2">
+                          <input 
+                            type="text" 
+                            value={t.title} 
+                            onChange={(e) => handleUpdateProjectTask(t.id, 'title', e.target.value)}
+                            disabled={isCompleted}
+                            className={`w-full bg-transparent font-bold outline-none border-b border-dashed focus:border-fuchsia-500 transition-colors ${isCompleted ? 'text-emerald-400 border-transparent line-through opacity-70' : 'text-slate-200 border-slate-600'}`}
+                          />
+                          
+                          <div className="flex flex-wrap gap-2 items-center">
+                            {!isCompleted && (
+                              <select 
+                                value={t.color} 
+                                onChange={(e) => handleUpdateProjectTask(t.id, 'color', e.target.value)}
+                                className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white outline-none cursor-pointer"
+                              >
+                                <option value="#10b981">🟢 Зеленый</option>
+                                <option value="#f59e0b">🟡 Желтый</option>
+                                <option value="#ef4444">🔴 Красный</option>
+                                <option value="#3b82f6">🔵 Синий</option>
+                                <option value="#0f172a">⚫ Черный</option>
+                              </select>
+                            )}
+                            
+                            <input 
+                              type="text" 
+                              value={t.comment} 
+                              onChange={(e) => handleUpdateProjectTask(t.id, 'comment', e.target.value)}
+                              placeholder="Текущий статус..."
+                              className={`flex-1 bg-transparent text-sm outline-none border-b border-dashed focus:border-fuchsia-500 transition-colors ${isCompleted ? 'text-emerald-300 border-transparent' : 'text-slate-400 border-slate-700'}`}
+                            />
+                          </div>
+
+                          {/* AI Подсказка по срокам */}
+                          {!isCompleted && weeksActive > 0 && (
+                             <div className={`text-[10px] font-bold flex items-center gap-1 mt-2 w-max px-2 py-0.5 rounded ${weeksActive >= 2 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                               <AlertCircle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
+                             </div>
+                          )}
+                       </div>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {tasksForThisWeek.length === 0 && (
+                <p className="text-slate-500 text-sm italic text-center py-4">Нет активных поручений.</p>
+              )}
+            </div>
+
+            {/* Форма добавления */}
+            <div className="bg-slate-900 rounded-lg border border-slate-700 p-4 flex flex-col md:flex-row gap-3 items-end">
+               <div className="flex-1 w-full">
+                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">Новое поручение</label>
+                 <input type="text" value={newTaskTitle} onChange={e=>setNewTaskTitle(e.target.value)} placeholder="Суть задачи..." className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none" />
+               </div>
+               <div className="w-full md:w-48">
+                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">Цвет (Статус)</label>
+                 <select value={newTaskColor} onChange={e=>setNewTaskColor(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none">
+                    <option value="#10b981">🟢 Зеленый</option>
+                    <option value="#f59e0b">🟡 Желтый</option>
+                    <option value="#ef4444">🔴 Красный</option>
+                    <option value="#3b82f6">🔵 Синий</option>
+                    <option value="#0f172a">⚫ Черный</option>
+                 </select>
+               </div>
+               <button onClick={handleAddProjectTask} disabled={!newTaskTitle.trim()} className="w-full md:w-auto bg-fuchsia-600 hover:bg-fuchsia-500 disabled:bg-slate-700 text-white px-6 py-2 rounded font-bold text-sm transition-colors shadow-lg flex items-center justify-center gap-2 h-[38px]">
+                 <Plus size={16}/> Добавить
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="w-full max-w-4xl bg-slate-800 rounded-xl border border-slate-700/50 shadow-2xl flex flex-col overflow-hidden mb-8">
         
@@ -1883,7 +1975,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             )}
           </div>
           <div className="flex items-center gap-1.5 text-slate-400">
-            <Edit3 size={14} className="text-blue-400"/> Кликни на лист для правки
+            <Edit3 size={14} className="text-blue-400"/> Кликни на лист для правки текста
           </div>
         </div>
 
@@ -2280,7 +2372,9 @@ const App = () => {
   const [achievements, setAchievements] = useState(() => { try { const saved = localStorage.getItem('teamlead_achievements_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultAchievements; });
   const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_profiles_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProfiles; });
   const [tasksArchive, setTasksArchive] = useState(() => { try { const saved = localStorage.getItem('teamlead_tasks_archive_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
-
+  
+  // НОВЫЙ ГЛОБАЛЬНЫЙ СТЕЙТ ПРОЕКТНЫХ ПОРУЧЕНИЙ РУКОВОДСТВА
+  const [projectTasks, setProjectTasks] = useState(() => { try { const saved = localStorage.getItem('teamlead_project_tasks_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
 
   // Инициализация (загрузка из облака или кэша)
   useEffect(() => {
@@ -2305,6 +2399,7 @@ const App = () => {
         const achRow = cloudData.find(r => r.key_name === 'achievements'); if (achRow) setAchievements(achRow.value_data);
         const profRow = cloudData.find(r => r.key_name === 'profiles'); if (profRow) setProfiles(profRow.value_data);
         const taskRow = cloudData.find(r => r.key_name === 'tasks_archive'); if (taskRow) setTasksArchive(taskRow.value_data);
+        const projTaskRow = cloudData.find(r => r.key_name === 'project_tasks'); if (projTaskRow) setProjectTasks(projTaskRow.value_data);
       }
 
       // 2. ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ (АВТОРИЗАЦИЯ)
@@ -2392,7 +2487,7 @@ const App = () => {
   useEffect(() => { saveToDb('profiles', profiles, 'teamlead_profiles_v8'); }, [profiles]);
   useEffect(() => { saveToDb('tasks_archive', tasksArchive, 'teamlead_tasks_archive_v8'); }, [tasksArchive]);
   useEffect(() => { saveToDb('auth_users', authUsers, 'teamlead_auth_v8'); }, [authUsers]);
-
+  useEffect(() => { saveToDb('project_tasks', projectTasks, 'teamlead_project_tasks_v8'); }, [projectTasks]);
 
   // ФУНКЦИИ АВТОРИЗАЦИИ
   const handleLogin = async (username, password) => {
@@ -2446,7 +2541,7 @@ const App = () => {
     switch(activeTab) {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} />;
-      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} />;
+      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
       case 'achievements': return <AchievementsBoard achievements={achievements} />;
