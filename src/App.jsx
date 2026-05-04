@@ -1574,7 +1574,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const getBurnoutBadge = (wip, closed, type) => {
     const isOverloaded = (Number(wip) > 20) || (type === 'inc' && Number(closed) >= 80) || (type === 'task' && Number(closed) > 15);
     if (isOverloaded) {
-       return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания">🔥</span>`;
+       return `<span style="color: #ef4444; font-size: 14px;" title="Высокий риск выгорания (Норма 50-60)">🔥</span>`;
     }
     return '';
   };
@@ -1586,7 +1586,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
 
   const completedDetailedTasks = (weekData.detailedTasks || [])
-    .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
+    .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved))
+    .sort((a, b) => {
+        const idA = parseInt(String(a.id).replace(/\D/g, '')) || 0;
+        const idB = parseInt(String(b.id).replace(/\D/g, '')) || 0;
+        return idB - idA;
+    });
 
   const renderProgressBar = (value, max, color) => {
     const percentage = Math.min(Math.round((value / max) * 100), 100);
@@ -1664,6 +1669,44 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <div style="font-size: 12px; color: #475569; margin-top: 4px;">${safeString(inc.analysis)}</div>
       </div>
     `).join('');
+    
+    const telephonyHtml = weekData.telephonyData && weekData.telephonyData.length > 0 ? `
+      <table class="data-table" style="margin-bottom: 10px;">
+        <thead>
+          <tr>
+            <th>Оператор</th>
+            <th style="text-align: center;">Всего</th>
+            <th style="text-align: center;">Отвечено</th>
+            <th style="text-align: center;">Пропущено</th>
+            <th style="text-align: center;">Ср. ожидание</th>
+            <th style="text-align: center;">Ср. разговор</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${weekData.telephonyData.map(row => `
+            <tr>
+              <td style="font-weight: 500;">${row.name}</td>
+              <td style="text-align: center;">${row.total}</td>
+              <td style="text-align: center; color: #10b981; font-weight: bold;">${row.answered}</td>
+              <td style="text-align: center; color: ${row.missed > 0 ? '#ef4444' : '#64748b'}; font-weight: ${row.missed > 0 ? 'bold' : 'normal'};">${row.missed}</td>
+              <td style="text-align: center;">${row.avgWait}</td>
+              <td style="text-align: center;">${row.avgTalk}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : `
+      <div class="editable-box" style="background-color: #f1f5f9; border-color: #cbd5e1; color: #64748b; font-style: italic; text-align: center; margin-bottom: 30px;">
+        <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Загрузите статистику телефонии на вкладке "Заполнить неделю" или вставьте таблицу сюда ]</span>
+      </div>
+    `;
+    
+    const telephonyInsightHtml = weekData.telephonyInsight ? `
+      <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px; color: #92400e; margin-bottom: 30px;">
+        <div style="font-weight: bold; margin-bottom: 5px;">🤖 AI-Анализ телефонии и выгорания:</div>
+        <div style="white-space: pre-wrap;">${safeString(weekData.telephonyInsight)}</div>
+      </div>
+    ` : '';
 
     let sectionCounter = 1;
 
@@ -1677,6 +1720,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         .data-table th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
         .data-table td { padding: 10px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
         .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--accent); padding-left: 10px; margin: 40px 0 15px 0; text-transform: uppercase; color: #0f172a; }
+        .editable-box { background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; padding: 15px; font-size: 13px; color: #92400e; margin-bottom: 30px; font-style: italic; text-align: center; }
         .incident-card { background: #f8fafc; border-left: 3px solid #f59e0b; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
         ul.custom-list li { margin-bottom: 6px; }
@@ -1726,9 +1770,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
-          <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; border: 1px dashed #cbd5e1; font-size: 13px; color: #94a3b8; font-style: italic; text-align: center; margin-bottom: 30px;">
-             <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и вставьте сюда скопированную таблицу из модуля телефонии ]</span>
-          </div>
+          ${telephonyHtml}
+          ${telephonyInsightHtml}
 
           <div class="section-title" style="--accent: #a855f7;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</div>
           
@@ -1771,26 +1814,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     `;
   };
 
-  useEffect(() => {
-    if (reportRef.current) {
-        if (weekData.isReportFrozen && weekData.customReportHtml) {
-            reportRef.current.innerHTML = weekData.customReportHtml;
-        } else {
-            reportRef.current.innerHTML = getReportHtmlString();
-        }
-    }
-  }, [weekData]);
-
-  // Функция для очистки HTML перед экспортом
   const getCleanHtml = () => {
     if (!reportRef.current) return '';
     const clone = reportRef.current.cloneNode(true);
     
-    // Удаляем элементы, которые не должны попасть в экспорт (кнопки +, селекты цветов)
     const noPrints = clone.querySelectorAll('.no-print');
     noPrints.forEach(el => el.remove());
 
-    // Убираем атрибуты редактирования и пунктирные линии подсказок
     const editables = clone.querySelectorAll('[contenteditable]');
     editables.forEach(el => {
         el.removeAttribute('contenteditable');
