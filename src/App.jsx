@@ -28,7 +28,6 @@ const USER_DICTIONARY = {
 const BASE_CAPACITY = 50; 
 const TEAM_LEAD_ID = "u01002"; // ID тимлида для исключения из таблиц отчета
 const TEAM_LEAD_NAME = "Виктор С.";
-// Список администраторов 3-й линии (для скрытия из инцидентов 1-й линии)
 const THIRD_LINE_ADMINS = ["Антон Лысов", "Петр Скляренко", "Максим Нестеров", "Роман Нор", "e0197"];
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -1653,8 +1652,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         }
         return '';
       };
-
-      const THIRD_LINE_ADMINS = ["Антон Лысов", "Петр Скляренко", "Максим Нестеров", "Роман Нор", "e0197"];
 
       let sortedTaskPerformers = [...(weekData.taskPerformers || [])]
         .filter(p => {
