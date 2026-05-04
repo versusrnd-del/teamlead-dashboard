@@ -27,7 +27,7 @@ const USER_DICTIONARY = {
 };
 
 const BASE_CAPACITY = 50; 
-const TEAM_LEAD_ID = "u01002"; // ID тимлида для исключения из таблиц отчета
+const TEAM_LEAD_ID = "u01002"; 
 const TEAM_LEAD_NAME = "Виктор С.";
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -70,7 +70,6 @@ const generateMonthWeeks = (year, month) => {
   return weeks;
 };
 
-// Заменяет ЛЮБЫЕ логины в тексте на ФИО
 const replaceLoginsWithNames = (text) => {
   if (typeof text !== 'string') return String(text || '');
   let result = text;
@@ -81,7 +80,6 @@ const replaceLoginsWithNames = (text) => {
   return result;
 };
 
-// Строгий перевод логина в имя для таблиц
 const getFullName = (login) => {
   if (!login) return 'Неизвестно';
   const cleanLogin = String(login).trim().toLowerCase();
@@ -112,7 +110,7 @@ const defaultWeekData = {
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных AI-анализа...",
-  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: [], telephonyData: []
+  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: [], telephonyData: [], telephonyInsight: ""
 };
 
 const defaultProcesses = [
@@ -930,9 +928,13 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
       const parsedData = JSON.parse(cleanJson);
       
+      // ЗАЩИТА ОТ ОШИБКИ ИИ (Если прислал CSAT вместо Индекса 0-100)
       let newIndex = parsedData.managementIndex !== undefined ? parsedData.managementIndex : formData.managementIndex;
+      if (newIndex > 0 && newIndex <= 5) {
+          newIndex = Math.round(newIndex * 20); // Превращаем 4.4 в 88
+      }
       
-      // УМНОЕ СЛИЯНИЕ МАССИВОВ, чтобы второй JSON не затирал данные первого!
+      // УМНОЕ СЛИЯНИЕ МАССИВОВ (чтобы новый JSON не затирал задачи из старого)
       let mergedDetailedTasks = formData.detailedTasks || [];
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
          const existingIds = new Set(mergedDetailedTasks.map(t => t.id));
@@ -940,12 +942,10 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
          mergedDetailedTasks = [...newTasks, ...mergedDetailedTasks];
       }
 
-      // Также безопасно мержим профили, чтобы Инфра и 1-я линия не затирали друг друга
       let mergedTopPerformers = parsedData.topPerformers && parsedData.topPerformers.length > 0 ? parsedData.topPerformers : formData.topPerformers;
       let mergedTaskPerformers = parsedData.taskPerformers && parsedData.taskPerformers.length > 0 ? parsedData.taskPerformers : formData.taskPerformers;
       let mergedIncidents = parsedData.topIncidents && parsedData.topIncidents.length > 0 ? parsedData.topIncidents : formData.topIncidents;
 
-      // СОХРАНЕНИЕ В ГЛОБАЛЬНЫЙ АРХИВ
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
          setTasksArchive(prev => {
             const existingIds = new Set(prev.map(t => t.id));
@@ -976,7 +976,35 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     }
   };
 
-  // ПАРСЕР ТЕЛЕФОНИИ
+  // ПАРСЕР ТЕЛЕФОНИИ И ГЕНЕРАТОР АНАЛИТИКИ (ИИ-Логика)
+  const generateTelephonyInsight = (teleData, jiraData) => {
+    let insights = [];
+    let totalCalls = 0;
+    let totalMissed = 0;
+    
+    teleData.forEach(op => {
+        totalCalls += op.total;
+        totalMissed += op.missed;
+        
+        let namePart = op.name.split(' ')[0]; 
+        let perf = jiraData?.find(p => p.name.includes(namePart) || getFullName(p.name).includes(namePart));
+        
+        if (op.missed > 0) {
+            if (perf && perf.closed >= 50) {
+                insights.push(`🔥 ${op.name}: Пропущено ${op.missed} вызовов. Причина: Перегруз (закрыто ${perf.closed} тикетов). Зона риска выгорания! Снизить нагрузку.`);
+            } else {
+                insights.push(`👀 ${op.name}: Пропущено ${op.missed} вызовов при низкой загрузке в Jira. Обратить внимание на дисциплину (статусы АТС).`);
+            }
+        }
+    });
+    
+    let header = totalMissed > 0 
+        ? `⚠️ Внимание: Потеряно ${totalMissed} вызовов из ${totalCalls}.\n` 
+        : `✅ Отличная работа: 0 пропущенных вызовов.\n`;
+        
+    return header + insights.join('\n');
+  };
+
   const handleTelephonyImport = () => {
     try {
       const lines = importTelephonyText.split('\n');
@@ -985,22 +1013,18 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
       for (let line of lines) {
         const times = line.match(timeRegex);
-        if (!times || times.length < 2) continue; // Пропускаем строки без времени
+        if (!times || times.length < 2) continue;
 
-        // Ищем имя (два слова с большой буквы или дефисом)
         const nameMatch = line.match(/^([А-ЯЁа-яёA-Za-z-]+\s+[А-ЯЁа-яёA-Za-z-]+)/);
         if (!nameMatch) continue;
         const name = nameMatch[1];
 
-        // Очищаем строку от имени и времени, чтобы найти только числа
         let cleaned = line.replace(name, '').replace(timeRegex, ' ');
         
         let nums = [];
-        // Если юзер скопировал прямо из таблицы, там будут табы
         if (line.includes('\t')) {
             nums = cleaned.split('\t').map(s => s.trim()).filter(s => s.match(/^\d+$/));
         } else {
-            // Если табов нет, пытаемся выдернуть просто все числа
             nums = cleaned.match(/\d+/g) || [];
         }
 
@@ -1009,7 +1033,6 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             let answered = parseInt(nums[1]);
             let missed = 0;
             if (nums.length >= 3) {
-                // Последнее число перед временем - это обычно пропущенные
                 missed = parseInt(nums[nums.length - 1]);
             }
             
@@ -1026,7 +1049,8 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
       }
       
       if(parsedData.length > 0) {
-          setFormData(prev => ({ ...prev, telephonyData: parsedData }));
+          const insight = generateTelephonyInsight(parsedData, formData.topPerformers);
+          setFormData(prev => ({ ...prev, telephonyData: parsedData, telephonyInsight: insight }));
           setTelephonyStatus('success');
           setTimeout(() => setTelephonyStatus(null), 3000);
           setIsSaved(false);
@@ -1153,6 +1177,16 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
                </div>
             </div>
           </div>
+        </div>
+
+        {/* БЛОК РУЧНОГО ИИ-АНАЛИЗА ТЕЛЕФОНИИ */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
+          <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2"><PhoneCall size={18} className="text-sky-400" /> Анализ телефонии и выгорания</h3>
+          <p className="text-xs text-slate-500 mb-3">Этот текст генерируется автоматически при импорте таблицы звонков.</p>
+          <textarea 
+            name="telephonyInsight" value={safeString(formData.telephonyInsight)} onChange={handleChange} rows={4} 
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-sky-500 outline-none custom-scrollbar" 
+          />
         </div>
 
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
@@ -1340,22 +1374,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const [copiedId, setCopiedId] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Ссылка на div для копирования HTML
   const reportRef = useRef(null);
 
-  // Сброс локального состояния при переключении недели
   useEffect(() => {
     setIsDirty(false);
   }, [weekData.weekNumber]);
 
-  // Прикрепляем слушатели событий для кнопок внутри contentEditable
   useEffect(() => {
     const container = reportRef.current;
     if (!container) return;
 
-    // Логика добавления и удаления карточек
     const handleAddClick = (e) => {
-      // Кнопка "Добавить поручение"
       const addBtn = e.target.closest('.add-task-btn');
       if (addBtn) {
          const tasksContainer = container.querySelector('#management-tasks-container');
@@ -1387,7 +1416,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
          setIsDirty(true);
       }
 
-      // Кнопка "Удалить"
       const delBtn = e.target.closest('.delete-task-btn');
       if (delBtn) {
          delBtn.closest('.management-task-block').remove();
@@ -1395,7 +1423,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       }
     };
 
-    // Логика смены цвета статуса
     const handleColorChange = (e) => {
       if (e.target.classList.contains('color-picker')) {
          const statusText = e.target.closest('.management-task-block').querySelector('.task-status-text');
@@ -1461,14 +1488,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   sortedTaskPerformers = sortedTaskPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
   sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
 
-  // Получаем список ВЫПОЛНЕННЫХ задач. 
-  // БЕЗОПАСНАЯ СОРТИРОВКА: Сортируем по ID (номеру тикета), чтобы избежать краша браузера на русских датах.
   const completedDetailedTasks = (weekData.detailedTasks || [])
     .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved))
     .sort((a, b) => {
         const idA = parseInt(String(a.id).replace(/\D/g, '')) || 0;
         const idB = parseInt(String(b.id).replace(/\D/g, '')) || 0;
-        return idB - idA; // Сортировка по убыванию (новые номера сверху)
+        return idB - idA;
     });
 
   const renderProgressBar = (value, max, color) => {
@@ -1548,9 +1573,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       </div>
     `).join('');
     
-    // ГЕНЕРАЦИЯ ТАБЛИЦЫ ТЕЛЕФОНИИ (если есть данные)
     const telephonyHtml = weekData.telephonyData && weekData.telephonyData.length > 0 ? `
-      <table class="data-table" style="margin-bottom: 30px;">
+      <table class="data-table" style="margin-bottom: 10px;">
         <thead>
           <tr>
             <th>Оператор</th>
@@ -1579,6 +1603,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Загрузите статистику телефонии на вкладке "Заполнить неделю" или вставьте таблицу сюда ]</span>
       </div>
     `;
+    
+    const telephonyInsightHtml = weekData.telephonyInsight ? `
+      <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px; color: #92400e; margin-bottom: 30px;">
+        <div style="font-weight: bold; margin-bottom: 5px;">🤖 AI-Анализ телефонии и выгорания:</div>
+        <div style="white-space: pre-wrap;">${safeString(weekData.telephonyInsight)}</div>
+      </div>
+    ` : '';
 
     let sectionCounter = 1;
 
@@ -1643,6 +1674,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
           ${telephonyHtml}
+          ${telephonyInsightHtml}
 
           <div class="section-title" style="--accent: #a855f7;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</div>
           
@@ -1715,16 +1747,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     }
   }, [weekData]);
 
-  // Функция для очистки HTML перед экспортом
   const getCleanHtml = () => {
     if (!reportRef.current) return '';
     const clone = reportRef.current.cloneNode(true);
     
-    // Удаляем элементы, которые не должны попасть в экспорт (кнопки +, селекты цветов)
     const noPrints = clone.querySelectorAll('.no-print');
     noPrints.forEach(el => el.remove());
 
-    // Убираем атрибуты редактирования и пунктирные линии подсказок
     const editables = clone.querySelectorAll('[contenteditable]');
     editables.forEach(el => {
         el.removeAttribute('contenteditable');
