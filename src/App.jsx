@@ -27,7 +27,7 @@ const USER_DICTIONARY = {
 };
 
 const BASE_CAPACITY = 50; 
-const TEAM_LEAD_ID = "u01002"; 
+const TEAM_LEAD_ID = "u01002"; // ID тимлида для исключения из таблиц отчета
 const TEAM_LEAD_NAME = "Виктор С.";
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -70,6 +70,7 @@ const generateMonthWeeks = (year, month) => {
   return weeks;
 };
 
+// Заменяет ЛЮБЫЕ логины в тексте на ФИО
 const replaceLoginsWithNames = (text) => {
   if (typeof text !== 'string') return String(text || '');
   let result = text;
@@ -80,6 +81,7 @@ const replaceLoginsWithNames = (text) => {
   return result;
 };
 
+// Строгий перевод логина в имя для таблиц
 const getFullName = (login) => {
   if (!login) return 'Неизвестно';
   const cleanLogin = String(login).trim().toLowerCase();
@@ -365,7 +367,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">Активно в моменте:</span><span className="text-white font-bold">{Number(weekData.urgentQueue) || 0}</span></div>
         </div>
         
-        {/* КАРТОЧКА 5 - Бэклог с Тултипом (УДАЛЕН overflow-hidden) */}
+        {/* КАРТОЧКА 5 - Бэклог с Тултипом */}
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-blue-500 shadow-sm relative flex flex-col justify-between z-10">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Бэклог</h3>
@@ -930,6 +932,20 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
       
       let newIndex = parsedData.managementIndex !== undefined ? parsedData.managementIndex : formData.managementIndex;
       
+      // УМНОЕ СЛИЯНИЕ МАССИВОВ, чтобы второй JSON не затирал данные первого!
+      let mergedDetailedTasks = formData.detailedTasks || [];
+      if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
+         const existingIds = new Set(mergedDetailedTasks.map(t => t.id));
+         const newTasks = parsedData.detailedTasks.filter(t => t.id && !existingIds.has(t.id));
+         mergedDetailedTasks = [...newTasks, ...mergedDetailedTasks];
+      }
+
+      // Также безопасно мержим профили, чтобы Инфра и 1-я линия не затирали друг друга
+      let mergedTopPerformers = parsedData.topPerformers && parsedData.topPerformers.length > 0 ? parsedData.topPerformers : formData.topPerformers;
+      let mergedTaskPerformers = parsedData.taskPerformers && parsedData.taskPerformers.length > 0 ? parsedData.taskPerformers : formData.taskPerformers;
+      let mergedIncidents = parsedData.topIncidents && parsedData.topIncidents.length > 0 ? parsedData.topIncidents : formData.topIncidents;
+
+      // СОХРАНЕНИЕ В ГЛОБАЛЬНЫЙ АРХИВ
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
          setTasksArchive(prev => {
             const existingIds = new Set(prev.map(t => t.id));
@@ -938,7 +954,15 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
          });
       }
 
-      setFormData(prev => ({ ...prev, ...parsedData, managementIndex: newIndex }));
+      setFormData(prev => ({ 
+        ...prev, 
+        ...parsedData, 
+        managementIndex: newIndex,
+        detailedTasks: mergedDetailedTasks,
+        topPerformers: mergedTopPerformers,
+        taskPerformers: mergedTaskPerformers,
+        topIncidents: mergedIncidents
+      }));
       setImportStatus('success');
       setImportJson(''); 
       setTimeout(() => setImportStatus(null), 3000);
@@ -1437,8 +1461,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   sortedTaskPerformers = sortedTaskPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
   sortedIncPerformers = sortedIncPerformers.filter(p => p.name !== TEAM_LEAD_ID && getFullName(p.name) !== TEAM_LEAD_NAME);
 
+  // Получаем список ВЫПОЛНЕННЫХ задач. 
+  // БЕЗОПАСНАЯ СОРТИРОВКА: Сортируем по ID (номеру тикета), чтобы избежать краша браузера на русских датах.
   const completedDetailedTasks = (weekData.detailedTasks || [])
-    .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
+    .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved))
+    .sort((a, b) => {
+        const idA = parseInt(String(a.id).replace(/\D/g, '')) || 0;
+        const idB = parseInt(String(b.id).replace(/\D/g, '')) || 0;
+        return idB - idA; // Сортировка по убыванию (новые номера сверху)
+    });
 
   const renderProgressBar = (value, max, color) => {
     const percentage = Math.min(Math.round((value / max) * 100), 100);
