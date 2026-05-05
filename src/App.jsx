@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, Server, PieChart as PieChartIcon, Download, Edit3, PhoneCall
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3, PhoneCall, ListTodo, AlertCircle
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -120,11 +120,11 @@ const defaultWeekData = {
   year: new Date().getFullYear(), month: new Date().getMonth(), weekNumber: getISOWeekNumber(new Date()), dates: "Текущая неделя", 
   status: "green", managementIndex: 100, inflowThisWeek: 0,
   avgCycleTime: 0, reopenRate: 0, techDebtCategories: [],
-  mainInsight: "Ожидание данных AI-анализа...", mainRisk: "Ожидание данных AI-анализа...",
-  nextFocus: "Ожидание данных AI-анализа...", trainingHypothesis: "Ожидание данных AI-анализа...",
+  mainInsight: "Ожидание данных аналитики...", mainRisk: "Ожидание данных аналитики...",
+  nextFocus: "Ожидание данных аналитики...", trainingHypothesis: "Ожидание данных аналитики...",
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
-  mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных AI-анализа...",
+  mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных аналитики...",
   topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: [], telephonyData: [], telephonyInsight: ""
 };
 
@@ -317,9 +317,11 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${colorClass}`}>
           {shortText}
         </span>
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-slate-800 border border-slate-600 rounded-lg shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center pointer-events-none">
-          {context}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[350px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center">
+          <div className="p-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[13px] leading-relaxed text-slate-300 relative cursor-auto pointer-events-auto">
+            {context}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+          </div>
         </div>
       </div>
     );
@@ -330,17 +332,17 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
      const fName = getFullName(p.name);
      const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
      const isThirdLine = THIRD_LINE_ADMINS.includes(fName) || THIRD_LINE_ADMINS.includes(p.name);
-     // Скрываем пользователей, которых нет в словаре USER_DICTIONARY
      const isUnknown = fName === p.name && !Object.keys(USER_DICTIONARY).includes(p.name.toLowerCase());
-     return !isTeamLead && !isThirdLine && !isUnknown;
+     const isLiterallyUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
+     return !isTeamLead && !isThirdLine && !isUnknown && !isLiterallyUnknown;
   });
 
   let filteredTaskPerformers = (weekData.taskPerformers || []).filter(p => {
      const fName = getFullName(p.name);
      const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
-     // Скрываем пользователей, которых нет в словаре USER_DICTIONARY
      const isUnknown = fName === p.name && !Object.keys(USER_DICTIONARY).includes(p.name.toLowerCase());
-     return !isTeamLead && !isUnknown;
+     const isLiterallyUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
+     return !isTeamLead && !isUnknown && !isLiterallyUnknown;
   });
 
   return (
@@ -348,7 +350,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div className="w-full sm:w-auto">
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Пульс команды</h1>
-          <p className="text-slate-400 text-sm">Оперативный статус направления технической поддержки</p>
+          <p className="text-slate-400 text-sm">Оперативный статус направления техни поддержки</p>
           
           <div className="mt-4 bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 w-full max-w-md">
              <div className="flex justify-between items-center mb-2">
@@ -446,30 +448,32 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center">
             <span className="text-slate-400 text-xs">Старше 30 дней:</span>
             
-            <div className="group relative flex items-center justify-center">
-              <span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1 cursor-help">
+            <div className="group relative flex items-center justify-center cursor-help">
+              <span className="bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold text-sm border border-red-500/20 flex items-center gap-1">
                 <Clock size={12} /> {Number(weekData.backlogOld30) || 0}
               </span>
               
               {/* Всплывающее меню для старых задач (Stale Backlog) */}
               {weekData.staleBacklog && weekData.staleBacklog.length > 0 && (
-                <div className="absolute bottom-full right-0 mb-2 w-80 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-xs text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
-                  <div className="font-bold text-red-400 mb-2 border-b border-slate-700 pb-1 flex items-center gap-1.5">
-                    <AlertTriangle size={14}/> Топ старых задач (Кандидаты на Drop)
-                  </div>
-                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-                    {weekData.staleBacklog.map((stale, i) => (
-                      <div key={i} className="bg-slate-900/50 p-2 rounded border border-slate-700/50">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="text-red-300 font-bold">{stale.id}</span>
-                          <span className="text-slate-500 text-[10px]">{stale.days} дн.</span>
+                <div className="absolute bottom-full right-0 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-xs text-slate-300 relative text-left cursor-auto pointer-events-auto">
+                    <div className="font-bold text-red-400 mb-3 border-b border-slate-700 pb-2 text-sm flex items-center gap-1.5">
+                      <AlertTriangle size={16}/> Топ старых задач (Кандидаты на Drop)
+                    </div>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                      {weekData.staleBacklog.map((stale, i) => (
+                        <div key={i} className="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="text-red-300 font-bold text-[13px]">{stale.id}</span>
+                            <span className="text-slate-500 text-[11px] bg-slate-800 px-2 py-0.5 rounded">{stale.days} дн.</span>
+                          </div>
+                          <div className="text-slate-200 font-medium mb-2 leading-snug text-[13px]">{stale.title}</div>
+                          <div className="text-[12px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded inline-block border border-emerald-500/20">Анализ: {stale.action}</div>
                         </div>
-                        <div className="text-slate-300 font-medium mb-1 line-clamp-2">{stale.title}</div>
-                        <div className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded inline-block">ИИ: {stale.action}</div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    <div className="absolute top-full right-4 border-4 border-transparent border-t-slate-600"></div>
                   </div>
-                  <div className="absolute top-full right-4 border-4 border-transparent border-t-slate-600"></div>
                 </div>
               )}
             </div>
@@ -571,13 +575,47 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       const count = taskInfo ? Number(taskInfo.count) : 0;
                       const desc = taskInfo ? safeString(taskInfo.description) : 'Задач такого размера не было';
                       
+                      // Фильтруем задачи этого размера для всплывающего окна
+                      const tasksOfSize = (weekData.detailedTasks || []).filter(t => t.size === size && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
+
                       return (
-                        <div key={size} className={`relative p-4 rounded-xl border flex flex-col ${count > 0 ? 'bg-slate-900/80 border-slate-700/50 shadow-inner' : 'bg-slate-900/30 border-slate-800/50 opacity-50'}`}>
+                        <div key={size} className={`group relative p-4 rounded-xl border flex flex-col ${count > 0 ? 'bg-slate-900/80 border-slate-700/50 shadow-inner hover:border-indigo-500/50 transition-colors cursor-help' : 'bg-slate-900/30 border-slate-800/50 opacity-50'}`}>
                           <div className="flex justify-between items-start mb-2">
                             <span className={`text-2xl font-black px-2.5 py-0.5 rounded-lg border-2 border-b-4 ${count > 0 ? getSizeColor(size) : 'bg-slate-800 text-slate-600 border-slate-700'}`}>{size}</span>
                             <span className="text-3xl font-bold text-slate-300">{count}</span>
                           </div>
                           <div className="mt-2 text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">{desc}</div>
+                          
+                          {/* TOOLTIP С ЗАДАЧАМИ ПО РАЗМЕРАМ */}
+                          {count > 0 && tasksOfSize.length > 0 && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[500px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                              <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
+                                <div className="font-bold text-white mb-3 border-b border-slate-700 pb-3 text-sm flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-0.5 rounded text-[12px] ${getSizeColor(size)} border`}>{size}</span>
+                                    <span>Выполненные задачи ({tasksOfSize.length} шт.)</span>
+                                  </div>
+                                </div>
+                                <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
+                                  {tasksOfSize.map((task, i) => (
+                                    <div key={i} className="bg-slate-900/60 p-4 rounded-lg border border-slate-700/50 hover:border-indigo-500/50 transition-colors">
+                                       <div className="flex justify-between items-start mb-2">
+                                          <span className="text-indigo-400 font-bold text-[13px]">{task.id}</span>
+                                          <span className="text-slate-400 text-[11px] truncate ml-2 max-w-[150px] bg-slate-800 px-2 py-1 rounded">{getFullName(task.assignee)}</span>
+                                       </div>
+                                       <div className="text-slate-200 font-medium leading-relaxed text-[13px] mb-2">{task.title}</div>
+                                       {task.comments && task.comments !== "Нет данных" && (
+                                           <div className="mt-2 text-[12px] text-slate-400 bg-slate-950/50 p-3 rounded-lg italic whitespace-pre-wrap leading-relaxed border-l-2 border-slate-700">
+                                               {task.comments}
+                                           </div>
+                                       )}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -638,7 +676,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
       )}
 
-      <h2 className="text-lg font-medium text-white mb-4 mt-8 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" />Глубокая аналитика потока (ИИ)</h2>
+      <h2 className="text-lg font-medium text-white mb-4 mt-8 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" />Глубокая аналитика потока</h2>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-8">
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
           <h3 className="text-base font-medium text-slate-200 flex items-center gap-2 mb-5"><Timer size={18} className="text-red-400" /> Мониторинг SLA</h3>
@@ -669,7 +707,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     <th className="pb-3 font-medium text-center" title="Work in Progress (Открыто сейчас)">WIP</th>
                     <th className="pb-3 font-medium text-center">Закрыто</th>
                     <th className="pb-3 font-medium text-center">Ср. Время</th>
-                    <th className="pb-3 font-medium text-center">Профиль (AI)</th>
+                    <th className="pb-3 font-medium text-center">Профиль</th>
                     <th className="pb-3 font-medium text-center">Логирование</th>
                     <th className="pb-3 font-medium text-center">Возвраты</th>
                     <th className="pb-3 font-medium text-center">CSAT</th>
@@ -691,6 +729,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     const droppedList = Array.isArray(perf.droppedTasks) ? perf.droppedTasks : [];
                     const droppedCount = droppedList.length > 0 ? droppedList.length : (Number(perf.droppedTasks) || 0);
 
+                    // Обработка отзывов пользователей
+                    const csatCommentsList = Array.isArray(perf.csatComments) ? perf.csatComments : [];
+
                     return (
                       <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
                         <td className="py-3 font-medium text-slate-200">{getFullName(perf.name)}</td>
@@ -701,22 +742,24 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                         <td className="py-3 text-center">
                           <div className="text-white font-bold">{Number(perf.closed) || 0}</div>
                           {droppedCount > 0 && (
-                            <div className="group relative flex items-center justify-center mt-1">
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/30 text-slate-300 border border-slate-500/40 cursor-help">
+                            <div className="group relative flex items-center justify-center mt-1 cursor-help">
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/30 text-slate-300 border border-slate-500/40">
                                 -{droppedCount} безд.
                               </span>
                               {droppedList.length > 0 && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
-                                  <div className="font-bold text-slate-300 mb-1 border-b border-slate-700 pb-1">Закрыто по бездействию (в зачет не идет):</div>
-                                  <div className="space-y-1 mt-1 max-h-32 overflow-y-auto custom-scrollbar">
-                                    {droppedList.map((dt, i) => (
-                                      <div key={i} className="leading-tight bg-slate-900/50 p-1.5 rounded border border-slate-700">
-                                        <span className="text-slate-400 font-bold">{dt.id}</span><br/>
-                                        <span className="truncate block w-full text-[9px] text-slate-500">{dt.title}</span>
-                                      </div>
-                                    ))}
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[350px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                  <div className="p-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
+                                    <div className="font-bold text-slate-300 mb-2 border-b border-slate-700 pb-2 text-sm">Закрыто по бездействию:</div>
+                                    <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                                      {droppedList.map((dt, i) => (
+                                        <div key={i} className="leading-tight bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                                          <span className="text-slate-300 font-bold text-[13px]">{dt.id}</span><br/>
+                                          <span className="truncate block w-full text-[12px] text-slate-400 mt-1">{dt.title}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                   </div>
-                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                 </div>
                               )}
                             </div>
@@ -745,11 +788,15 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                           {tId}
                                         </span>
                                         {/* УЛУЧШЕННЫЙ ТУЛТИП ВОЗВРАТА */}
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
-                                          <div className="font-bold text-amber-400 mb-1.5 border-b border-slate-700 pb-1.5">Возврат: {tId}</div>
-                                          {tTitle && <div className="text-[11px] text-white font-medium mb-1.5 line-clamp-2 leading-snug">{tTitle}</div>}
-                                          <div className="text-slate-400 leading-relaxed bg-slate-900/50 p-2 rounded whitespace-pre-wrap">{tReason}</div>
-                                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                          <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
+                                            <div className="max-h-72 overflow-y-auto custom-scrollbar pr-2">
+                                              <div className="font-bold text-amber-400 mb-2 border-b border-slate-700 pb-2 text-sm">Возврат: {tId}</div>
+                                              {tTitle && <div className="text-[13px] text-white font-bold mb-3 line-clamp-3 leading-snug">{tTitle}</div>}
+                                              <div className="text-slate-300 leading-relaxed bg-slate-900/60 p-4 rounded-lg whitespace-pre-wrap text-[13px]">{tReason}</div>
+                                            </div>
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                          </div>
                                         </div>
                                       </div>
                                     );
@@ -762,7 +809,25 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                           )}
                         </td>
 
-                        <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><Star size={14} className={Number(perf.csat) >= 4.8 ? "text-amber-400 fill-amber-400" : Number(perf.csat) >= 4.0 ? "text-amber-400" : "text-slate-500"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                        <td className="py-3 text-center">
+                          <div className="group relative flex items-center justify-center gap-1 cursor-help">
+                            <Star size={14} className={Number(perf.csat) >= 4.8 ? "text-amber-400 fill-amber-400" : Number(perf.csat) >= 4.0 ? "text-amber-400" : "text-slate-500"} />
+                            <span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span>
+                            {csatCommentsList.length > 0 && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
+                                  <div className="font-bold text-emerald-400 mb-2 border-b border-slate-700 pb-2 text-sm">Отзывы пользователей:</div>
+                                  <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+                                    {csatCommentsList.map((comment, i) => (
+                                      <div key={i} className="leading-relaxed bg-slate-900/60 p-3 rounded-lg whitespace-pre-wrap italic text-[13px]">"{comment}"</div>
+                                    ))}
+                                  </div>
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -786,7 +851,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       <th className="pb-3 font-medium text-center" title="Work in Progress (Открыто сейчас)">WIP</th>
                       <th className="pb-3 font-medium text-center">Закрыто</th>
                       <th className="pb-3 font-medium text-center">Cycle Time</th>
-                      <th className="pb-3 font-medium text-center">Профиль (AI)</th>
+                      <th className="pb-3 font-medium text-center">Профиль</th>
                       <th className="pb-3 font-medium text-center">Логирование</th>
                       <th className="pb-3 font-medium text-center">Возвраты</th>
                       <th className="pb-3 font-medium text-center">Качество</th>
@@ -807,6 +872,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
                       const droppedList = Array.isArray(perf.droppedTasks) ? perf.droppedTasks : [];
                       const droppedCount = droppedList.length > 0 ? droppedList.length : (Number(perf.droppedTasks) || 0);
+
+                      // Обработка отзывов пользователей
+                      const csatCommentsList = Array.isArray(perf.csatComments) ? perf.csatComments : [];
 
                       let calculatedTechDebt = Array.isArray(perf.techDebtClosed) ? perf.techDebtClosed : [];
                       // Если ИИ забыл добавить техдолг внутрь профиля, дашборд вычисляет его сам
@@ -832,22 +900,24 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                           <td className="py-3 text-center">
                             <div className="text-white font-bold">{Number(perf.closed) || 0}</div>
                             {droppedCount > 0 && (
-                              <div className="group relative flex items-center justify-center mt-1">
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/30 text-slate-300 border border-slate-500/40 cursor-help">
+                              <div className="group relative flex items-center justify-center mt-1 cursor-help">
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/30 text-slate-300 border border-slate-500/40">
                                   -{droppedCount} безд.
                                 </span>
                                 {droppedList.length > 0 && (
-                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
-                                    <div className="font-bold text-slate-300 mb-1 border-b border-slate-700 pb-1">Закрыто по бездействию (в зачет не идет):</div>
-                                    <div className="space-y-1 mt-1 max-h-32 overflow-y-auto custom-scrollbar">
-                                      {droppedList.map((dt, i) => (
-                                        <div key={i} className="leading-tight bg-slate-900/50 p-1.5 rounded border border-slate-700">
-                                          <span className="text-slate-400 font-bold">{dt.id}</span><br/>
-                                          <span className="truncate block w-full text-[9px] text-slate-500">{dt.title}</span>
-                                        </div>
-                                      ))}
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[350px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                    <div className="p-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
+                                      <div className="font-bold text-slate-300 mb-2 border-b border-slate-700 pb-2 text-sm">Закрыто по бездействию:</div>
+                                      <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                                        {droppedList.map((dt, i) => (
+                                          <div key={i} className="leading-tight bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                                            <span className="text-slate-300 font-bold text-[13px]">{dt.id}</span><br/>
+                                            <span className="truncate block w-full text-[12px] text-slate-400 mt-1">{dt.title}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                     </div>
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                   </div>
                                 )}
                               </div>
@@ -859,22 +929,27 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             <div className="flex flex-col items-center gap-1">
                               <span>{Number(perf.avgTimeMin) || 0} дн.</span>
                               {tdCount > 0 && (
-                                <div className="group relative flex items-center justify-center">
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 cursor-help">
+                                <div className="group relative flex items-center justify-center cursor-help">
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
                                     +{tdCount} стар.
                                   </span>
                                   {calculatedTechDebt.length > 0 && (
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-2 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
-                                      <div className="font-bold text-purple-400 mb-1 border-b border-slate-700 pb-1">Закрыт старый долг ({'>'}30 дн):</div>
-                                      <div className="space-y-1 mt-1 max-h-32 overflow-y-auto custom-scrollbar">
-                                        {calculatedTechDebt.map((td, i) => (
-                                          <div key={i} className="leading-tight bg-slate-900/50 p-1.5 rounded border border-slate-700">
-                                            <span className="text-purple-300 font-bold">{td.id}</span> <span className="text-slate-500">({td.days} дн.)</span><br/>
-                                            <span className="truncate block w-full text-[9px]">{td.title}</span>
-                                          </div>
-                                        ))}
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                      <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
+                                        <div className="font-bold text-purple-400 mb-3 border-b border-slate-700 pb-2 text-sm">Закрыт старый долг ({'>'}30 дн):</div>
+                                        <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+                                          {calculatedTechDebt.map((td, i) => (
+                                            <div key={i} className="leading-relaxed bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                                              <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-purple-300 font-bold text-[13px]">{td.id}</span>
+                                                <span className="text-slate-400 font-medium text-[11px]">({td.days} дн.)</span>
+                                              </div>
+                                              <div className="text-slate-200 text-[13px] leading-snug">{td.title}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                       </div>
-                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
                                     </div>
                                   )}
                                 </div>
@@ -903,11 +978,15 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                             {tId}
                                           </span>
                                           {/* УЛУЧШЕННЫЙ ТУЛТИП ВОЗВРАТА */}
-                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-3 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
-                                            <div className="font-bold text-amber-400 mb-1.5 border-b border-slate-700 pb-1.5">Возврат: {tId}</div>
-                                            {tTitle && <div className="text-[11px] text-white font-medium mb-1.5 line-clamp-2 leading-snug">{tTitle}</div>}
-                                            <div className="text-slate-400 leading-relaxed bg-slate-900/50 p-2 rounded whitespace-pre-wrap">{tReason}</div>
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                            <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
+                                              <div className="max-h-72 overflow-y-auto custom-scrollbar pr-2">
+                                                <div className="font-bold text-amber-400 mb-2 border-b border-slate-700 pb-2 text-sm">Возврат: {tId}</div>
+                                                {tTitle && <div className="text-[13px] text-white font-bold mb-3 line-clamp-3 leading-snug">{tTitle}</div>}
+                                                <div className="text-slate-300 leading-relaxed bg-slate-900/60 p-4 rounded-lg whitespace-pre-wrap text-[13px]">{tReason}</div>
+                                              </div>
+                                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                            </div>
                                           </div>
                                         </div>
                                       );
@@ -920,7 +999,25 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             )}
                           </td>
 
-                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                          <td className="py-3 text-center">
+                            <div className="group relative flex items-center justify-center gap-1 cursor-help">
+                              <ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} />
+                              <span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span>
+                              {csatCommentsList.length > 0 && (
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                  <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
+                                    <div className="font-bold text-emerald-400 mb-2 border-b border-slate-700 pb-2 text-sm">Отзывы пользователей:</div>
+                                    <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+                                      {csatCommentsList.map((comment, i) => (
+                                        <div key={i} className="leading-relaxed bg-slate-900/60 p-3 rounded-lg whitespace-pre-wrap italic text-[13px]">"{comment}"</div>
+                                      ))}
+                                    </div>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -958,7 +1055,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                   </div>
                   {inc.analysis && (
                     <div className="relative z-10 text-xs text-slate-400 bg-slate-950/40 p-2.5 rounded border border-slate-700/50 leading-relaxed border-l-2 shadow-inner whitespace-pre-wrap">
-                      <div className="font-bold text-slate-300 mb-1 flex items-center gap-1.5"><FileSearch size={12} className="opacity-70" /> AI-Анализ</div>{safeString(inc.analysis)}
+                      <div className="font-bold text-slate-300 mb-1 flex items-center gap-1.5"><FileSearch size={12} className="opacity-70" /> Анализ</div>{safeString(inc.analysis)}
                     </div>
                   )}
                 </div>
@@ -998,7 +1095,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8">
         <div className="bg-indigo-500/10 p-5 border-b border-indigo-500/20 flex items-center gap-3">
           <Sparkles size={24} className="text-indigo-400" />
-          <div><h2 className="text-lg font-bold text-white">Управленческий AI-синтез недели</h2><p className="text-xs text-indigo-300/70">Выявление системных узких мест на основе NLP-анализа инцидентов</p></div>
+          <div><h2 className="text-lg font-bold text-white">Управленческий синтез недели</h2><p className="text-xs text-indigo-300/70">Выявление системных узких мест на основе NLP-анализа инцидентов</p></div>
         </div>
         <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
           <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-400" /><h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Главный инсайт потока</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1 h-full"><p className="text-slate-300 leading-relaxed text-sm whitespace-pre-wrap">{safeString(weekData.mainInsight)}</p></div></div>
@@ -1163,6 +1260,23 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     let firstLineMissed = 0;
     let firstLineTotal = 0;
     
+    // --- НОВАЯ ЛОГИКА: ИЩЕМ АБСОЛЮТНОГО ЛИДЕРА ---
+    let topPerformer = null;
+    let maxClosed = 0;
+    if (jiraData && jiraData.length > 0) {
+        jiraData.forEach(p => {
+            const closed = Number(p.closed) || 0;
+            if (closed > maxClosed) {
+                maxClosed = closed;
+                topPerformer = p.name;
+            }
+        });
+    }
+    if (topPerformer && maxClosed > 0) {
+        insights.push(`🏆 ${getFullName(topPerformer)} — абсолютный лидер (закрыто ${maxClosed} тикетов). Отличная работа!`);
+    }
+    // ----------------------------------------------
+    
     // Ключевые слова для определения 1-й линии
     const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Лысов", "Нестеров", "стажер", "младший"];
     
@@ -1299,7 +1413,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
   return (
     <div className="animate-in fade-in duration-500 max-w-4xl pb-24 text-left">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
-        <div><h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">Заполнить неделю</h1><p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов AI-анализа Jira</p></div>
+        <div><h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">Заполнить неделю</h1><p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов анализа Jira</p></div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
@@ -1308,7 +1422,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         {/* ИМПОРТ JIRA */}
         <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
-          <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> AI-Парсинг (JSON)</h3>
+          <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> Парсинг данных (JSON)</h3>
           <p className="text-xs text-indigo-200/70 mb-4 relative z-10">Скормите CSV-выгрузку из Jira нейросети. Полученный от неё JSON вставьте сюда для автозаполнения.</p>
           
           <div className="relative z-10 space-y-3">
@@ -1409,7 +1523,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
                  <input type="number" step="0.1" name="reopenRate" value={formData.reopenRate||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" />
                </div>
                <div className="col-span-2 hidden md:flex items-center text-xs text-slate-500 italic mt-4">
-                 Эти метрики рассчитываются AI-агентом из "Cоздано" и "Дата решения".
+                 Эти метрики рассчитываются аналитикой из "Cоздано" и "Дата решения".
                </div>
             </div>
           </div>
@@ -1427,7 +1541,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
           <div className="flex justify-between items-center mb-4">
-            <div><h3 className="text-lg font-medium text-white uppercase tracking-tighter">Топ драйверов инцидентов</h3><p className="text-xs text-slate-500 mt-1">AI-парсинг или ручной ввод.</p></div>
+            <div><h3 className="text-lg font-medium text-white uppercase tracking-tighter">Топ драйверов инцидентов</h3><p className="text-xs text-slate-500 mt-1">Парсинг или ручной ввод.</p></div>
             <button type="button" onClick={addRow} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1 transition-all"><Plus size={14} /> Добавить строку</button>
           </div>
           <div className="space-y-3">
@@ -1440,7 +1554,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
                     <input type="number" placeholder="Кол-во" value={inc.count||''} onChange={e=>handleIncidentChange(idx,'count',e.target.value)} className="w-20 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none" />
                     <button type="button" onClick={()=>delRow(idx)} className="text-slate-600 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
                   </div>
-                  <textarea placeholder="AI-анализ причины и решения..." value={inc.analysis} onChange={e=>handleIncidentChange(idx,'analysis',e.target.value)} rows={2} className="w-full bg-slate-950/50 border border-slate-800 rounded p-2 text-[11px] text-slate-500 outline-none custom-scrollbar" />
+                  <textarea placeholder="Анализ причины и решения..." value={inc.analysis} onChange={e=>handleIncidentChange(idx,'analysis',e.target.value)} rows={2} className="w-full bg-slate-950/50 border border-slate-800 rounded p-2 text-[11px] text-slate-500 outline-none custom-scrollbar" />
                 </div>
               </div>
             ))}
@@ -1497,7 +1611,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1 flex items-center gap-3">
             <Archive size={28} className="text-indigo-400" /> Техдолг и Архив задач
           </h1>
-          <p className="text-slate-400 text-sm">Сырые данные из Jira для глубокого анализа, сохраненные нейросетью</p>
+          <p className="text-slate-400 text-sm">Сырые данные из Jira для глубокого анализа, сохраненные аналитикой</p>
         </div>
         <div className="bg-indigo-500/10 text-indigo-400 px-4 py-2 rounded-lg border border-indigo-500/20 text-sm font-bold flex items-center gap-2">
           <Database size={16} /> Всего в базе: {tasksArchive.length} задач
@@ -1777,8 +1891,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       let sortedTaskPerformers = [...(weekData.taskPerformers || [])]
         .filter(p => {
            const fName = getFullName(p.name);
+           const isUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
            // Убираем Тимлида из Инфраструктуры
-           return p.name !== TEAM_LEAD_ID && fName !== TEAM_LEAD_NAME && !String(p.name).includes('Виктор');
+           return p.name !== TEAM_LEAD_ID && fName !== TEAM_LEAD_NAME && !String(p.name).includes('Виктор') && !isUnknown;
         })
         .sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
         
@@ -1787,8 +1902,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
            const fName = getFullName(p.name);
            const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
            const isThirdLine = THIRD_LINE_ADMINS.includes(fName) || THIRD_LINE_ADMINS.includes(p.name);
+           const isUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
            // Убираем Тимлида И 3-ю линию из Инцидентов
-           return !isTeamLead && !isThirdLine;
+           return !isTeamLead && !isThirdLine && !isUnknown;
         })
         .sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
 
@@ -1877,7 +1993,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         `;
       };
 
-      // ХЕЛПЕР ДЛЯ ОТЧЕТА: профиль AI строкой (чтобы нормально рендерилось в письме)
+      // ХЕЛПЕР ДЛЯ ОТЧЕТА: профиль строкой (чтобы нормально рендерилось в письме)
       const getContextStringHtml = (context) => {
         if (!context || context.trim() === '') return '-';
         const lower = context.toLowerCase();
@@ -1968,7 +2084,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       
       const telephonyInsightHtml = weekData.telephonyInsight ? `
         <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px; color: #92400e; margin-bottom: 30px;">
-          <div style="font-weight: bold; margin-bottom: 5px;">🤖 AI-Анализ телефонии и выгорания:</div>
+          <div style="font-weight: bold; margin-bottom: 5px;">🤖 Анализ телефонии и выгорания:</div>
           <div style="white-space: pre-wrap;">${safeString(weekData.telephonyInsight)}</div>
         </div>
       ` : '';
@@ -2009,7 +2125,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           debtBadge = `<span style="background-color: #f0fdf4; color: #10b981; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">⚡ Свежая задача</span>`;
         }
 
-        // 3. Сопоставляем с задачами руководства (умный матчинг корней слов)
+        // 3. Сопоставляем с задачами руководства (умный и ЖЕСТКИЙ матчинг корней слов)
         let isMgmtTask = false;
         if (projectTasks && projectTasks.length > 0) {
           isMgmtTask = projectTasks.some(pt => {
@@ -2021,27 +2137,29 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
              // Точное вхождение или подстрока целиком
              if (cleanJiraTitle.includes(cleanPtTitle) || cleanPtTitle.includes(cleanJiraTitle)) return true;
              
-             // Иначе разбиваем на слова, берем только значимые (длиннее 4 символов) 
-             // и отрезаем окончания (берем первые 5 букв - примитивный стемминг)
-             const ptWords = cleanPtTitle.split(/[ \.,-]+/).filter(w => w.length > 4).map(w => w.substring(0, 5));
+             // Иначе разбиваем на слова, берем только значимые (длиннее 3 символов)
+             const ptWords = cleanPtTitle.split(/[ \.,-]+/).filter(w => w.length > 3);
              if (ptWords.length === 0) return false;
              
              let matchCount = 0;
              ptWords.forEach(w => {
-                 if (cleanJiraTitle.includes(w)) matchCount++;
+                 // Берем корень (первые 5 букв)
+                 const stem = w.substring(0, 5);
+                 if (cleanJiraTitle.includes(stem)) matchCount++;
              });
              
-             // Достаточно 60% совпадения корней слов, чтобы засчитать задачу
-             return (matchCount / ptWords.length) >= 0.6;
+             // ТРЕБУЕМ СОВПАДЕНИЯ ВСЕХ 100% СЛОВ. Никаких поблажек!
+             // Иначе "группа Other" совпадет с "группа Fault-tolerantPC"
+             return matchCount === ptWords.length;
           });
         }
 
         let mgmtBadge = isMgmtTask 
-          ? `<span style="background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%); color: #c026d3; border: 1px dashed #d946ef; padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 0 2px 4px rgba(217,70,239,0.1);">🎯 Контроль Тимлида</span>` 
+          ? `<span style="display: inline-block; transform: rotate(-2deg); background-color: rgba(37, 99, 235, 0.05); color: #2563eb; border: 2px solid #2563eb; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 8px;">⭐ ЗАДАЧА РУКОВОДСТВА</span>` 
           : '';
 
-        // Выбираем цвет полоски (Фиолетовая если от руководства, красная если долг, иначе базовая серая)
-        const borderColor = isMgmtTask ? '#d946ef' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8');
+        // Выбираем цвет полоски (Синяя если от руководства, красная если долг, иначе базовая серая)
+        const borderColor = isMgmtTask ? '#2563eb' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8');
 
         return `
           <div style="margin-bottom: 20px; border-left: 3px solid ${borderColor}; padding-left: 14px; padding-bottom: 5px;">
@@ -2270,7 +2388,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       {!weekData.isReportFrozen && (
         <div className="w-full max-w-4xl bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm mb-6 overflow-hidden">
           <div className="bg-fuchsia-500/10 py-3 px-6 border-b border-fuchsia-500/20 flex items-center gap-2">
-            <FileText size={18} className="text-fuchsia-400" />
+            <ListTodo size={18} className="text-fuchsia-400" />
             <h2 className="text-sm font-bold text-white uppercase tracking-wider">Портфель поручений руководства (Глобальный)</h2>
           </div>
           
@@ -2330,7 +2448,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                           {/* AI Подсказка по срокам */}
                           {!isCompleted && weeksActive > 0 && (
                              <div className={`text-[10px] font-bold flex items-center gap-1 mt-2 w-max px-2 py-0.5 rounded ${weeksActive >= 2 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
-                               <AlertTriangle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
+                               <AlertCircle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
                              </div>
                           )}
                        </div>
@@ -2375,7 +2493,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             {weekData.isReportFrozen ? (
               <><Lock size={14} className="text-amber-500"/> <span className="text-amber-500/80">Отчет зафиксирован (Включены ручные правки)</span></>
             ) : (
-              <><Activity size={14} className="text-emerald-500"/> <span className="text-emerald-500/80">Автообновление (Данные ИИ)</span></>
+              <><Activity size={14} className="text-emerald-500"/> <span className="text-emerald-500/80">Автообновление (Данные)</span></>
             )}
           </div>
           <div className="flex items-center gap-1.5 text-slate-400">
@@ -2502,11 +2620,11 @@ const AchievementsBoard = ({ achievements }) => {
       </div>
 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm p-6 mb-8 flex items-start gap-4">
-        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><Activity size={24} /></div>
+        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><ActivitySquare size={24} /></div>
         <div>
           <h3 className="text-slate-200 font-medium mb-1">Управляем потоком, а не людьми</h3>
           <p className="text-slate-400 text-sm leading-relaxed">
-            На <b>Этапе 2</b> мы фокусируемся на метриках и процессах. Мы отмечаем успешные процессные изменения (гипотезы), 
+            На <b>Этапе 2</b> мы фокусируемся на метриках и процессов. Мы отмечаем успешные процессные изменения (гипотезы), 
             которые сократили Cycle Time, снизили Reopen Rate или расшили узкое горлышко (Bottleneck).
           </p>
         </div>
@@ -2629,7 +2747,7 @@ const TeamProfilesBoard = ({ profiles }) => {
           <div className="col-span-2 flex flex-col items-center justify-center p-12 bg-slate-800/50 rounded-xl border border-slate-700/50 border-dashed">
             <Users size={48} className="text-slate-600 mb-4" />
             <p className="text-slate-400 text-sm">Профили не загружены.</p>
-            <p className="text-slate-500 text-xs mt-1">Они появятся после импорта данных из AI-анализа.</p>
+            <p className="text-slate-500 text-xs mt-1">Они появятся после импорта данных из аналитики.</p>
           </div>
         )}
       </div>
@@ -2962,7 +3080,7 @@ const App = () => {
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
     { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
     { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
-    { id: 'achievements', icon: Activity, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
+    { id: 'achievements', icon: ActivitySquare, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
     { id: 'profiles', icon: Users, label: 'Матрица компетенций', roles: ['admin', 'viewer'] },
     { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
   ].filter(item => item.roles.includes(currentUser.role));
