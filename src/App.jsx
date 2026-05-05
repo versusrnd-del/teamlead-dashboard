@@ -903,7 +903,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                             {tId}
                                           </span>
                                           {/* УЛУЧШЕННЫЙ ТУЛТИП ВОЗВРАТА */}
-                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-3 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
                                             <div className="font-bold text-amber-400 mb-1.5 border-b border-slate-700 pb-1.5">Возврат: {tId}</div>
                                             {tTitle && <div className="text-[11px] text-white font-medium mb-1.5 line-clamp-2 leading-snug">{tTitle}</div>}
                                             <div className="text-slate-400 leading-relaxed bg-slate-900/50 p-2 rounded whitespace-pre-wrap">{tReason}</div>
@@ -2009,20 +2009,36 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           debtBadge = `<span style="background-color: #f0fdf4; color: #10b981; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">⚡ Свежая задача</span>`;
         }
 
-        // 3. Сопоставляем с задачами руководства (если ИИ нашел ключевые слова)
+        // 3. Сопоставляем с задачами руководства (умный матчинг корней слов)
         let isMgmtTask = false;
         if (projectTasks && projectTasks.length > 0) {
           isMgmtTask = projectTasks.some(pt => {
              if (!pt.title) return false;
-             // Разбиваем задачу руководства на слова > 4 символов, чтобы искать пересечения
-             const ptWords = pt.title.toLowerCase().split(/[ \.,-]+/).filter(w => w.length > 4);
-             const jiraText = (safeString(t.title) + ' ' + safeString(t.comments)).toLowerCase();
-             // Если хотя бы одно значимое слово из задачи руководства есть в заголовке/комменте Jira, считаем совпадением
-             return ptWords.length > 0 && ptWords.some(w => jiraText.includes(w));
+             
+             const cleanJiraTitle = safeString(t.title).toLowerCase();
+             const cleanPtTitle = pt.title.toLowerCase().trim();
+             
+             // Точное вхождение или подстрока целиком
+             if (cleanJiraTitle.includes(cleanPtTitle) || cleanPtTitle.includes(cleanJiraTitle)) return true;
+             
+             // Иначе разбиваем на слова, берем только значимые (длиннее 4 символов) 
+             // и отрезаем окончания (берем первые 5 букв - примитивный стемминг)
+             const ptWords = cleanPtTitle.split(/[ \.,-]+/).filter(w => w.length > 4).map(w => w.substring(0, 5));
+             if (ptWords.length === 0) return false;
+             
+             let matchCount = 0;
+             ptWords.forEach(w => {
+                 if (cleanJiraTitle.includes(w)) matchCount++;
+             });
+             
+             // Достаточно 60% совпадения корней слов, чтобы засчитать задачу
+             return (matchCount / ptWords.length) >= 0.6;
           });
         }
 
-        let mgmtBadge = isMgmtTask ? `<span style="background-color: #fdf4ff; color: #d946ef; border: 1px solid #f5d0fe; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">👑 Поручение руководства</span>` : '';
+        let mgmtBadge = isMgmtTask 
+          ? `<span style="background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%); color: #c026d3; border: 1px dashed #d946ef; padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 0 2px 4px rgba(217,70,239,0.1);">🎯 Контроль Тимлида</span>` 
+          : '';
 
         // Выбираем цвет полоски (Фиолетовая если от руководства, красная если долг, иначе базовая серая)
         const borderColor = isMgmtTask ? '#d946ef' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8');
