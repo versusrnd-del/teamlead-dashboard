@@ -998,7 +998,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                   </div>
                   {inc.analysis && (
                     <div className="relative z-10 text-xs text-slate-400 bg-slate-950/40 p-2.5 rounded border border-slate-700/50 leading-relaxed border-l-2 shadow-inner whitespace-pre-wrap">
-                      <div className="font-bold text-slate-300 mb-1 flex items-center gap-1.5"><FileSearch size={12} className="opacity-70" /> AI-Анализ</div>{safeString(inc.analysis)}
+                      <div className="font-bold text-slate-300 mb-1 flex items-center gap-1.5"><FileSearch size={12} className="opacity-70" /> Анализ</div>{safeString(inc.analysis)}
                     </div>
                   )}
                 </div>
@@ -1356,7 +1356,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
   return (
     <div className="animate-in fade-in duration-500 max-w-4xl pb-24 text-left">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
-        <div><h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">Заполнить неделю</h1><p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов AI-анализа Jira</p></div>
+        <div><h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">Заполнить неделю</h1><p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов анализа Jira</p></div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
@@ -1466,7 +1466,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
                  <input type="number" step="0.1" name="reopenRate" value={formData.reopenRate||''} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" />
                </div>
                <div className="col-span-2 hidden md:flex items-center text-xs text-slate-500 italic mt-4">
-                 Эти метрики рассчитываются AI-агентом из "Cоздано" и "Дата решения".
+                 Эти метрики рассчитываются аналитикой из "Cоздано" и "Дата решения".
                </div>
             </div>
           </div>
@@ -1484,7 +1484,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
 
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm text-left">
           <div className="flex justify-between items-center mb-4">
-            <div><h3 className="text-lg font-medium text-white uppercase tracking-tighter">Топ драйверов инцидентов</h3><p className="text-xs text-slate-500 mt-1">AI-парсинг или ручной ввод.</p></div>
+            <div><h3 className="text-lg font-medium text-white uppercase tracking-tighter">Топ драйверов инцидентов</h3><p className="text-xs text-slate-500 mt-1">Парсинг или ручной ввод.</p></div>
             <button type="button" onClick={addRow} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1 transition-all"><Plus size={14} /> Добавить строку</button>
           </div>
           <div className="space-y-3">
@@ -1554,7 +1554,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1 flex items-center gap-3">
             <Archive size={28} className="text-indigo-400" /> Техдолг и Архив задач
           </h1>
-          <p className="text-slate-400 text-sm">Сырые данные из Jira для глубокого анализа, сохраненные нейросетью</p>
+          <p className="text-slate-400 text-sm">Сырые данные из Jira для глубокого анализа, сохраненные аналитикой</p>
         </div>
         <div className="bg-indigo-500/10 text-indigo-400 px-4 py-2 rounded-lg border border-indigo-500/20 text-sm font-bold flex items-center gap-2">
           <Database size={16} /> Всего в базе: {tasksArchive.length} задач
@@ -1834,8 +1834,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       let sortedTaskPerformers = [...(weekData.taskPerformers || [])]
         .filter(p => {
            const fName = getFullName(p.name);
+           const isUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
            // Убираем Тимлида из Инфраструктуры
-           return p.name !== TEAM_LEAD_ID && fName !== TEAM_LEAD_NAME && !String(p.name).includes('Виктор');
+           return p.name !== TEAM_LEAD_ID && fName !== TEAM_LEAD_NAME && !String(p.name).includes('Виктор') && !isUnknown;
         })
         .sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
         
@@ -1844,8 +1845,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
            const fName = getFullName(p.name);
            const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
            const isThirdLine = THIRD_LINE_ADMINS.includes(fName) || THIRD_LINE_ADMINS.includes(p.name);
+           const isUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
            // Убираем Тимлида И 3-ю линию из Инцидентов
-           return !isTeamLead && !isThirdLine;
+           return !isTeamLead && !isThirdLine && !isUnknown;
         })
         .sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
 
@@ -1934,7 +1936,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         `;
       };
 
-      // ХЕЛПЕР ДЛЯ ОТЧЕТА: профиль AI строкой (чтобы нормально рендерилось в письме)
+      // ХЕЛПЕР ДЛЯ ОТЧЕТА: профиль строкой (чтобы нормально рендерилось в письме)
       const getContextStringHtml = (context) => {
         if (!context || context.trim() === '') return '-';
         const lower = context.toLowerCase();
@@ -2025,7 +2027,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       
       const telephonyInsightHtml = weekData.telephonyInsight ? `
         <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px; color: #92400e; margin-bottom: 30px;">
-          <div style="font-weight: bold; margin-bottom: 5px;">🤖 AI-Анализ телефонии и выгорания:</div>
+          <div style="font-weight: bold; margin-bottom: 5px;">🤖 Анализ телефонии и выгорания:</div>
           <div style="white-space: pre-wrap;">${safeString(weekData.telephonyInsight)}</div>
         </div>
       ` : '';
@@ -2565,7 +2567,7 @@ const AchievementsBoard = ({ achievements }) => {
         <div>
           <h3 className="text-slate-200 font-medium mb-1">Управляем потоком, а не людьми</h3>
           <p className="text-slate-400 text-sm leading-relaxed">
-            На <b>Этапе 2</b> мы фокусируемся на метриках и процессах. Мы отмечаем успешные процессные изменения (гипотезы), 
+            На <b>Этапе 2</b> мы фокусируемся на метриках и процессов. Мы отмечаем успешные процессные изменения (гипотезы), 
             которые сократили Cycle Time, снизили Reopen Rate или расшили узкое горлышко (Bottleneck).
           </p>
         </div>
@@ -2688,7 +2690,7 @@ const TeamProfilesBoard = ({ profiles }) => {
           <div className="col-span-2 flex flex-col items-center justify-center p-12 bg-slate-800/50 rounded-xl border border-slate-700/50 border-dashed">
             <Users size={48} className="text-slate-600 mb-4" />
             <p className="text-slate-400 text-sm">Профили не загружены.</p>
-            <p className="text-slate-500 text-xs mt-1">Они появятся после импорта данных из AI-анализа.</p>
+            <p className="text-slate-500 text-xs mt-1">Они появятся после импорта данных из аналитики.</p>
           </div>
         )}
       </div>
