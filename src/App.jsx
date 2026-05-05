@@ -1839,25 +1839,60 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         </div>
       ` : '';
 
-      // КРАСИВЫЙ БЛОК ДЛЯ ДЕТАЛЬНЫХ ЗАДАЧ
+      // КРАСИВЫЙ БЛОК ДЛЯ ДЕТАЛЬНЫХ ЗАДАЧ С УМНЫМИ БЕЙДЖАМИ И ФИЛЬТРАЦИЕЙ ИИ-ГАЛЛЮЦИНАЦИЙ
       const detailedTasksHtmlRendered = completedDetailedTasks.map(t => {
         let contextHtml = '';
-        if (t.comments && t.comments.trim() !== '') {
+        
+        // 1. Проверяем комментарии на предмет мусора от ИИ (заглушки)
+        const genericPhrases = ["проведена инфраструктурная проработка", "ожидание данных ai", "нет данных"];
+        const commentLower = (t.comments || '').toLowerCase();
+        const isGeneric = genericPhrases.some(phrase => commentLower.includes(phrase));
+        
+        if (t.comments && t.comments.trim() !== '' && !isGeneric) {
            contextHtml = `
              <div style="font-size: 12px; color: #334155; margin-top: 8px; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
                <span style="font-weight: 800; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">Детали решения:</span><br/>
                <div style="margin-top: 4px; white-space: pre-wrap; line-height: 1.5;">${safeString(t.comments)}</div>
              </div>`;
         }
+
+        // 2. Добавляем стикер Техдолга (если задача старая)
+        const cycleDays = Number(t.cycleTime) || 0;
+        let debtBadge = '';
+        if (cycleDays >= 30) {
+          debtBadge = `<span style="background-color: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">☠️ Закрыт старый долг (${cycleDays} дн.)</span>`;
+        } else {
+          debtBadge = `<span style="background-color: #f0fdf4; color: #10b981; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">⚡ Свежая задача</span>`;
+        }
+
+        // 3. Сопоставляем с задачами руководства (если ИИ нашел ключевые слова)
+        let isMgmtTask = false;
+        if (projectTasks && projectTasks.length > 0) {
+          isMgmtTask = projectTasks.some(pt => {
+             if (!pt.title) return false;
+             // Разбиваем задачу руководства на слова > 4 символов, чтобы искать пересечения
+             const ptWords = pt.title.toLowerCase().split(/[ \.,-]+/).filter(w => w.length > 4);
+             const jiraText = (safeString(t.title) + ' ' + safeString(t.comments)).toLowerCase();
+             // Если хотя бы одно значимое слово из задачи руководства есть в заголовке Jira, то считаем совпадением
+             return ptWords.length > 0 && ptWords.some(w => jiraText.includes(w));
+          });
+        }
+
+        let mgmtBadge = isMgmtTask ? `<span style="background-color: #fdf4ff; color: #d946ef; border: 1px solid #f5d0fe; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">👑 Поручение руководства</span>` : '';
+
+        // Выбираем цвет полоски (Фиолетовая если от руководства, красная если долг, иначе базовая)
+        const borderColor = isMgmtTask ? '#d946ef' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8');
+
         return `
-          <div style="margin-bottom: 20px; border-left: 3px solid #94a3b8; padding-left: 14px; padding-bottom: 5px;">
-             <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 4px;">
+          <div style="margin-bottom: 20px; border-left: 3px solid ${borderColor}; padding-left: 14px; padding-bottom: 5px;">
+             <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px;">
                <span style="color: #3b82f6;">${t.id}</span>: ${safeString(t.title)}
              </div>
-             <div style="font-size: 12px; color: #64748b;">
-               Исполнитель: <span style="font-weight: 600; color: #1e293b;">${getFullName(t.assignee)}</span>
-               <span style="margin: 0 8px; color: #cbd5e1;">|</span>
-               Статус: <span style="background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${t.status || 'Закрыто'}</span>
+             <div style="font-size: 12px; color: #64748b; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+               <span>Исполнитель: <span style="font-weight: 600; color: #1e293b;">${getFullName(t.assignee)}</span></span>
+               <span style="color: #cbd5e1;">|</span>
+               ${debtBadge}
+               ${mgmtBadge}
              </div>
              ${contextHtml}
           </div>
@@ -1891,7 +1926,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
           <div style="padding: 0 10px;">
 
-            <!-- METRICS -->
             <div class="section-title" style="--accent: #3b82f6;">${sectionCounter++}. Операционная сводка (KPI)</div>
             
             <div class="kpi-grid">
@@ -1917,7 +1951,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </div>
             </div>
 
-            <!-- ПЕРВАЯ ЛИНИЯ -->
             <div class="section-title" style="--accent: #10b981;">${sectionCounter++}. Блок 1-й Линии (Инциденты и Телефония)</div>
             
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
@@ -1931,7 +1964,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             ${telephonyHtml}
             ${telephonyInsightHtml}
 
-            <!-- ИНФРАСТРУКТУРА -->
             <div class="section-title" style="--accent: #a855f7;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</div>
             
             ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
@@ -1955,14 +1987,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </div>
             ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
 
-            <!-- MANAGEMENT (ПРОЕКТЫ) -->
             <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
             
             <div id="management-tasks-container">
                ${generateTasksHtml()}
             </div>
 
-            <!-- RISKS -->
             <div class="section-title" style="--accent: #ef4444;">${sectionCounter++}. Риски, Инциденты и Улучшения</div>
             <ul class="custom-list" style="line-height: 1.6;">
               <li><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
