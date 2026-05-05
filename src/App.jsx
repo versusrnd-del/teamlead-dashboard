@@ -120,11 +120,11 @@ const defaultWeekData = {
   year: new Date().getFullYear(), month: new Date().getMonth(), weekNumber: getISOWeekNumber(new Date()), dates: "Текущая неделя", 
   status: "green", managementIndex: 100, inflowThisWeek: 0,
   avgCycleTime: 0, reopenRate: 0, techDebtCategories: [],
-  mainInsight: "Ожидание данных AI-анализа...", mainRisk: "Ожидание данных AI-анализа...",
-  nextFocus: "Ожидание данных AI-анализа...", trainingHypothesis: "Ожидание данных AI-анализа...",
+  mainInsight: "Ожидание данных аналитики...", mainRisk: "Ожидание данных аналитики...",
+  nextFocus: "Ожидание данных аналитики...", trainingHypothesis: "Ожидание данных аналитики...",
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
-  mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных AI-анализа...",
+  mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных аналитики...",
   topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: [], telephonyData: [], telephonyInsight: ""
 };
 
@@ -330,17 +330,19 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
      const fName = getFullName(p.name);
      const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
      const isThirdLine = THIRD_LINE_ADMINS.includes(fName) || THIRD_LINE_ADMINS.includes(p.name);
-     // Скрываем пользователей, которых нет в словаре USER_DICTIONARY
+     // Скрываем пользователей, которых нет в словаре USER_DICTIONARY, а также пользователя "Неизвестно"
      const isUnknown = fName === p.name && !Object.keys(USER_DICTIONARY).includes(p.name.toLowerCase());
-     return !isTeamLead && !isThirdLine && !isUnknown;
+     const isLiterallyUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
+     return !isTeamLead && !isThirdLine && !isUnknown && !isLiterallyUnknown;
   });
 
   let filteredTaskPerformers = (weekData.taskPerformers || []).filter(p => {
      const fName = getFullName(p.name);
      const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
-     // Скрываем пользователей, которых нет в словаре USER_DICTIONARY
+     // Скрываем пользователей, которых нет в словаре USER_DICTIONARY, а также пользователя "Неизвестно"
      const isUnknown = fName === p.name && !Object.keys(USER_DICTIONARY).includes(p.name.toLowerCase());
-     return !isTeamLead && !isUnknown;
+     const isLiterallyUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
+     return !isTeamLead && !isUnknown && !isLiterallyUnknown;
   });
 
   return (
@@ -638,7 +640,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
       )}
 
-      <h2 className="text-lg font-medium text-white mb-4 mt-8 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" />Глубокая аналитика потока (ИИ)</h2>
+      <h2 className="text-lg font-medium text-white mb-4 mt-8 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" />Глубокая аналитика потока</h2>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-8">
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
           <h3 className="text-base font-medium text-slate-200 flex items-center gap-2 mb-5"><Timer size={18} className="text-red-400" /> Мониторинг SLA</h3>
@@ -669,7 +671,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     <th className="pb-3 font-medium text-center" title="Work in Progress (Открыто сейчас)">WIP</th>
                     <th className="pb-3 font-medium text-center">Закрыто</th>
                     <th className="pb-3 font-medium text-center">Ср. Время</th>
-                    <th className="pb-3 font-medium text-center">Профиль (AI)</th>
+                    <th className="pb-3 font-medium text-center">Профиль</th>
                     <th className="pb-3 font-medium text-center">Логирование</th>
                     <th className="pb-3 font-medium text-center">Возвраты</th>
                     <th className="pb-3 font-medium text-center">CSAT</th>
@@ -690,6 +692,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     
                     const droppedList = Array.isArray(perf.droppedTasks) ? perf.droppedTasks : [];
                     const droppedCount = droppedList.length > 0 ? droppedList.length : (Number(perf.droppedTasks) || 0);
+
+                    // НОВОЕ: Обработка отзывов пользователей
+                    const csatCommentsList = Array.isArray(perf.csatComments) ? perf.csatComments : [];
 
                     return (
                       <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
@@ -762,7 +767,23 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                           )}
                         </td>
 
-                        <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><Star size={14} className={Number(perf.csat) >= 4.8 ? "text-amber-400 fill-amber-400" : Number(perf.csat) >= 4.0 ? "text-amber-400" : "text-slate-500"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                        <td className="py-3 text-center">
+                          <div className="group relative flex items-center justify-center gap-1 cursor-help">
+                            <Star size={14} className={Number(perf.csat) >= 4.8 ? "text-amber-400 fill-amber-400" : Number(perf.csat) >= 4.0 ? "text-amber-400" : "text-slate-500"} />
+                            <span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span>
+                            {csatCommentsList.length > 0 && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
+                                <div className="font-bold text-amber-400 mb-1.5 border-b border-slate-700 pb-1.5">Отзывы пользователей:</div>
+                                <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                                  {csatCommentsList.map((comment, i) => (
+                                    <div key={i} className="leading-relaxed bg-slate-900/50 p-2 rounded whitespace-pre-wrap italic">"{comment}"</div>
+                                  ))}
+                                </div>
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -786,7 +807,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       <th className="pb-3 font-medium text-center" title="Work in Progress (Открыто сейчас)">WIP</th>
                       <th className="pb-3 font-medium text-center">Закрыто</th>
                       <th className="pb-3 font-medium text-center">Cycle Time</th>
-                      <th className="pb-3 font-medium text-center">Профиль (AI)</th>
+                      <th className="pb-3 font-medium text-center">Профиль</th>
                       <th className="pb-3 font-medium text-center">Логирование</th>
                       <th className="pb-3 font-medium text-center">Возвраты</th>
                       <th className="pb-3 font-medium text-center">Качество</th>
@@ -807,6 +828,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
                       const droppedList = Array.isArray(perf.droppedTasks) ? perf.droppedTasks : [];
                       const droppedCount = droppedList.length > 0 ? droppedList.length : (Number(perf.droppedTasks) || 0);
+
+                      // НОВОЕ: Обработка отзывов пользователей
+                      const csatCommentsList = Array.isArray(perf.csatComments) ? perf.csatComments : [];
 
                       let calculatedTechDebt = Array.isArray(perf.techDebtClosed) ? perf.techDebtClosed : [];
                       // Если ИИ забыл добавить техдолг внутрь профиля, дашборд вычисляет его сам
@@ -920,7 +944,23 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             )}
                           </td>
 
-                          <td className="py-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} /><span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span></div></td>
+                          <td className="py-3 text-center">
+                            <div className="group relative flex items-center justify-center gap-1 cursor-help">
+                              <ShieldCheck size={14} className={Number(perf.csat) >= 4.8 ? "text-emerald-400" : "text-amber-400"} />
+                              <span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span>
+                              {csatCommentsList.length > 0 && (
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-64 p-3 bg-slate-800 border border-slate-600 rounded shadow-xl text-[10px] text-slate-300 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left pointer-events-none">
+                                  <div className="font-bold text-emerald-400 mb-1.5 border-b border-slate-700 pb-1.5">Отзывы пользователей:</div>
+                                  <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                                    {csatCommentsList.map((comment, i) => (
+                                      <div key={i} className="leading-relaxed bg-slate-900/50 p-2 rounded whitespace-pre-wrap italic">"{comment}"</div>
+                                    ))}
+                                  </div>
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -998,7 +1038,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm overflow-hidden mb-8">
         <div className="bg-indigo-500/10 p-5 border-b border-indigo-500/20 flex items-center gap-3">
           <Sparkles size={24} className="text-indigo-400" />
-          <div><h2 className="text-lg font-bold text-white">Управленческий AI-синтез недели</h2><p className="text-xs text-indigo-300/70">Выявление системных узких мест на основе NLP-анализа инцидентов</p></div>
+          <div><h2 className="text-lg font-bold text-white">Управленческий синтез недели</h2><p className="text-xs text-indigo-300/70">Выявление системных узких мест на основе NLP-анализа инцидентов</p></div>
         </div>
         <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
           <div className="flex flex-col gap-3"><div className="flex items-center gap-2"><CheckCircle size={18} className="text-emerald-400" /><h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Главный инсайт потока</h3></div><div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 flex-1 h-full"><p className="text-slate-300 leading-relaxed text-sm whitespace-pre-wrap">{safeString(weekData.mainInsight)}</p></div></div>
@@ -1325,7 +1365,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
         {/* ИМПОРТ JIRA */}
         <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
-          <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> AI-Парсинг (JSON)</h3>
+          <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" /> Парсинг данных (JSON)</h3>
           <p className="text-xs text-indigo-200/70 mb-4 relative z-10">Скормите CSV-выгрузку из Jira нейросети. Полученный от неё JSON вставьте сюда для автозаполнения.</p>
           
           <div className="relative z-10 space-y-3">
@@ -1457,7 +1497,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
                     <input type="number" placeholder="Кол-во" value={inc.count||''} onChange={e=>handleIncidentChange(idx,'count',e.target.value)} className="w-20 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none" />
                     <button type="button" onClick={()=>delRow(idx)} className="text-slate-600 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
                   </div>
-                  <textarea placeholder="AI-анализ причины и решения..." value={inc.analysis} onChange={e=>handleIncidentChange(idx,'analysis',e.target.value)} rows={2} className="w-full bg-slate-950/50 border border-slate-800 rounded p-2 text-[11px] text-slate-500 outline-none custom-scrollbar" />
+                  <textarea placeholder="Анализ причины и решения..." value={inc.analysis} onChange={e=>handleIncidentChange(idx,'analysis',e.target.value)} rows={2} className="w-full bg-slate-950/50 border border-slate-800 rounded p-2 text-[11px] text-slate-500 outline-none custom-scrollbar" />
                 </div>
               </div>
             ))}
@@ -2056,11 +2096,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         }
 
         let mgmtBadge = isMgmtTask 
-          ? `<span style="display: inline-block; transform: rotate(-2deg); background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%); color: #c026d3; border: 2px dashed #d946ef; padding: 3px 8px; border-radius: 4px; font-weight: 900; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 2px 2px 0px rgba(217,70,239,0.3); margin-left: 8px;">🎯 Задача руководства</span>` 
+          ? `<span style="display: inline-block; transform: rotate(-2deg); background-color: rgba(37, 99, 235, 0.05); color: #2563eb; border: 2px solid #2563eb; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 8px;">⭐ ЗАДАЧА РУКОВОДСТВА</span>` 
           : '';
 
-        // Выбираем цвет полоски (Фиолетовая если от руководства, красная если долг, иначе базовая серая)
-        const borderColor = isMgmtTask ? '#d946ef' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8');
+        // Выбираем цвет полоски (Синяя если от руководства, красная если долг, иначе базовая серая)
+        const borderColor = isMgmtTask ? '#2563eb' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8');
 
         return `
           <div style="margin-bottom: 20px; border-left: 3px solid ${borderColor}; padding-left: 14px; padding-bottom: 5px;">
