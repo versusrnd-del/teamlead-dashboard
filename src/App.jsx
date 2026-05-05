@@ -2049,15 +2049,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                  if (cleanJiraTitle.includes(stem)) matchCount++;
              });
              
-             // ТРЕБУЕМ СОВПАДЕНИЯ ВСЕХ СЛОВ (ИЛИ ПОЧТИ ВСЕХ, если их много)
-             // Если в поручении 4 слова, должны совпасть все 4. Если 5 слов, допускаем совпадение 4.
-             const requiredMatches = ptWords.length > 4 ? ptWords.length - 1 : ptWords.length;
-             return matchCount >= requiredMatches;
+             // ТРЕБУЕМ СОВПАДЕНИЯ ВСЕХ 100% СЛОВ. Никаких поблажек!
+             // Иначе "группа Other" совпадет с "группа Fault-tolerantPC"
+             return matchCount === ptWords.length;
           });
         }
 
         let mgmtBadge = isMgmtTask 
-          ? `<span style="display: inline-block; transform: rotate(-2deg); background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%); color: #c026d3; border: 2px solid #d946ef; padding: 3px 8px; border-radius: 4px; font-weight: 900; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 2px 2px 0px rgba(217,70,239,0.3); margin-left: 8px;">⭐ Задача руководства</span>` 
+          ? `<span style="display: inline-block; transform: rotate(-2deg); background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%); color: #c026d3; border: 2px dashed #d946ef; padding: 3px 8px; border-radius: 4px; font-weight: 900; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 2px 2px 0px rgba(217,70,239,0.3); margin-left: 8px;">🎯 Задача руководства</span>` 
           : '';
 
         // Выбираем цвет полоски (Фиолетовая если от руководства, красная если долг, иначе базовая серая)
