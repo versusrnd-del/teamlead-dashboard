@@ -4,7 +4,7 @@ import {
   LineChart, Line
 } from 'recharts';
 import { 
-  Activity, AlertTriangle, Archive, ArrowRight, Award, BookOpen, Calendar, Check, CheckCircle, ChevronDown, Clock, Copy, Database, Download, DownloadCloud, Edit3, FileSearch, FileText, Flame, GitMerge, Heart, HelpCircle, Key, Layers, LayoutDashboard, List, Lock, LogOut, Medal, Pencil, PhoneCall, PieChart, Plus, RefreshCcw, Save, Search, Server, Settings, Shield, ShieldAlert, ShieldCheck, Sparkles, Star, Target, ThumbsUp, Timer, Trash2, TrendingUp, User, UserPlus, Users, Zap
+  Activity, AlertTriangle, Archive, ArrowRight, Award, BookOpen, Calendar, Check, CheckCircle, ChevronDown, Clock, Copy, Database, Download, DownloadCloud, Edit3, FileSearch, FileText, Flame, GitMerge, Heart, HelpCircle, Key, Layers, LayoutDashboard, List, Lock, LogOut, Medal, Pencil, PhoneCall, PieChart, Plus, RefreshCcw, Save, Search, Server, Settings, Shield, ShieldAlert, ShieldCheck, Sparkles, Star, Target, ThumbsUp, Timer, Trash2, TrendingUp, User, UserPlus, Users, Zap, CheckSquare
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -232,6 +232,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   const loadPercentage = Math.min(Math.round((totalClosed / BASE_CAPACITY) * 100), 150);
   
   const totalIncidentsCount = Number(weekData.incidentsClosed) || 0;
+
+  // Суммируем старый долг для плашки на пульсе
+  const totalTechDebtClosed = (weekData.taskPerformers || []).reduce((sum, p) => sum + (p.techDebtClosed ? p.techDebtClosed.length : 0), 0);
   
   let loadStatus = 'Норма';
   let loadColor = 'bg-emerald-500';
@@ -472,7 +475,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       <h2 className="text-lg font-medium text-white mb-4 mt-8 flex items-center gap-2"><GitMerge size={20} className="text-indigo-400" />Качество и Скорость (Flow Metrics)</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         
-        {/* CYCLE TIME */}
+        {/* CYCLE TIME С НОВОЙ ПЛАШКОЙ СТАРОГО ДОЛГА */}
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm flex flex-col relative overflow-hidden">
           <div className="absolute right-0 top-0 opacity-5 -mt-2 -mr-2"><Clock size={100} /></div>
           <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2"><Clock size={14} className="text-blue-400"/> Среднее время решения</h3>
@@ -483,6 +486,12 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             </div>
             <p className="text-xs text-slate-400 mt-2 leading-relaxed">Среднее время от создания задачи до ее закрытия. Если мы закрываем много задач, но сроки их выполнения растут — значит, мы копим «незавершенку» (задачи висят в работе).</p>
           </div>
+          {totalTechDebtClosed > 0 && (
+             <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center relative z-10">
+               <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Срезан старый долг:</span>
+               <span className="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded font-bold text-xs border border-purple-500/20">{totalTechDebtClosed} задач</span>
+             </div>
+          )}
         </div>
 
         {/* REOPEN RATE */}
@@ -1840,6 +1849,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const detailedTasksHtmlRendered = completedDetailedTasks.map(t => {
         let contextHtml = '';
         
+        const commentLower = (t.comments || '').toLowerCase().trim();
+        
         // 1. Проверяем комментарии на предмет мусора от ИИ (заглушки)
         const genericPhrases = [
           "проведена инфраструктурная проработка", 
@@ -1849,13 +1860,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           "выполнена задача",
           "стандартная процедура",
           "согласно заявке",
-          "выполнено",
+          "готово",
           "решено",
-          "готово"
+          "выполнено",
+          "-"
         ];
-        const commentLower = (t.comments || '').toLowerCase().trim();
+        
         const isGeneric = genericPhrases.some(phrase => commentLower.includes(phrase));
-        const isTooShort = commentLower === 'готово' || commentLower === 'решено' || commentLower === 'выполнено' || commentLower === '-';
+        // Если комментарий слишком короткий (например, просто "готово" или "да"), тоже режем
+        const isTooShort = commentLower.length < 15;
         
         if (t.comments && t.comments.trim() !== '' && !isGeneric && !isTooShort) {
            contextHtml = `
@@ -1874,16 +1887,18 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           debtBadge = `<span style="background-color: #f0fdf4; color: #10b981; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">⚡ Свежая задача</span>`;
         }
 
-        // 3. Сопоставляем с задачами руководства (если ИИ нашел ключевые слова)
+        // 3. Сопоставляем с задачами руководства (СТРОГИЙ МАТЧИНГ)
         let isMgmtTask = false;
         if (projectTasks && projectTasks.length > 0) {
           isMgmtTask = projectTasks.some(pt => {
-             if (!pt.title) return false;
-             // Разбиваем задачу руководства на слова > 4 символов, чтобы искать пересечения
-             const ptWords = pt.title.toLowerCase().split(/[ \.,-]+/).filter(w => w.length > 4);
+             if (!pt.title || pt.title.trim().length < 4) return false;
+             
+             // Берем только значимые слова из поручения руководства (длинее 3 букв)
+             const ptWords = pt.title.toLowerCase().split(/[ \.,-]+/).filter(w => w.length >= 4);
              const jiraText = (safeString(t.title) + ' ' + safeString(t.comments)).toLowerCase();
-             // Если хотя бы одно значимое слово из задачи руководства есть в заголовке Jira, то считаем совпадением
-             return ptWords.length > 0 && ptWords.some(w => jiraText.includes(w));
+             
+             // ЖЕСТКОЕ УСЛОВИЕ: ВСЕ значимые слова поручения должны присутствовать в тексте задачи
+             return ptWords.length > 0 && ptWords.every(w => jiraText.includes(w));
           });
         }
 
@@ -2351,7 +2366,7 @@ const AchievementsBoard = ({ achievements }) => {
       </div>
 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm p-6 mb-8 flex items-start gap-4">
-        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><CheckCircle size={24} /></div>
+        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><CheckSquare size={24} /></div>
         <div>
           <h3 className="text-slate-200 font-medium mb-1">Управляем потоком, а не людьми</h3>
           <p className="text-slate-400 text-sm leading-relaxed">
@@ -2811,7 +2826,7 @@ const App = () => {
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
     { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
     { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
-    { id: 'achievements', icon: CheckCircle, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
+    { id: 'achievements', icon: CheckSquare, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
     { id: 'profiles', icon: Users, label: 'Матрица компетенций', roles: ['admin', 'viewer'] },
     { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
   ].filter(item => item.roles.includes(currentUser.role));
