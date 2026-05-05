@@ -4,10 +4,7 @@ import {
   LineChart, Line
 } from 'recharts';
 import { 
-  Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
-  LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
-  Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3, PhoneCall, ListTodo, AlertCircle
+  Activity, AlertTriangle, Archive, ArrowRight, Award, BookOpen, Calendar, Check, CheckCircle, ChevronDown, Clock, Copy, Database, Download, DownloadCloud, Edit3, FileSearch, FileText, Flame, GitMerge, Heart, HelpCircle, Key, Layers, LayoutDashboard, List, Lock, LogOut, Medal, Pencil, PhoneCall, PieChart, Plus, RefreshCcw, Save, Search, Server, Settings, Shield, ShieldAlert, ShieldCheck, Sparkles, Star, Target, ThumbsUp, Timer, Trash2, TrendingUp, User, UserPlus, Users, Zap
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -582,7 +579,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             <div className="xl:col-span-1 border-t xl:border-t-0 xl:border-l border-slate-700/50 pt-6 xl:pt-0 xl:pl-6">
                {weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? (
                  <>
-                   <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><PieChartIcon size={20} className="text-fuchsia-400" /> Типы работ (Ценность vs Рутина)</h2>
+                   <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><PieChart size={20} className="text-fuchsia-400" /> Типы работ (Ценность vs Рутина)</h2>
                    <div className="space-y-3">
                      {weekData.taskTypesDistribution.map((item, idx) => (
                         <div key={idx} className="relative w-full bg-slate-900/50 rounded flex flex-col p-3 border border-slate-700/30 overflow-hidden">
@@ -597,7 +594,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                  </>
                ) : (
                  <div className="h-full flex flex-col items-center justify-center opacity-50">
-                    <PieChartIcon size={32} className="text-slate-500 mb-2" />
+                    <PieChart size={32} className="text-slate-500 mb-2" />
                     <p className="text-xs text-slate-400 text-center">Нет данных о типах работ.<br/>Обновите выгрузку.</p>
                  </div>
                )}
@@ -614,7 +611,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                )}
                {weekData.sprintRisk && (
                  <div className="bg-amber-500/5 p-4 rounded-lg border border-amber-500/20 h-full flex flex-col">
-                   <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><ShieldAlert size={14}/> Риск / Бэклог</h4>
+                   <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><AlertTriangle size={14}/> Риск / Бэклог</h4>
                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{safeString(weekData.sprintRisk)}</p>
                  </div>
                )}
@@ -857,7 +854,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                   </div>
                   {inc.analysis && (
                     <div className="relative z-10 text-xs text-slate-400 bg-slate-950/40 p-2.5 rounded border border-slate-700/50 leading-relaxed border-l-2 shadow-inner whitespace-pre-wrap">
-                      <div className="font-bold text-slate-300 mb-1 flex items-center gap-1.5"><FileSearch size={12} className="opacity-70" /> AI-Анализ</div>{safeString(inc.analysis)}
+                      <div className="font-bold text-slate-300 mb-1 flex items-center gap-1.5"><Search size={12} className="opacity-70" /> AI-Анализ</div>{safeString(inc.analysis)}
                     </div>
                   )}
                 </div>
@@ -1844,11 +1841,23 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         let contextHtml = '';
         
         // 1. Проверяем комментарии на предмет мусора от ИИ (заглушки)
-        const genericPhrases = ["проведена инфраструктурная проработка", "ожидание данных ai", "нет данных"];
-        const commentLower = (t.comments || '').toLowerCase();
+        const genericPhrases = [
+          "проведена инфраструктурная проработка", 
+          "ожидание данных", 
+          "нет данных",
+          "проверены или настроены",
+          "выполнена задача",
+          "стандартная процедура",
+          "согласно заявке",
+          "выполнено",
+          "решено",
+          "готово"
+        ];
+        const commentLower = (t.comments || '').toLowerCase().trim();
         const isGeneric = genericPhrases.some(phrase => commentLower.includes(phrase));
+        const isTooShort = commentLower === 'готово' || commentLower === 'решено' || commentLower === 'выполнено' || commentLower === '-';
         
-        if (t.comments && t.comments.trim() !== '' && !isGeneric) {
+        if (t.comments && t.comments.trim() !== '' && !isGeneric && !isTooShort) {
            contextHtml = `
              <div style="font-size: 12px; color: #334155; margin-top: 8px; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
                <span style="font-weight: 800; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">Детали решения:</span><br/>
@@ -2110,7 +2119,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       {!weekData.isReportFrozen && (
         <div className="w-full max-w-4xl bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm mb-6 overflow-hidden">
           <div className="bg-fuchsia-500/10 py-3 px-6 border-b border-fuchsia-500/20 flex items-center gap-2">
-            <ListTodo size={18} className="text-fuchsia-400" />
+            <List size={18} className="text-fuchsia-400" />
             <h2 className="text-sm font-bold text-white uppercase tracking-wider">Портфель поручений руководства (Глобальный)</h2>
           </div>
           
@@ -2170,7 +2179,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                           {/* AI Подсказка по срокам */}
                           {!isCompleted && weeksActive > 0 && (
                              <div className={`text-[10px] font-bold flex items-center gap-1 mt-2 w-max px-2 py-0.5 rounded ${weeksActive >= 2 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
-                               <AlertCircle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
+                               <AlertTriangle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
                              </div>
                           )}
                        </div>
@@ -2342,7 +2351,7 @@ const AchievementsBoard = ({ achievements }) => {
       </div>
 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm p-6 mb-8 flex items-start gap-4">
-        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><ActivitySquare size={24} /></div>
+        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><CheckCircle size={24} /></div>
         <div>
           <h3 className="text-slate-200 font-medium mb-1">Управляем потоком, а не людьми</h3>
           <p className="text-slate-400 text-sm leading-relaxed">
@@ -2802,7 +2811,7 @@ const App = () => {
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
     { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
     { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
-    { id: 'achievements', icon: ActivitySquare, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
+    { id: 'achievements', icon: CheckCircle, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
     { id: 'profiles', icon: Users, label: 'Матрица компетенций', roles: ['admin', 'viewer'] },
     { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
   ].filter(item => item.roles.includes(currentUser.role));
