@@ -1163,6 +1163,23 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     let firstLineMissed = 0;
     let firstLineTotal = 0;
     
+    // --- НОВАЯ ЛОГИКА: ИЩЕМ АБСОЛЮТНОГО ЛИДЕРА ---
+    let topPerformer = null;
+    let maxClosed = 0;
+    if (jiraData && jiraData.length > 0) {
+        jiraData.forEach(p => {
+            const closed = Number(p.closed) || 0;
+            if (closed > maxClosed) {
+                maxClosed = closed;
+                topPerformer = p.name;
+            }
+        });
+    }
+    if (topPerformer && maxClosed > 0) {
+        insights.push(`🏆 ${getFullName(topPerformer)} — абсолютный лидер (закрыто ${maxClosed} тикетов). Отличная работа!`);
+    }
+    // ----------------------------------------------
+    
     // Ключевые слова для определения 1-й линии
     const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Лысов", "Нестеров", "стажер", "младший"];
     
@@ -2009,7 +2026,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           debtBadge = `<span style="background-color: #f0fdf4; color: #10b981; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">⚡ Свежая задача</span>`;
         }
 
-        // 3. Сопоставляем с задачами руководства (умный матчинг корней слов)
+        // 3. Сопоставляем с задачами руководства (умный и ЖЕСТКИЙ матчинг корней слов)
         let isMgmtTask = false;
         if (projectTasks && projectTasks.length > 0) {
           isMgmtTask = projectTasks.some(pt => {
@@ -2021,23 +2038,26 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
              // Точное вхождение или подстрока целиком
              if (cleanJiraTitle.includes(cleanPtTitle) || cleanPtTitle.includes(cleanJiraTitle)) return true;
              
-             // Иначе разбиваем на слова, берем только значимые (длиннее 4 символов) 
-             // и отрезаем окончания (берем первые 5 букв - примитивный стемминг)
-             const ptWords = cleanPtTitle.split(/[ \.,-]+/).filter(w => w.length > 4).map(w => w.substring(0, 5));
+             // Иначе разбиваем на слова, берем только значимые (длиннее 3 символов)
+             const ptWords = cleanPtTitle.split(/[ \.,-]+/).filter(w => w.length > 3);
              if (ptWords.length === 0) return false;
              
              let matchCount = 0;
              ptWords.forEach(w => {
-                 if (cleanJiraTitle.includes(w)) matchCount++;
+                 // Берем корень (первые 5 букв)
+                 const stem = w.substring(0, 5);
+                 if (cleanJiraTitle.includes(stem)) matchCount++;
              });
              
-             // Достаточно 60% совпадения корней слов, чтобы засчитать задачу
-             return (matchCount / ptWords.length) >= 0.6;
+             // ТРЕБУЕМ СОВПАДЕНИЯ ВСЕХ СЛОВ (ИЛИ ПОЧТИ ВСЕХ, если их много)
+             // Если в поручении 4 слова, должны совпасть все 4. Если 5 слов, допускаем совпадение 4.
+             const requiredMatches = ptWords.length > 4 ? ptWords.length - 1 : ptWords.length;
+             return matchCount >= requiredMatches;
           });
         }
 
         let mgmtBadge = isMgmtTask 
-          ? `<span style="background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%); color: #c026d3; border: 1px dashed #d946ef; padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 0 2px 4px rgba(217,70,239,0.1);">🎯 Контроль Тимлида</span>` 
+          ? `<span style="display: inline-block; transform: rotate(-2deg); background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%); color: #c026d3; border: 2px solid #d946ef; padding: 3px 8px; border-radius: 4px; font-weight: 900; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 2px 2px 0px rgba(217,70,239,0.3); margin-left: 8px;">⭐ Задача руководства</span>` 
           : '';
 
         // Выбираем цвет полоски (Фиолетовая если от руководства, красная если долг, иначе базовая серая)
