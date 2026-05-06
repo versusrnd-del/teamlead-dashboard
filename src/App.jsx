@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle, ShieldAlert, Clock, Shield, Database,
   LayoutDashboard, Pencil, PieChart, GitMerge, FileText, Award, Users, BookOpen, Save, Copy, Check, Plus, Trash2, 
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
-  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, ActivitySquare, Server, PieChart as PieChartIcon, Printer, Download, Edit3, PhoneCall, ListTodo, AlertCircle
+  Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, Server, PieChart as PieChartIcon, Download, Edit3, PhoneCall
 } from 'lucide-react';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
@@ -300,8 +300,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   const cycleVal = Number(weekData.avgCycleTime) || 0;
   const cycleColor = cycleVal > 14 ? 'text-red-400' : (cycleVal > 7 ? 'text-amber-400' : 'text-emerald-400');
 
-  const getContextBadge = (context) => {
+  const getContextBadge = (context, options = {}) => {
     if (!context || context.trim() === '') return <span className="text-slate-600">-</span>;
+    const { placement = 'top', isTopTaskLeader = false } = options;
     const lower = context.toLowerCase();
     let colorClass = 'bg-slate-500/10 text-slate-400 border-slate-500/20'; 
     let shortText = context;
@@ -310,17 +311,29 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     } else if (lower.includes('сложн') || lower.includes('архитектур') || lower.includes('спасат') || lower.includes('высок')) {
       colorClass = 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20';
     }
+    if (lower.includes('локомотив')) {
+      colorClass = 'bg-cyan-500/10 text-cyan-300 border-cyan-400/30';
+    }
+    if (isTopTaskLeader && lower.includes('локомотив')) {
+      colorClass = 'bg-amber-400/15 text-amber-200 border-amber-300/50 shadow-[0_0_18px_rgba(251,191,36,0.18)]';
+    }
     if(shortText.length > 15) shortText = shortText.substring(0, 14) + '...';
+    const tooltipPositionClass = placement === 'bottom'
+      ? 'absolute top-full left-1/2 -translate-x-1/2 pt-3 w-[350px]'
+      : 'absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[350px]';
+    const arrowClass = placement === 'bottom'
+      ? 'absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-600'
+      : 'absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600';
     
     return (
       <div className="group relative flex justify-center cursor-help">
         <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${colorClass}`}>
           {shortText}
         </span>
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[350px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center">
+        <div className={`${tooltipPositionClass} opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-center`}>
           <div className="p-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[13px] leading-relaxed text-slate-300 relative cursor-auto pointer-events-auto">
             {context}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+            <div className={arrowClass}></div>
           </div>
         </div>
       </div>
@@ -699,7 +712,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
               <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Users size={18} className="text-emerald-400" /> Нагрузка: 1-я линия (Инциденты)</h3>
               <span className="text-[10px] bg-slate-900 text-slate-500 px-2 py-1 rounded border border-slate-700/50 uppercase tracking-wider">Аналитика для Этапа 2</span>
             </div>
-            <div className="overflow-x-auto custom-scrollbar pb-2">
+            <div className="overflow-visible custom-scrollbar pb-8">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
@@ -788,14 +801,14 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                                           {tId}
                                         </span>
                                         {/* УЛУЧШЕННЫЙ ТУЛТИП ВОЗВРАТА */}
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                        <div className="absolute top-full right-0 pt-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                                           <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
                                             <div className="max-h-72 overflow-y-auto custom-scrollbar pr-2">
                                               <div className="font-bold text-amber-400 mb-2 border-b border-slate-700 pb-2 text-sm">Возврат: {tId}</div>
                                               {tTitle && <div className="text-[13px] text-white font-bold mb-3 line-clamp-3 leading-snug">{tTitle}</div>}
                                               <div className="text-slate-300 leading-relaxed bg-slate-900/60 p-4 rounded-lg whitespace-pre-wrap text-[13px]">{tReason}</div>
                                             </div>
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+                                            <div className="absolute bottom-full right-4 border-4 border-transparent border-b-slate-600"></div>
                                           </div>
                                         </div>
                                       </div>
@@ -843,7 +856,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-base font-medium text-slate-200 flex items-center gap-2"><Server size={18} className="text-blue-400" /> Нагрузка: Инфраструктура (Задачи)</h3>
               </div>
-              <div className="overflow-x-auto custom-scrollbar pb-2">
+              <div className="overflow-visible custom-scrollbar pb-8">
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
@@ -957,7 +970,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             </div>
                           </td>
 
-                          <td className="py-3 text-center">{getContextBadge(contextStr)}</td>
+                          <td className="py-3 text-center">{getContextBadge(contextStr, { placement: 'bottom', isTopTaskLeader: idx === 0 })}</td>
                           <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
                           
                           <td className="py-3 text-center">
@@ -1795,10 +1808,67 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     }
   };
 
+  const getProjectTaskMatchWords = (title) => {
+    const stopWords = new Set(['задач', 'задача', 'нужно', 'надо', 'сдела', 'работ', 'через', 'после', 'перед', 'данны', 'данные']);
+    return safeString(title)
+      .toLowerCase()
+      .trim()
+      .split(/[ \.,\-_/]+/)
+      .map(w => w.trim())
+      .filter(w => w.length > 4)
+      .filter(w => !stopWords.has(w.substring(0, 5)));
+  };
+
+  const doesProjectTaskMatchJiraTask = (projectTask, jiraTask) => {
+    if (!projectTask || !projectTask.title || !jiraTask) return false;
+
+    const cleanJiraTitle = safeString(jiraTask.title).toLowerCase();
+    const cleanJiraText = `${safeString(jiraTask.title)} ${safeString(jiraTask.comments)}`.toLowerCase();
+    const cleanProjectTitle = safeString(projectTask.title).toLowerCase().trim();
+
+    if (cleanProjectTitle && cleanJiraText.includes(cleanProjectTitle)) return true;
+
+    const words = getProjectTaskMatchWords(cleanProjectTitle);
+    if (words.length === 0) return false;
+    if (words.length < 2 && !cleanJiraText.includes(cleanProjectTitle)) return false;
+
+    return words.every(w => cleanJiraTitle.includes(w.substring(0, 5)));
+  };
+
+  const findMatchingProjectTask = (jiraTask) => {
+    return (projectTasks || []).find(pt => doesProjectTaskMatchJiraTask(pt, jiraTask));
+  };
+
   // Фильтруем задачи, которые должны попасть в отчет ТЕКУЩЕЙ недели
   const tasksForThisWeek = (projectTasks || []).filter(t => 
     t.status === 'active' || t.completedWeekKey === selectedKey
   );
+
+  useEffect(() => {
+    if (!projectTasks || projectTasks.length === 0 || !weekData.detailedTasks || weekData.isReportFrozen) return;
+
+    const closedJiraTasks = (weekData.detailedTasks || []).filter(t => 
+      t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved)
+    );
+    if (closedJiraTasks.length === 0) return;
+
+    setProjectTasks(prev => {
+      let hasChanges = false;
+      const next = (prev || []).map(pt => {
+        if (pt.status !== 'active') return pt;
+        const matched = closedJiraTasks.some(jiraTask => doesProjectTaskMatchJiraTask(pt, jiraTask));
+        if (!matched) return pt;
+        hasChanges = true;
+        return {
+          ...pt,
+          status: 'completed',
+          completedWeekKey: selectedKey,
+          comment: pt.comment && pt.comment !== 'в работе' ? pt.comment : 'закрыто по Jira'
+        };
+      });
+      return hasChanges ? next : prev;
+    });
+  }, [projectTasks, weekData.detailedTasks, weekData.isReportFrozen, selectedKey]);
 
   // --- ГЕНЕРАЦИЯ HTML ДЛЯ ЗАДАЧ ---
   const generateTasksHtml = () => {
@@ -2126,33 +2196,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         }
 
         // 3. Сопоставляем с задачами руководства (умный и ЖЕСТКИЙ матчинг корней слов)
-        let isMgmtTask = false;
-        if (projectTasks && projectTasks.length > 0) {
-          isMgmtTask = projectTasks.some(pt => {
-             if (!pt.title) return false;
-             
-             const cleanJiraTitle = safeString(t.title).toLowerCase();
-             const cleanPtTitle = pt.title.toLowerCase().trim();
-             
-             // Точное вхождение или подстрока целиком
-             if (cleanJiraTitle.includes(cleanPtTitle) || cleanPtTitle.includes(cleanJiraTitle)) return true;
-             
-             // Иначе разбиваем на слова, берем только значимые (длиннее 3 символов)
-             const ptWords = cleanPtTitle.split(/[ \.,-]+/).filter(w => w.length > 3);
-             if (ptWords.length === 0) return false;
-             
-             let matchCount = 0;
-             ptWords.forEach(w => {
-                 // Берем корень (первые 5 букв)
-                 const stem = w.substring(0, 5);
-                 if (cleanJiraTitle.includes(stem)) matchCount++;
-             });
-             
-             // ТРЕБУЕМ СОВПАДЕНИЯ ВСЕХ 100% СЛОВ. Никаких поблажек!
-             // Иначе "группа Other" совпадет с "группа Fault-tolerantPC"
-             return matchCount === ptWords.length;
-          });
-        }
+        const matchedProjectTask = findMatchingProjectTask(t);
+        const isMgmtTask = Boolean(matchedProjectTask);
 
         let mgmtBadge = isMgmtTask 
           ? `<span style="display: inline-block; transform: rotate(-2deg); background-color: rgba(37, 99, 235, 0.05); color: #2563eb; border: 2px solid #2563eb; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 8px;">⭐ ЗАДАЧА РУКОВОДСТВА</span>` 
@@ -2388,7 +2433,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       {!weekData.isReportFrozen && (
         <div className="w-full max-w-4xl bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm mb-6 overflow-hidden">
           <div className="bg-fuchsia-500/10 py-3 px-6 border-b border-fuchsia-500/20 flex items-center gap-2">
-            <ListTodo size={18} className="text-fuchsia-400" />
+            <FileText size={18} className="text-fuchsia-400" />
             <h2 className="text-sm font-bold text-white uppercase tracking-wider">Портфель поручений руководства (Глобальный)</h2>
           </div>
           
@@ -2448,7 +2493,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                           {/* AI Подсказка по срокам */}
                           {!isCompleted && weeksActive > 0 && (
                              <div className={`text-[10px] font-bold flex items-center gap-1 mt-2 w-max px-2 py-0.5 rounded ${weeksActive >= 2 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
-                               <AlertCircle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
+                               <AlertTriangle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
                              </div>
                           )}
                        </div>
@@ -2620,7 +2665,7 @@ const AchievementsBoard = ({ achievements }) => {
       </div>
 
       <div className="bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm p-6 mb-8 flex items-start gap-4">
-        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><ActivitySquare size={24} /></div>
+        <div className="bg-indigo-500/20 p-3 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0"><Activity size={24} /></div>
         <div>
           <h3 className="text-slate-200 font-medium mb-1">Управляем потоком, а не людьми</h3>
           <p className="text-slate-400 text-sm leading-relaxed">
@@ -3080,7 +3125,7 @@ const App = () => {
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
     { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
     { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
-    { id: 'achievements', icon: ActivitySquare, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
+    { id: 'achievements', icon: Activity, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
     { id: 'profiles', icon: Users, label: 'Матрица компетенций', roles: ['admin', 'viewer'] },
     { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
   ].filter(item => item.roles.includes(currentUser.role));
@@ -3092,6 +3137,15 @@ const App = () => {
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.1); border-radius: 8px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.6); border-radius: 8px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.8); }
+        .group:hover > .absolute { z-index: 9999; }
+        .group:hover .pointer-events-auto {
+          background: rgba(2, 6, 23, 0.98) !important;
+          border-color: rgba(148, 163, 184, 0.55) !important;
+          box-shadow: 0 24px 80px rgba(0, 0, 0, 0.78), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+        }
+        .group:hover .pointer-events-auto .bg-slate-900\\/60 {
+          background: rgba(15, 23, 42, 0.96) !important;
+        }
       `}</style>
       
       <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col flex-shrink-0 z-20 relative">
