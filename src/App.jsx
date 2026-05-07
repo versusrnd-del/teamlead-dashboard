@@ -368,10 +368,12 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         .map((item) => {
           const id = normalizeIncidentKey(item.id);
           if (!id) return null;
+          const linkedTask = (weekData.detailedTasks || []).find(t => normalizeIncidentKey(t.id) === id);
           return {
             id,
             rating: Number(item.rating) || null,
-            text: safeString(csatReviews?.[id]).trim()
+            text: safeString(csatReviews?.[id]).trim(),
+            title: safeString(item.title || item.topic || item.summary || linkedTask?.title).trim()
           };
         })
         .filter(Boolean);
@@ -406,9 +408,16 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                   {item.text ? (
                     <div className="italic">"{item.text}"</div>
                   ) : (
-                    <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider border ${getCsatHeatClass(rating)}`}>
-                      <Star size={12} className={rating <= 3 ? 'text-red-300' : rating === 4 ? 'text-amber-300' : 'text-emerald-300'} />
-                      <span>Оценка {rating || '-'}</span>
+                    <div className="space-y-2">
+                      <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider border ${getCsatHeatClass(rating)}`}>
+                        <Star size={12} className={rating <= 3 ? 'text-red-300' : rating === 4 ? 'text-amber-300' : 'text-emerald-300'} />
+                        <span>Оценка {rating || '-'}</span>
+                      </div>
+                      {item.title && (
+                        <div className="text-slate-500/80 italic text-[12px] leading-snug line-clamp-2">
+                          {item.title}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
