@@ -361,6 +361,49 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     return 'bg-slate-900/60 border-slate-700/50 text-slate-200';
   };
 
+  const findIncidentTopicById = (incidentId) => {
+    const targetId = normalizeIncidentKey(incidentId);
+    if (!targetId) return '';
+
+    const titleFields = ['title', 'topic', 'summary', 'subject', 'name'];
+    const idFields = ['id', 'key', 'issueKey', 'incidentId'];
+    const visited = new WeakSet();
+
+    const walk = (value, depth = 0) => {
+      if (!value || depth > 6) return '';
+      if (typeof value !== 'object') return '';
+      if (visited.has(value)) return '';
+      visited.add(value);
+
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const found = walk(item, depth + 1);
+          if (found) return found;
+        }
+        return '';
+      }
+
+      const hasTargetId = idFields.some(field => normalizeIncidentKey(value[field]) === targetId)
+        || Object.values(value).some(fieldValue => typeof fieldValue === 'string' && normalizeIncidentKey(fieldValue).includes(targetId));
+
+      if (hasTargetId) {
+        for (const field of titleFields) {
+          const topic = safeString(value[field]).trim();
+          if (topic && normalizeIncidentKey(topic) !== targetId) return topic;
+        }
+      }
+
+      for (const child of Object.values(value)) {
+        const found = walk(child, depth + 1);
+        if (found) return found;
+      }
+
+      return '';
+    };
+
+    return walk(weekData);
+  };
+
   const buildCsatTooltipItems = (perf) => {
     const details = Array.isArray(perf.csatDetails) ? perf.csatDetails : [];
     if (details.length > 0) {
@@ -373,7 +416,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             id,
             rating: Number(item.rating) || null,
             text: safeString(csatReviews?.[id]).trim(),
-            title: safeString(item.title || item.topic || item.summary || linkedTask?.title).trim()
+            title: safeString(item.title || item.topic || item.summary || linkedTask?.title || findIncidentTopicById(id)).trim()
           };
         })
         .filter(Boolean);
@@ -413,11 +456,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                         <Star size={12} className={rating <= 3 ? 'text-red-300' : rating === 4 ? 'text-amber-300' : 'text-emerald-300'} />
                         <span>Оценка {rating || '-'}</span>
                       </div>
-                      {item.title && (
-                        <div className="text-slate-500/80 italic text-[12px] leading-snug line-clamp-2">
-                          {item.title}
-                        </div>
-                      )}
+                      <div className="text-slate-500/80 italic text-[12px] leading-snug line-clamp-2">
+                        {item.title || 'Тема обращения не передана в JSON'}
+                      </div>
                     </div>
                   )}
                 </div>
