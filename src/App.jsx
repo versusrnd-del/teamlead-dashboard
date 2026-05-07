@@ -1400,25 +1400,12 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
           if (!parsedData.staleBacklog || parsedData.staleBacklog.length === 0) finalData.staleBacklog = formData.staleBacklog;
       }
 
-      // detailedTasks для task-импорта заменяют текущую неделю, чтобы повторная загрузка не раздувала отчет.
-      // Для смешанных JSON оставляем старое безопасное слияние.
+      // УМНОЕ СЛИЯНИЕ МАССИВОВ ДЕТАЛЬНЫХ ЗАДАЧ
       let mergedDetailedTasks = formData.detailedTasks || [];
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
-         const seenImportedIds = new Set();
-         const importedDetailedTasks = parsedData.detailedTasks.filter(t => {
-            const id = safeString(t.id).trim();
-            if (!id || seenImportedIds.has(id)) return false;
-            seenImportedIds.add(id);
-            return true;
-         });
-
-         if (isTasksImport && !isIncidentsImport) {
-            mergedDetailedTasks = importedDetailedTasks;
-         } else {
-            const existingIds = new Set(mergedDetailedTasks.map(t => safeString(t.id).trim()).filter(Boolean));
-            const newTasks = importedDetailedTasks.filter(t => !existingIds.has(safeString(t.id).trim()));
-            mergedDetailedTasks = [...newTasks, ...mergedDetailedTasks];
-         }
+         const existingIds = new Set(mergedDetailedTasks.map(t => t.id));
+         const newTasks = parsedData.detailedTasks.filter(t => t.id && !existingIds.has(t.id));
+         mergedDetailedTasks = [...newTasks, ...mergedDetailedTasks];
       }
       finalData.detailedTasks = mergedDetailedTasks;
 
@@ -2366,45 +2353,18 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       };
 
       const getTaskValueCategory = (task) => {
-        const categories = {
-          business: { key: 'business', label: 'Бизнес-проект', color: '#8b5cf6', bg: '#f5f3ff' },
-          stability: { key: 'stability', label: 'Стабильность', color: '#2563eb', bg: '#eff6ff' },
-          optimization: { key: 'optimization', label: 'Оптимизация', color: '#059669', bg: '#ecfdf5' },
-          techDebt: { key: 'techDebt', label: 'Техдолг', color: '#dc2626', bg: '#fff1f2' },
-          routine: { key: 'routine', label: 'Рутина', color: '#64748b', bg: '#f8fafc' }
-        };
-        const raw = safeString(task.valueCategory || task.impactCategory || task.category || task.valueType || task.type).toLowerCase();
-        const normalizedRaw = raw.replace(/[\s_-]+/g, '');
-        if (['business', 'businessproject', 'project', 'biz', 'бизнес', 'бизнеспроект', 'проект'].includes(normalizedRaw)) {
-          return categories.business;
-        }
-        if (['stability', 'reliability', 'incidentprevention', 'стабильность', 'надежность', 'аварии'].includes(normalizedRaw)) {
-          return categories.stability;
-        }
-        if (['optimization', 'automation', 'improvement', 'оптимизация', 'автоматизация', 'улучшение'].includes(normalizedRaw)) {
-          return categories.optimization;
-        }
-        if (['techdebt', 'debt', 'legacy', 'техдолг', 'техническийдолг', 'старыйдолг'].includes(normalizedRaw)) {
-          return categories.techDebt;
-        }
-        if (['routine', 'support', 'operations', 'рутина', 'эксплуатация', 'поддержка'].includes(normalizedRaw)) {
-          return categories.routine;
-        }
-
+        const raw = safeString(task.valueCategory || task.impactCategory || task.category || task.valueType || task.type || task.tags).toLowerCase();
         const text = `${raw} ${safeString(task.title)} ${safeString(task.comments)}`.toLowerCase();
         if (text.includes('бизнес') || text.includes('проект') || text.includes('руковод') || text.includes('миграц')) {
-          return categories.business;
-        }
-        if (text.includes('техдолг') || text.includes('технический долг') || (Number(task.cycleTime) || 0) >= 30) {
-          return categories.techDebt;
+          return { key: 'business', label: 'Бизнес-проект', color: '#8b5cf6', bg: '#f5f3ff' };
         }
         if (text.includes('стабиль') || text.includes('авар') || text.includes('сбой') || text.includes('восстанов') || text.includes('сервер') || text.includes('сеть')) {
-          return categories.stability;
+          return { key: 'stability', label: 'Стабильность', color: '#2563eb', bg: '#eff6ff' };
         }
         if (text.includes('оптим') || text.includes('автомат') || text.includes('ускор') || text.includes('улучш')) {
-          return categories.optimization;
+          return { key: 'optimization', label: 'Оптимизация', color: '#059669', bg: '#ecfdf5' };
         }
-        return categories.routine;
+        return { key: 'routine', label: 'Рутина', color: '#64748b', bg: '#f8fafc' };
       };
 
       const renderValueShowcase = () => {
@@ -2413,12 +2373,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           { key: 'business', label: 'Бизнес-проект', color: '#8b5cf6', bg: '#f5f3ff', items: [] },
           { key: 'stability', label: 'Стабильность', color: '#2563eb', bg: '#eff6ff', items: [] },
           { key: 'optimization', label: 'Оптимизация', color: '#059669', bg: '#ecfdf5', items: [] },
-          { key: 'techDebt', label: 'Техдолг', color: '#dc2626', bg: '#fff1f2', items: [] },
           { key: 'routine', label: 'Рутина', color: '#64748b', bg: '#f8fafc', items: [] }
         ];
         completedDetailedTasks.forEach(task => {
           const category = getTaskValueCategory(task);
-          const group = groups.find(g => g.key === category.key) || groups[groups.length - 1];
+          const group = groups.find(g => g.key === category.key) || groups[3];
           group.items.push(task);
         });
 
