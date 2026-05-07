@@ -2274,14 +2274,28 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           missed += Number(op.missed) || 0;
           const perf = findJiraPerformer(op.name);
           const closedTickets = perf ? (Number(perf.closed) || 0) : 0;
+          const missedCalls = Number(op.missed) || 0;
+          const answeredCalls = Number(op.answered) || 0;
+          let profileLabel = '';
+          if (missedCalls > 0 && closedTickets >= 80) {
+            profileLabel = 'Профиль: перегруз';
+          } else if (missedCalls > 10 && closedTickets < 50) {
+            profileLabel = 'Профиль: дисциплина/доступность';
+          } else if (answeredCalls > 10 && closedTickets < 10 && effectiveTotalIncClosed >= 300) {
+            profileLabel = 'Профиль: помощь при аварии';
+          } else if (missedCalls === 0 && (closedTickets >= 40 || answeredCalls > 0)) {
+            profileLabel = 'Профиль: норма';
+          }
           if ((Number(op.missed) || 0) > 0) {
             if (closedTickets >= 80) {
-              lines.push(`🔥 ${op.name}: Пропущено ${op.missed} вызовов. Причина: перегруз (закрыто ${closedTickets} инцидентов).`);
+              lines.push(`🔥 ${op.name}: ${profileLabel}. Пропущено ${op.missed} вызовов. Причина: перегруз (закрыто ${closedTickets} инцидентов).`);
             } else if (closedTickets >= 50) {
-              lines.push(`⚠️ ${op.name}: Норма в Jira выполнена (${closedTickets}), но есть пропущенные вызовы (${op.missed}).`);
+              lines.push(`⚠️ ${op.name}: ${profileLabel || 'Профиль: рабочая нагрузка'}. Норма в Jira выполнена (${closedTickets}), но есть пропущенные вызовы (${op.missed}).`);
             } else {
-              lines.push(`⚠️ ${op.name}: закрыто ${closedTickets} инцидентов, пропущено ${op.missed} вызовов. Взять на контроль.`);
+              lines.push(`⚠️ ${op.name}: ${profileLabel || 'Профиль: контроль'}. Закрыто ${closedTickets} инцидентов, пропущено ${op.missed} вызовов. Взять на контроль.`);
             }
+          } else if (profileLabel === 'Профиль: помощь при аварии') {
+            lines.push(`🛡️ ${op.name}: ${profileLabel}. Отвечено ${answeredCalls} звонков при аварийном фоне, закрыто ${closedTickets} инцидентов.`);
           }
         });
 
@@ -2335,6 +2349,62 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </td>
             </tr>
           </table>
+        `;
+      };
+
+      const getTaskValueCategory = (task) => {
+        const raw = safeString(task.valueCategory || task.impactCategory || task.category || task.valueType || task.type || task.tags).toLowerCase();
+        const text = `${raw} ${safeString(task.title)} ${safeString(task.comments)}`.toLowerCase();
+        if (text.includes('бизнес') || text.includes('проект') || text.includes('руковод') || text.includes('миграц')) {
+          return { key: 'business', label: 'Бизнес-проект', color: '#8b5cf6', bg: '#f5f3ff' };
+        }
+        if (text.includes('стабиль') || text.includes('авар') || text.includes('сбой') || text.includes('восстанов') || text.includes('сервер') || text.includes('сеть')) {
+          return { key: 'stability', label: 'Стабильность', color: '#2563eb', bg: '#eff6ff' };
+        }
+        if (text.includes('оптим') || text.includes('автомат') || text.includes('ускор') || text.includes('улучш')) {
+          return { key: 'optimization', label: 'Оптимизация', color: '#059669', bg: '#ecfdf5' };
+        }
+        return { key: 'routine', label: 'Рутина', color: '#64748b', bg: '#f8fafc' };
+      };
+
+      const renderValueShowcase = () => {
+        if (!completedDetailedTasks || completedDetailedTasks.length === 0) return '';
+        const groups = [
+          { key: 'business', label: 'Бизнес-проект', color: '#8b5cf6', bg: '#f5f3ff', items: [] },
+          { key: 'stability', label: 'Стабильность', color: '#2563eb', bg: '#eff6ff', items: [] },
+          { key: 'optimization', label: 'Оптимизация', color: '#059669', bg: '#ecfdf5', items: [] },
+          { key: 'routine', label: 'Рутина', color: '#64748b', bg: '#f8fafc', items: [] }
+        ];
+        completedDetailedTasks.forEach(task => {
+          const category = getTaskValueCategory(task);
+          const group = groups.find(g => g.key === category.key) || groups[3];
+          group.items.push(task);
+        });
+
+        const cardsHtml = groups.filter(g => g.items.length > 0).map(group => `
+          <div class="value-card" style="border-top-color: ${group.color}; background: ${group.bg};">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 13px; font-weight: 800; color: ${group.color};">${group.label}</div>
+              <div style="font-size: 12px; font-weight: 800; color: ${group.color};">${group.items.length}</div>
+            </div>
+            ${group.items.slice(0, 4).map(task => {
+              const size = safeString(task.size || task.complexity || '').toUpperCase();
+              const sizeBadge = size ? `<span style="font-size: 10px; font-weight: 800; color: ${group.color}; border: 1px solid ${group.color}; border-radius: 999px; padding: 1px 5px; margin-left: 5px;">${size}</span>` : '';
+              return `
+                <div style="font-size: 12px; color: #334155; line-height: 1.35; margin-bottom: 7px;">
+                  <span style="font-weight: 800; color: ${group.color};">${safeString(task.id)}</span>${sizeBadge}
+                  <div style="margin-top: 2px;">${safeString(task.title)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `).join('');
+
+        return `
+          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Витрина ценности закрытых задач</h3>
+          <div class="value-grid">
+            ${cardsHtml}
+          </div>
         `;
       };
 
@@ -2571,7 +2641,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .report-container { font-family: 'Segoe UI', system-ui, sans-serif; color: #1e293b; line-height: 1.6; max-width: 900px; margin: 0 auto; background: #ffffff; text-align: left; }
           .header { border-bottom: 3px solid #10b981; padding-bottom: 15px; margin-bottom: 25px; }
           .kpi-grid { display: flex; gap: 20px; margin-bottom: 30px; }
-          .kpi-card { flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+          .kpi-card { flex: 1; position: relative; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+          .kpi-hint { display: none; position: absolute; z-index: 30; left: 10px; top: 100%; width: 260px; background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 10px; font-size: 12px; line-height: 1.45; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25); }
+          .kpi-card:hover .kpi-hint { display: block; }
           .data-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
           .data-table th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
           .data-table td { padding: 10px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
@@ -2582,6 +2654,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .csat-summary-pill { display: inline-block; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 999px; padding: 5px 10px; color: #475569; font-size: 12px; font-weight: 800; cursor: default; }
           .csat-popover { display: none; position: absolute; z-index: 20; left: 0; top: 30px; width: 620px; max-height: 360px; overflow-y: auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18); padding: 14px; }
           .csat-hover-wrap:hover .csat-popover { display: block; }
+          .value-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+          .value-card { border: 1px solid #e2e8f0; border-top: 4px solid #64748b; border-radius: 8px; padding: 12px; min-height: 120px; }
           ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
           ul.custom-list li { margin-bottom: 6px; }
         </style>
@@ -2603,6 +2677,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 <div style="font-size: 24px; font-weight: bold; color: ${incColor}; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
                 <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
                 ${renderProgressBar(totalIncidents, 400, incColor)}
+                <div class="kpi-hint">Реально закрытые инциденты 1-й линии без задач, закрытых по бездействию. Очередь показывает текущий незакрытый остаток.</div>
               </div>
               
               <div class="kpi-card" style="border-top: 4px solid ${taskColor};">
@@ -2610,6 +2685,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
                 <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
                 ${renderProgressBar(totalClosedCount, 100, taskColor)}
+                <div class="kpi-hint">Сумма закрытых плановых, срочных и бэклог-задач. Бэклог и задачи старше 30 дней показывают технический долг.</div>
               </div>
               
               <div class="kpi-card" style="border-top: 4px solid ${indexColor};">
@@ -2617,6 +2693,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 <div style="font-size: 24px; font-weight: bold; color: ${indexColor}; margin-bottom: 5px;">${managementIndex}<span style="font-size: 14px; font-weight: normal; color: #64748b;">/100</span></div>
                 <div style="font-size: 12px; color: #64748b;">Возвраты: ${weekData.reopenRate || 0}%</div>
                 ${renderProgressBar(managementIndex, 100, indexColor)}
+                <div class="kpi-hint">Индекс строится от соблюдения SLA. Возвраты показывают долю задач, которые пришлось дорабатывать после закрытия.</div>
               </div>
             </div>
 
@@ -2645,6 +2722,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Нагрузка администраторов (без учета тимлида)</h3>
             <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
             ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time', 'Профиль'], taskRows.slice(0, 7))}
+            ${renderValueShowcase()}
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Выполненные ключевые задачи (Ценность)</h3>
             <ul class="custom-list" style="color: #94a3b8; font-style: italic; margin-bottom: 15px;">
