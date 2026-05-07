@@ -385,6 +385,42 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     })).filter(item => item.text);
   };
 
+  const renderCsatTooltip = (csatTooltipItems) => {
+    if (!csatTooltipItems || csatTooltipItems.length === 0) return null;
+
+    return (
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+        <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
+          <div className="font-bold text-emerald-400 mb-2 border-b border-slate-700 pb-2 text-sm">Отзывы пользователей:</div>
+          <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+            {csatTooltipItems.map((item, i) => {
+              const rating = Number(item.rating) || null;
+              const ratingColor = rating <= 3 ? 'text-red-300' : rating === 4 ? 'text-amber-300' : 'text-emerald-300';
+
+              return (
+                <div key={`${item.id}-${i}`} className={`leading-relaxed p-3 rounded-lg border whitespace-pre-wrap text-[13px] ${getCsatHeatClass(rating)}`}>
+                  <div className="flex items-center justify-between gap-3 mb-1.5 text-[11px] uppercase tracking-wider font-bold">
+                    <span className="text-slate-300">{item.id.startsWith('legacy-') ? 'Старый отзыв' : item.id}</span>
+                    {rating && <span className={ratingColor}>Оценка {rating}</span>}
+                  </div>
+                  {item.text ? (
+                    <div className="italic">"{item.text}"</div>
+                  ) : (
+                    <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider border ${getCsatHeatClass(rating)}`}>
+                      <Star size={12} className={rating <= 3 ? 'text-red-300' : rating === 4 ? 'text-amber-300' : 'text-emerald-300'} />
+                      <span>Оценка {rating || '-'}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
+        </div>
+      </div>
+    );
+  };
+
   const getContextBadge = (context, options = {}) => {
     if (!context || context.trim() === '') return <span className="text-slate-600">-</span>;
     const { placement = 'top', isTopTaskLeader = false } = options;
@@ -911,27 +947,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                           <div className="group relative flex items-center justify-center gap-1 cursor-help">
                             <Star size={14} className={Number(perf.csat) >= 4.8 ? "text-amber-400 fill-amber-400" : Number(perf.csat) >= 4.0 ? "text-amber-400" : "text-slate-500"} />
                             <span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span>
-                            {csatTooltipItems.length > 0 && (
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                                <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
-                                  <div className="font-bold text-emerald-400 mb-2 border-b border-slate-700 pb-2 text-sm">Отзывы пользователей:</div>
-                                  <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
-                                    {csatTooltipItems.map((item, i) => (
-                                      <div key={`${item.id}-${i}`} className={`leading-relaxed p-3 rounded-lg border whitespace-pre-wrap text-[13px] ${getCsatHeatClass(item.rating)}`}>
-                                        <div className="flex items-center justify-between gap-3 mb-1.5 text-[11px] uppercase tracking-wider font-bold">
-                                          <span className="text-slate-300">{item.id.startsWith('legacy-') ? 'Старый отзыв' : item.id}</span>
-                                          {item.rating && <span className={Number(item.rating) <= 3 ? 'text-red-300' : Number(item.rating) === 4 ? 'text-amber-300' : 'text-emerald-300'}>Оценка {item.rating}</span>}
-                                        </div>
-                                        <div className={item.text ? 'italic' : 'text-slate-500'}>
-                                          {item.text ? `"${item.text}"` : 'текст отзыва не загружен'}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
-                                </div>
-                              </div>
-                            )}
+                            {renderCsatTooltip(csatTooltipItems)}
                           </div>
                         </td>
                       </tr>
