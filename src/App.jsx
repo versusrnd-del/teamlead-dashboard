@@ -412,11 +412,13 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           const id = normalizeIncidentKey(item.id);
           if (!id) return null;
           const linkedTask = (weekData.detailedTasks || []).find(t => normalizeIncidentKey(t.id) === id);
+          const reviewText = safeString(csatReviews?.[id]).trim();
+          const themeText = safeString(item.theme || item.title || item.topic || item.summary || linkedTask?.title || findIncidentTopicById(id)).trim();
           return {
             id,
             rating: Number(item.rating) || null,
-            text: safeString(csatReviews?.[id]).trim(),
-            title: safeString(item.title || item.topic || item.summary || linkedTask?.title || findIncidentTopicById(id)).trim()
+            text: reviewText,
+            theme: themeText
           };
         })
         .filter(Boolean);
@@ -449,7 +451,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     {rating && <span className={ratingColor}>Оценка {rating}</span>}
                   </div>
                   {item.text ? (
-                    <div className="italic">"{item.text}"</div>
+                    <div className="text-slate-100 leading-relaxed">"{item.text}"</div>
                   ) : (
                     <div className="space-y-2">
                       <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider border ${getCsatHeatClass(rating)}`}>
@@ -457,7 +459,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                         <span>Оценка {rating || '-'}</span>
                       </div>
                       <div className="text-slate-500/80 italic text-[12px] leading-snug line-clamp-2">
-                        {item.title || 'Тема обращения не передана в JSON'}
+                        Тема: {item.theme || 'не передана в JSON'}
                       </div>
                     </div>
                   )}
