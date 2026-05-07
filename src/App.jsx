@@ -1955,7 +1955,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
 
 // --- ВКЛАДКА: НОВЫЙ СТАТУС-ОТЧЕТ (ELITE REPORT) ---
 
-const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek, projectTasks, setProjectTasks }) => {
+const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek, projectTasks, setProjectTasks, csatReviews }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
   
@@ -2317,6 +2317,50 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
          return [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, closedHtml, `${p.avgTimeMin || 0} мин.`, getContextStringHtml(p.taskContext), formatCSAT(p.csat)];
       });
 
+      const csatFeedbackItems = sortedIncPerformers.flatMap(p => {
+        const details = Array.isArray(p.csatDetails) ? p.csatDetails : [];
+        return details
+          .map(item => {
+            const id = normalizeIncidentKey(item.id);
+            const rating = Number(item.rating) || 0;
+            if (!id || rating <= 0 || rating >= 5) return null;
+            const reviewText = safeString(csatReviews?.[id]).trim();
+            const themeText = safeString(item.theme || item.title || item.topic || item.summary).trim();
+            return {
+              id,
+              rating,
+              engineer: getFullName(p.name),
+              text: reviewText,
+              theme: themeText
+            };
+          })
+          .filter(Boolean);
+      }).sort((a, b) => a.rating - b.rating);
+
+      const csatFeedbackHtml = csatFeedbackItems.length > 0 ? `
+        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">CSAT: оценки ниже 5</h3>
+        <div style="margin-bottom: 22px;">
+          ${csatFeedbackItems.slice(0, 8).map(item => {
+            const isDanger = item.rating <= 3;
+            const borderColor = isDanger ? '#ef4444' : '#f59e0b';
+            const bgColor = isDanger ? '#fef2f2' : '#fffbeb';
+            const textColor = isDanger ? '#991b1b' : '#92400e';
+            const payloadHtml = item.text
+              ? `<div style="font-size: 13px; color: #0f172a; line-height: 1.45; margin-top: 6px;">"${safeString(item.text)}"</div>`
+              : `<div style="font-size: 12px; color: #64748b; line-height: 1.45; margin-top: 6px; font-style: italic;">Тема: ${safeString(item.theme || 'не передана в JSON')}</div>`;
+            return `
+              <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-left: 4px solid ${borderColor}; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 800; color: ${textColor};">
+                  <span>${item.id} · ${safeString(item.engineer)}</span>
+                  <span>Оценка ${item.rating}</span>
+                </div>
+                ${payloadHtml}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : '';
+
       // БЛОК ТОП-3 ИНЦИДЕНТОВ С ПРАВИЛЬНЫМИ ПРОЦЕНТАМИ
       const topIncidentsHtml = top3.map((inc, idx) => {
         const count = Number(inc.count) || 0;
@@ -2502,6 +2546,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
             <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
             ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'Профиль', 'CSAT'], incRows.slice(0, 5))}
+            ${csatFeedbackHtml}
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
             ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
@@ -3326,7 +3371,7 @@ const App = () => {
     switch(activeTab) {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} />;
-      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} />;
+      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
       case 'achievements': return <AchievementsBoard achievements={achievements} />;
