@@ -1436,6 +1436,32 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     let insights = [];
     let firstLineMissed = 0;
     let firstLineTotal = 0;
+    const effectiveTotalIncClosed = (jiraData || []).reduce((sum, p) => sum + (Number(p.closed) || 0), 0) || (Number(totalIncClosed) || 0);
+    const normalizePersonName = (name) => safeString(name).toLowerCase().replace(/ё/g, 'е').replace(/[^а-яa-z\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+    const getPersonTokens = (name) => normalizePersonName(name).split(/[\s-]+/).filter(part => part.length > 1);
+    const findJiraPerformer = (operatorName) => {
+        const opTokens = getPersonTokens(operatorName);
+        if (opTokens.length === 0 || !jiraData || jiraData.length === 0) return null;
+
+        const candidates = jiraData.map(p => ({
+            performer: p,
+            tokens: getPersonTokens(getFullName(p.name)),
+            rawTokens: getPersonTokens(p.name)
+        }));
+
+        const exact = candidates.find(c => {
+            const allTokens = [...new Set([...c.tokens, ...c.rawTokens])];
+            return opTokens.length >= 2 && opTokens.every(token => allTokens.includes(token));
+        });
+        if (exact) return exact.performer;
+
+        if (opTokens.length === 1) {
+            const bySingleToken = candidates.filter(c => [...new Set([...c.tokens, ...c.rawTokens])].includes(opTokens[0]));
+            return bySingleToken.length === 1 ? bySingleToken[0].performer : null;
+        }
+
+        return null;
+    };
     
     // --- НОВАЯ ЛОГИКА: ИЩЕМ АБСОЛЮТНОГО ЛИДЕРА ---
     let topPerformer = null;
@@ -1464,11 +1490,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             firstLineTotal += op.total;
             firstLineMissed += op.missed; 
 
-            // БЕРЕМ ИМЕННО ФАМИЛИЮ ДЛЯ ПОИСКА (ФИКС "ТРОЙНОГО МАКСИМА")
-            let nameParts = op.name.trim().split(' ');
-            let searchName = nameParts.length > 1 ? nameParts[1] : nameParts[0]; 
-
-            let perf = jiraData?.find(p => getFullName(p.name).toLowerCase().includes(searchName.toLowerCase()) || p.name.toLowerCase().includes(searchName.toLowerCase()));
+            let perf = findJiraPerformer(op.name);
             let closedTickets = perf ? perf.closed : 0;
 
             if (op.missed > 0) {
@@ -1490,14 +1512,12 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             }
         } else {
             // Вторая линия (помощь).
-            let nameParts2 = op.name.trim().split(' ');
-            let searchName2 = nameParts2.length > 1 ? nameParts2[1] : nameParts2[0];
-            let perf2 = jiraData?.find(p => getFullName(p.name).toLowerCase().includes(searchName2.toLowerCase()) || p.name.toLowerCase().includes(searchName2.toLowerCase()));
+            let perf2 = findJiraPerformer(op.name);
             let closedTickets = perf2 ? perf2.closed : 0;
 
             if (closedTickets >= 10 || op.answered > 10) {
                 // ПРОВЕРКА НА АВАРИЮ (МАССОВЫЙ СБОЙ)
-                if (totalIncClosed >= 300) {
+                if (effectiveTotalIncClosed >= 300) {
                     insights.push(`🛡️ ${op.name} (2 линия): Помощь 1-й линии при аварии (>300 тикетов). Отвечено на ${op.answered} звонков, закрыто ${closedTickets} инцидентов. Драйвер: ${topIncName}. Оправдано!`);
                 } else {
                     insights.push(`⚠️ ${op.name} (2 линия): Отвлечение на 1-ю линию (отвечено на ${op.answered} звонков, закрыто ${closedTickets} инцидентов). Аварий нет (<300 тикетов). Риск срыва планового спринта!`);
@@ -2220,6 +2240,57 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
          return fName !== TEAM_LEAD_NAME && row.name !== TEAM_LEAD_ID && !String(row.name).includes('Виктор');
       });
 
+      const buildReportTelephonyInsight = () => {
+        if (!visibleTelephony || visibleTelephony.length === 0) return safeString(weekData.telephonyInsight);
+        const normalizePersonName = (name) => safeString(name).toLowerCase().replace(/ё/g, 'е').replace(/[^а-яa-z\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+        const getPersonTokens = (name) => normalizePersonName(name).split(/[\s-]+/).filter(part => part.length > 1);
+        const findJiraPerformer = (operatorName) => {
+          const opTokens = getPersonTokens(operatorName);
+          if (opTokens.length === 0) return null;
+          const candidates = sortedIncPerformers.map(p => ({
+            performer: p,
+            tokens: getPersonTokens(getFullName(p.name)),
+            rawTokens: getPersonTokens(p.name)
+          }));
+          const exact = candidates.find(c => {
+            const allTokens = [...new Set([...c.tokens, ...c.rawTokens])];
+            return opTokens.length >= 2 && opTokens.every(token => allTokens.includes(token));
+          });
+          if (exact) return exact.performer;
+          if (opTokens.length === 1) {
+            const bySingleToken = candidates.filter(c => [...new Set([...c.tokens, ...c.rawTokens])].includes(opTokens[0]));
+            return bySingleToken.length === 1 ? bySingleToken[0].performer : null;
+          }
+          return null;
+        };
+
+        let missed = 0;
+        let total = 0;
+        const lines = [];
+        const effectiveTotalIncClosed = sortedIncPerformers.reduce((sum, p) => sum + (Number(p.closed) || 0), 0) || totalIncidents;
+
+        visibleTelephony.forEach(op => {
+          total += Number(op.total) || 0;
+          missed += Number(op.missed) || 0;
+          const perf = findJiraPerformer(op.name);
+          const closedTickets = perf ? (Number(perf.closed) || 0) : 0;
+          if ((Number(op.missed) || 0) > 0) {
+            if (closedTickets >= 80) {
+              lines.push(`🔥 ${op.name}: Пропущено ${op.missed} вызовов. Причина: перегруз (закрыто ${closedTickets} инцидентов).`);
+            } else if (closedTickets >= 50) {
+              lines.push(`⚠️ ${op.name}: Норма в Jira выполнена (${closedTickets}), но есть пропущенные вызовы (${op.missed}).`);
+            } else {
+              lines.push(`⚠️ ${op.name}: закрыто ${closedTickets} инцидентов, пропущено ${op.missed} вызовов. Взять на контроль.`);
+            }
+          }
+        });
+
+        const header = missed > 0
+          ? `⚠️ Внимание: потеряно ${missed} вызовов на 1-й линии (из ${total} общих). Закрыто инцидентов по Jira: ${effectiveTotalIncClosed}.\n`
+          : `✅ Отличная работа: 1-я линия отработала без пропущенных вызовов. Закрыто инцидентов по Jira: ${effectiveTotalIncClosed}.\n`;
+        return header + (lines.length > 0 ? lines.join('\n') : 'Отклонений в дисциплине и перегрузок на 1-й линии не выявлено.');
+      };
+
       const renderProgressBar = (value, max, color) => {
         const percentage = Math.min(Math.round((value / max) * 100), 100);
         return `
@@ -2338,9 +2409,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       }).sort((a, b) => a.rating - b.rating);
 
       const csatFeedbackHtml = csatFeedbackItems.length > 0 ? `
-        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">CSAT: оценки ниже 5</h3>
-        <div style="margin-bottom: 22px;">
-          ${csatFeedbackItems.slice(0, 8).map(item => {
+        <div class="csat-hover-wrap">
+          <span class="csat-summary-pill">CSAT ниже 5: ${csatFeedbackItems.length}</span>
+          <div class="csat-popover">
+            <div style="font-weight: 800; color: #0f172a; font-size: 13px; margin-bottom: 8px;">Оценки ниже 5</div>
+            ${csatFeedbackItems.slice(0, 8).map(item => {
             const isDanger = item.rating <= 3;
             const borderColor = isDanger ? '#ef4444' : '#f59e0b';
             const bgColor = isDanger ? '#fef2f2' : '#fffbeb';
@@ -2357,7 +2430,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 ${payloadHtml}
               </div>
             `;
-          }).join('')}
+            }).join('')}
+          </div>
         </div>
       ` : '';
 
@@ -2419,10 +2493,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         </div>
       `;
       
-      const telephonyInsightHtml = weekData.telephonyInsight ? `
+      const reportTelephonyInsight = buildReportTelephonyInsight();
+      const telephonyInsightHtml = reportTelephonyInsight ? `
         <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px; color: #92400e; margin-bottom: 30px;">
           <div style="font-weight: bold; margin-bottom: 5px;">🤖 Анализ телефонии и выгорания:</div>
-          <div style="white-space: pre-wrap;">${safeString(weekData.telephonyInsight)}</div>
+          <div style="white-space: pre-wrap;">${safeString(reportTelephonyInsight)}</div>
         </div>
       ` : '';
 
@@ -2503,6 +2578,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--accent); padding-left: 10px; margin: 40px 0 15px 0; text-transform: uppercase; color: #0f172a; }
           .editable-box { background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; padding: 15px; font-size: 13px; color: #92400e; margin-bottom: 30px; font-style: italic; text-align: center; }
           .incident-card { background: #f8fafc; border-left: 3px solid #f59e0b; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+          .csat-hover-wrap { display: inline-block; position: relative; margin: 8px 0 18px 0; }
+          .csat-summary-pill { display: inline-block; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 999px; padding: 5px 10px; color: #475569; font-size: 12px; font-weight: 800; cursor: default; }
+          .csat-popover { display: none; position: absolute; z-index: 20; left: 0; top: 30px; width: 620px; max-height: 360px; overflow-y: auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18); padding: 14px; }
+          .csat-hover-wrap:hover .csat-popover { display: block; }
           ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
           ul.custom-list li { margin-bottom: 6px; }
         </style>
