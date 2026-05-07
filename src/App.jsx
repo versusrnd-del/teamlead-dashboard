@@ -1541,14 +1541,14 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
   };
 
   return (
-    <div className="animate-in fade-in duration-500 max-w-4xl pb-24 text-left">
+    <div className="animate-in fade-in duration-500 max-w-5xl pb-24 text-left">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
         <div><h1 className="text-3xl font-bold text-white tracking-tight mb-1 uppercase tracking-tighter">Заполнить неделю</h1><p className="text-slate-400 text-sm">Ввод метрик вручную или загрузка результатов анализа Jira</p></div>
         <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
       </div>
 
       {/* БЛОКИ ИМПОРТА */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 gap-6 mb-8">
         {/* ИМПОРТ JIRA */}
         <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
@@ -1559,10 +1559,11 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             <textarea 
               value={importJson} onChange={(e) => setImportJson(e.target.value)}
               placeholder='Вставь сюда сгенерированный JSON...'
-              className="w-full h-20 bg-slate-900/80 border border-indigo-500/30 rounded-lg p-3 text-indigo-100 text-xs font-mono focus:border-indigo-400 outline-none resize-none placeholder:text-indigo-400/30 custom-scrollbar"
+              className="w-full h-44 bg-slate-900/80 border border-indigo-500/30 rounded-lg p-3 text-indigo-100 text-xs font-mono focus:border-indigo-400 outline-none resize-y placeholder:text-indigo-400/30 custom-scrollbar"
             ></textarea>
             <div className="flex flex-wrap items-center gap-3">
               <button type="button" onClick={handleImportData} disabled={!importJson.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><DownloadCloud size={14} /> Загрузить JSON</button>
+              <button type="button" onClick={() => { setImportJson(''); setImportStatus(null); }} disabled={!importJson.trim()} className="bg-slate-800 hover:bg-slate-700 disabled:bg-slate-800/50 disabled:text-slate-600 border border-slate-600 disabled:border-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><Trash2 size={14} /> Очистить поле</button>
               
               {/* КНОПКА ОЧИСТКИ ЗАДАЧ */}
               <button type="button" onClick={() => {
@@ -1593,10 +1594,11 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             <textarea 
               value={importTelephonyText} onChange={(e) => setImportTelephonyText(e.target.value)}
               placeholder='Оператор    Входящие вызовы    Всего...'
-              className="w-full h-20 bg-slate-900/80 border border-sky-500/30 rounded-lg p-3 text-sky-100 text-xs font-mono focus:border-sky-400 outline-none resize-none placeholder:text-sky-400/30 custom-scrollbar"
+              className="w-full h-44 bg-slate-900/80 border border-sky-500/30 rounded-lg p-3 text-sky-100 text-xs font-mono focus:border-sky-400 outline-none resize-y placeholder:text-sky-400/30 custom-scrollbar"
             ></textarea>
             <div className="flex flex-wrap items-center gap-3">
               <button type="button" onClick={handleTelephonyImport} disabled={!importTelephonyText.trim()} className="bg-sky-600 hover:bg-sky-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><DownloadCloud size={14} /> Обработать звонки</button>
+              <button type="button" onClick={() => { setImportTelephonyText(''); setTelephonyStatus(null); }} disabled={!importTelephonyText.trim()} className="bg-slate-800 hover:bg-slate-700 disabled:bg-slate-800/50 disabled:text-slate-600 border border-slate-600 disabled:border-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><Trash2 size={14} /> Очистить поле</button>
               {telephonyStatus === 'success' && <span className="text-emerald-400 text-xs font-bold flex items-center gap-1"><Check size={14}/> Загружено!</span>}
               {telephonyStatus === 'error' && <span className="text-red-400 text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> Не удалось распознать текст.</span>}
             </div>
@@ -1613,10 +1615,11 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             <textarea 
               value={importCsatText} onChange={(e) => setImportCsatText(e.target.value)}
               placeholder='04/мая/26 15:50спасибо большоеIS-257386...'
-              className="w-full h-20 bg-slate-900/80 border border-emerald-500/30 rounded-lg p-3 text-emerald-100 text-xs font-mono focus:border-emerald-400 outline-none resize-none placeholder:text-emerald-400/30 custom-scrollbar"
+              className="w-full h-44 bg-slate-900/80 border border-emerald-500/30 rounded-lg p-3 text-emerald-100 text-xs font-mono focus:border-emerald-400 outline-none resize-y placeholder:text-emerald-400/30 custom-scrollbar"
             ></textarea>
             <div className="flex flex-wrap items-center gap-3">
               <button type="button" onClick={handleCsatReviewsImport} disabled={!importCsatText.trim()} className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><DownloadCloud size={14} /> Обработать отзывы</button>
+              <button type="button" onClick={() => { setImportCsatText(''); setCsatImportStatus(null); }} disabled={!importCsatText.trim()} className="bg-slate-800 hover:bg-slate-700 disabled:bg-slate-800/50 disabled:text-slate-600 border border-slate-600 disabled:border-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><Trash2 size={14} /> Очистить поле</button>
               {csatImportStatus?.type === 'success' && <span className="text-emerald-400 text-xs font-bold flex items-center gap-1"><Check size={14}/> Найдено: {csatImportStatus.count}</span>}
               {csatImportStatus?.type === 'error' && <span className="text-red-400 text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> Отзывы не найдены.</span>}
             </div>
