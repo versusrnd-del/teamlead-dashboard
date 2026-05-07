@@ -109,6 +109,60 @@ const safeString = (val) => {
   return String(val);
 };
 
+const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const normalizeIncidentKey = (value) => safeString(value).trim().toUpperCase();
+
+const cleanCsatReviewText = (value) => {
+  let text = safeString(value);
+  text = text.replace(/\b\d{1,2}\/[А-ЯЁа-яёA-Za-z]{3,12}\/\d{2,4}\s*\d{1,2}:\d{2}\b/g, ' ');
+  text = text.replace(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\s*\d{1,2}:\d{2}\b/g, ' ');
+  text = text.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
+  text = text.replace(/\bIS-\d+\b/gi, ' ');
+  text = text.replace(/\b(u\d+|obe1?|rem|mvol|tea1|dbog)\b/gi, ' ');
+  Object.values(USER_DICTIONARY).forEach(name => {
+    const cleanName = safeString(name).trim();
+    if (cleanName.length > 2) {
+      text = text.replace(new RegExp(escapeRegExp(cleanName), 'gi'), ' ');
+    }
+  });
+  text = text.replace(/[\t\r\n]+/g, ' ');
+  text = text.replace(/\s{2,}/g, ' ').trim();
+  text = text.replace(/^[\s:;.,'"«»\-–—]+|[\s:;.,'"«»\-–—]+$/g, '');
+  const servicePatterns = [
+    /^получено$/i,
+    /^агент$/i,
+    /^оценка$/i,
+    /^комментарий$/i,
+    /^удовлетворенность$/i,
+    /^нет комментария$/i,
+    /^без комментария$/i
+  ];
+  if (!text || servicePatterns.some(pattern => pattern.test(text))) return '';
+  return text;
+};
+
+const parseCsatReviewsFromText = (rawText) => {
+  const source = safeString(rawText);
+  const keyRegex = /IS-\d+/gi;
+  const boundaryRegex = /\b\d{1,2}\/[А-ЯЁа-яёA-Za-z]{3,12}\/\d{2,4}\s*\d{1,2}:\d{2}\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\s*\d{1,2}:\d{2}\b|\b\d{1,2}:\d{2}\b/g;
+  const matches = [...source.matchAll(keyRegex)];
+  const parsed = {};
+  matches.forEach((match, index) => {
+    const key = normalizeIncidentKey(match[0]);
+    const prevEnd = index > 0 ? matches[index - 1].index + matches[index - 1][0].length : 0;
+    let rawBlock = source.slice(prevEnd, match.index);
+    const boundaries = [...rawBlock.matchAll(boundaryRegex)];
+    if (boundaries.length > 0) {
+      const lastBoundary = boundaries[boundaries.length - 1];
+      rawBlock = rawBlock.slice(lastBoundary.index + lastBoundary[0].length);
+    }
+    const reviewText = cleanCsatReviewText(rawBlock);
+    if (key && reviewText) parsed[key] = reviewText;
+  });
+  return parsed;
+};
+
 const formatCSAT = (val) => {
   if (val === null || val === undefined) return '0.0';
   const num = Number(val);
@@ -227,7 +281,7 @@ const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData, weeksHis
 
 // --- ВКЛАДКА: ПУЛЬС КОМАНДЫ ---
 
-const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect }) => {
+const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, csatReviews }) => {
   const sortedKeys = [...historyKeys].sort();
   const currentIndex = sortedKeys.indexOf(selectedWeekKey);
   const prevWeekKey = currentIndex > 0 ? sortedKeys[currentIndex - 1] : null;
@@ -299,6 +353,37 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   
   const cycleVal = Number(weekData.avgCycleTime) || 0;
   const cycleColor = cycleVal > 14 ? 'text-red-400' : (cycleVal > 7 ? 'text-amber-400' : 'text-emerald-400');
+
+  const getCsatHeatClass = (rating) => {
+    const numericRating = Number(rating);
+    if (numericRating > 0 && numericRating <= 3) return 'bg-red-500/15 border-red-500/40 text-red-100';
+    if (numericRating === 4) return 'bg-amber-500/15 border-amber-500/40 text-amber-100';
+    return 'bg-slate-900/60 border-slate-700/50 text-slate-200';
+  };
+
+  const buildCsatTooltipItems = (perf) => {
+    const details = Array.isArray(perf.csatDetails) ? perf.csatDetails : [];
+    if (details.length > 0) {
+      return details
+        .map((item) => {
+          const id = normalizeIncidentKey(item.id);
+          if (!id) return null;
+          return {
+            id,
+            rating: Number(item.rating) || null,
+            text: safeString(csatReviews?.[id]).trim()
+          };
+        })
+        .filter(Boolean);
+    }
+
+    const comments = Array.isArray(perf.csatComments) ? perf.csatComments : [];
+    return comments.map((comment, index) => ({
+      id: `legacy-${index}`,
+      rating: null,
+      text: safeString(comment).trim()
+    })).filter(item => item.text);
+  };
 
   const getContextBadge = (context, options = {}) => {
     if (!context || context.trim() === '') return <span className="text-slate-600">-</span>;
@@ -742,8 +827,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     const droppedList = Array.isArray(perf.droppedTasks) ? perf.droppedTasks : [];
                     const droppedCount = droppedList.length > 0 ? droppedList.length : (Number(perf.droppedTasks) || 0);
 
-                    // Обработка отзывов пользователей
-                    const csatCommentsList = Array.isArray(perf.csatComments) ? perf.csatComments : [];
+                    // Обработка отзывов пользователей: новый справочник IS -> отзыв + fallback на старый JSON
+                    const csatTooltipItems = buildCsatTooltipItems(perf);
 
                     return (
                       <tr key={idx} className="hover:bg-slate-900/30 transition-colors">
@@ -826,13 +911,21 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                           <div className="group relative flex items-center justify-center gap-1 cursor-help">
                             <Star size={14} className={Number(perf.csat) >= 4.8 ? "text-amber-400 fill-amber-400" : Number(perf.csat) >= 4.0 ? "text-amber-400" : "text-slate-500"} />
                             <span className={Number(perf.csat) >= 4.8 ? "text-amber-400 font-bold" : "text-slate-300"}>{formatCSAT(perf.csat)}</span>
-                            {csatCommentsList.length > 0 && (
+                            {csatTooltipItems.length > 0 && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[450px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                                 <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
                                   <div className="font-bold text-emerald-400 mb-2 border-b border-slate-700 pb-2 text-sm">Отзывы пользователей:</div>
                                   <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
-                                    {csatCommentsList.map((comment, i) => (
-                                      <div key={i} className="leading-relaxed bg-slate-900/60 p-3 rounded-lg whitespace-pre-wrap italic text-[13px]">"{comment}"</div>
+                                    {csatTooltipItems.map((item, i) => (
+                                      <div key={`${item.id}-${i}`} className={`leading-relaxed p-3 rounded-lg border whitespace-pre-wrap text-[13px] ${getCsatHeatClass(item.rating)}`}>
+                                        <div className="flex items-center justify-between gap-3 mb-1.5 text-[11px] uppercase tracking-wider font-bold">
+                                          <span className="text-slate-300">{item.id.startsWith('legacy-') ? 'Старый отзыв' : item.id}</span>
+                                          {item.rating && <span className={Number(item.rating) <= 3 ? 'text-red-300' : Number(item.rating) === 4 ? 'text-amber-300' : 'text-emerald-300'}>Оценка {item.rating}</span>}
+                                        </div>
+                                        <div className={item.text ? 'italic' : 'text-slate-500'}>
+                                          {item.text ? `"${item.text}"` : 'текст отзыва не загружен'}
+                                        </div>
+                                      </div>
                                     ))}
                                   </div>
                                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
@@ -1137,11 +1230,14 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
 // --- ВКЛАДКА: ЗАПОЛНИТЬ НЕДЕЛЮ ---
 
-const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSaveWeek, setProfiles, setTasksArchive, weeksHistory }) => {
+const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSaveWeek, setProfiles, setTasksArchive, weeksHistory, csatReviews, setCsatReviews }) => {
   const [formData, setFormData] = useState(weekData);
   const [isSaved, setIsSaved] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importStatus, setImportStatus] = useState(null);
+  const [importCsatText, setImportCsatText] = useState('');
+  const [csatImportStatus, setCsatImportStatus] = useState(null);
+  const [lastCsatPreview, setLastCsatPreview] = useState([]);
 
   // Новый стейт для телефонии
   const [importTelephonyText, setImportTelephonyText] = useState('');
@@ -1414,6 +1510,27 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     }
   };
 
+  const handleCsatReviewsImport = () => {
+    try {
+      const parsedReviews = parseCsatReviewsFromText(importCsatText);
+      const entries = Object.entries(parsedReviews);
+      if (entries.length === 0) {
+        setCsatImportStatus({ type: 'error', count: 0 });
+        setTimeout(() => setCsatImportStatus(null), 3000);
+        return;
+      }
+
+      setCsatReviews(prev => ({ ...(prev || {}), ...parsedReviews }));
+      setLastCsatPreview(entries.slice(-5).reverse());
+      setCsatImportStatus({ type: 'success', count: entries.length });
+      setImportCsatText('');
+      setTimeout(() => setCsatImportStatus(null), 4000);
+    } catch (e) {
+      setCsatImportStatus({ type: 'error', count: 0 });
+      setTimeout(() => setCsatImportStatus(null), 3000);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const cleanedIncidents = (formData.topIncidents || []).filter(inc => safeString(inc.name).trim() !== '' || (Number(inc.count) || 0) > 0);
@@ -1431,7 +1548,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
       </div>
 
       {/* БЛОКИ ИМПОРТА */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
         {/* ИМПОРТ JIRA */}
         <div className="bg-indigo-900/20 p-6 rounded-xl border border-indigo-500/40 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Sparkles size={80} className="text-indigo-400" /></div>
@@ -1483,6 +1600,41 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
               {telephonyStatus === 'success' && <span className="text-emerald-400 text-xs font-bold flex items-center gap-1"><Check size={14}/> Загружено!</span>}
               {telephonyStatus === 'error' && <span className="text-red-400 text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> Не удалось распознать текст.</span>}
             </div>
+          </div>
+        </div>
+
+        {/* ИМПОРТ CSAT-ОТЗЫВОВ */}
+        <div className="bg-emerald-900/20 p-6 rounded-xl border border-emerald-500/40 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Star size={80} className="text-emerald-400" /></div>
+          <h3 className="text-lg font-bold text-white mb-2 relative z-10 flex items-center gap-2"><Star size={20} className="text-emerald-400" /> Импорт отзывов CSAT</h3>
+          <p className="text-xs text-emerald-200/70 mb-4 relative z-10">Вставьте сырую копипасту из отчета удовлетворенности Jira. Сохраняется только связка IS-номер - текст.</p>
+          
+          <div className="relative z-10 space-y-3">
+            <textarea 
+              value={importCsatText} onChange={(e) => setImportCsatText(e.target.value)}
+              placeholder='04/мая/26 15:50спасибо большоеIS-257386...'
+              className="w-full h-20 bg-slate-900/80 border border-emerald-500/30 rounded-lg p-3 text-emerald-100 text-xs font-mono focus:border-emerald-400 outline-none resize-none placeholder:text-emerald-400/30 custom-scrollbar"
+            ></textarea>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={handleCsatReviewsImport} disabled={!importCsatText.trim()} className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><DownloadCloud size={14} /> Обработать отзывы</button>
+              {csatImportStatus?.type === 'success' && <span className="text-emerald-400 text-xs font-bold flex items-center gap-1"><Check size={14}/> Найдено: {csatImportStatus.count}</span>}
+              {csatImportStatus?.type === 'error' && <span className="text-red-400 text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> Отзывы не найдены.</span>}
+            </div>
+            {lastCsatPreview.length > 0 && (
+              <div className="bg-slate-900/50 border border-emerald-500/20 rounded-lg p-3 max-h-32 overflow-y-auto custom-scrollbar">
+                <div className="text-[10px] uppercase tracking-wider text-emerald-300/70 font-bold mb-2">Последние найденные</div>
+                <div className="space-y-2">
+                  {lastCsatPreview.map(([id, text]) => (
+                    <div key={id} className="text-[11px] leading-snug">
+                      <span className="text-emerald-300 font-bold">{id}</span>
+                      <span className="text-slate-400"> - </span>
+                      <span className="text-slate-300">{text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="text-[10px] text-emerald-200/50">В справочнике: {Object.keys(csatReviews || {}).length}</div>
           </div>
         </div>
       </div>
@@ -2931,6 +3083,7 @@ const App = () => {
   const [achievements, setAchievements] = useState(() => { try { const saved = localStorage.getItem('teamlead_achievements_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultAchievements; });
   const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_profiles_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProfiles; });
   const [tasksArchive, setTasksArchive] = useState(() => { try { const saved = localStorage.getItem('teamlead_tasks_archive_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
+  const [csatReviews, setCsatReviews] = useState(() => { try { const saved = localStorage.getItem('teamlead_csat_reviews_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return {}; });
   
   // НОВЫЙ ГЛОБАЛЬНЫЙ СТЕЙТ ПРОЕКТНЫХ ПОРУЧЕНИЙ РУКОВОДСТВА
   const [projectTasks, setProjectTasks] = useState(() => { try { const saved = localStorage.getItem('teamlead_project_tasks_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
@@ -2959,6 +3112,7 @@ const App = () => {
         const profRow = cloudData.find(r => r.key_name === 'profiles'); if (profRow) setProfiles(profRow.value_data);
         const taskRow = cloudData.find(r => r.key_name === 'tasks_archive'); if (taskRow) setTasksArchive(taskRow.value_data);
         const projTaskRow = cloudData.find(r => r.key_name === 'project_tasks'); if (projTaskRow) setProjectTasks(projTaskRow.value_data);
+        const csatRow = cloudData.find(r => r.key_name === 'csat_reviews'); if (csatRow) setCsatReviews(csatRow.value_data || {});
       }
 
       // 2. ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ (АВТОРИЗАЦИЯ)
@@ -3047,6 +3201,7 @@ const App = () => {
   useEffect(() => { saveToDb('tasks_archive', tasksArchive, 'teamlead_tasks_archive_v8'); }, [tasksArchive]);
   useEffect(() => { saveToDb('auth_users', authUsers, 'teamlead_auth_v8'); }, [authUsers]);
   useEffect(() => { saveToDb('project_tasks', projectTasks, 'teamlead_project_tasks_v8'); }, [projectTasks]);
+  useEffect(() => { saveToDb('csat_reviews', csatReviews, 'teamlead_csat_reviews_v8'); }, [csatReviews]);
 
   // ФУНКЦИИ АВТОРИЗАЦИИ
   const handleLogin = async (username, password) => {
@@ -3098,8 +3253,8 @@ const App = () => {
 
   const renderContent = () => {
     switch(activeTab) {
-      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
-      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} />;
+      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} />;
+      case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} />;
       case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
