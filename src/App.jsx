@@ -2101,8 +2101,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         ...(prev || {}),
         [cleanId]: {
           ...previous,
+          id: cleanId,
           title: safeString(title).trim() || previous.title || cleanId,
-          priority: cleanPriority
+          priority: cleanPriority,
+          updatedAt: new Date().toISOString()
         }
       };
     });
@@ -2120,8 +2122,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         ...(prev || {}),
         [cleanId]: {
           ...previous,
+          id: cleanId,
           title: safeString(title).trim() || previous.title || cleanId,
-          complexity: cleanComplexity
+          complexity: cleanComplexity,
+          updatedAt: new Date().toISOString()
         }
       };
     });
@@ -2139,8 +2143,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         ...(prev || {}),
         [cleanId]: {
           ...previous,
+          id: cleanId,
           title: safeString(title).trim() || previous.title || cleanId,
-          workType: cleanWorkType
+          workType: cleanWorkType,
+          updatedAt: new Date().toISOString()
         }
       };
     });
@@ -2182,12 +2188,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       .filter(item => item && item.title)
       .map(item => {
         const entry = {
+          id: safeString(item.id),
           task: safeString(item.title),
           type: normalizeTaskPriority(item.priority)
         };
         const complexity = normalizeTaskSize(item.complexity);
         if (complexity) entry.complexity = complexity;
         if (safeString(item.workType).trim().toUpperCase() === 'IDM') entry.workType = 'IDM';
+        if (item.updatedAt) entry.updatedAt = safeString(item.updatedAt);
         return entry;
       });
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -2809,13 +2817,82 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             : `${p.closed || 0}`;
          return [`${getFullName(p.name)} ${getBurnoutBadge(p.wip, p.closed, 'task')}`, p.wip || 0, closedHtml, `${p.avgTimeMin || 0} дн.`, getContextStringHtml(p.taskContext)];
       });
+
+      const buildReportCsatItems = (perf) => {
+        const details = Array.isArray(perf.csatDetails) ? perf.csatDetails : [];
+        if (details.length > 0) {
+          return details
+            .map(item => {
+              const id = normalizeIncidentKey(item.id);
+              if (!id) return null;
+              const linkedTask = (weekData.detailedTasks || []).find(t => normalizeIncidentKey(t.id) === id);
+              const reviewText = safeString(csatReviews?.[id]).trim();
+              const themeText = safeString(item.theme || item.title || item.topic || item.summary || linkedTask?.title).trim();
+              return {
+                id,
+                rating: Number(item.rating) || null,
+                text: reviewText,
+                theme: themeText
+              };
+            })
+            .filter(Boolean);
+        }
+
+        const legacyComments = Array.isArray(perf.csatComments) ? perf.csatComments : [];
+        return legacyComments
+          .map((comment, index) => ({
+            id: `legacy-${index + 1}`,
+            rating: Number(perf.csat) || null,
+            text: safeString(comment).trim(),
+            theme: ''
+          }))
+          .filter(item => item.text);
+      };
+
+      const renderReportCsatCell = (perf) => {
+        const score = formatCSAT(perf.csat);
+        const items = buildReportCsatItems(perf);
+        if (items.length === 0) return score;
+
+        const itemsHtml = items.map(item => {
+          const rating = Number(item.rating) || null;
+          const isDanger = rating > 0 && rating <= 3;
+          const isWarning = rating === 4;
+          const borderColor = isDanger ? '#ef4444' : (isWarning ? '#f59e0b' : '#10b981');
+          const bgColor = isDanger ? '#fef2f2' : (isWarning ? '#fffbeb' : '#f8fafc');
+          const textColor = isDanger ? '#991b1b' : (isWarning ? '#92400e' : '#0f172a');
+          const payloadHtml = item.text
+            ? `<div style="font-size: 12px; color: #0f172a; line-height: 1.45; margin-top: 6px; white-space: pre-wrap;">"${escapeHtml(item.text)}"</div>`
+            : `<div style="font-size: 11px; color: #64748b; line-height: 1.45; margin-top: 6px; font-style: italic;">Тема: ${escapeHtml(item.theme || 'не передана в JSON')}</div>`;
+
+          return `
+            <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-left: 4px solid ${borderColor}; border-radius: 6px; padding: 9px 10px; margin-bottom: 8px; text-align: left;">
+              <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 800; color: ${textColor};">
+                <span>${escapeHtml(item.id)}</span>
+                <span>Оценка ${rating || score}</span>
+              </div>
+              ${payloadHtml}
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="report-csat-cell">
+            <span class="report-csat-score">⭐ ${score}</span>
+            <div class="report-csat-popover">
+              <div style="font-weight: 800; color: #0f172a; font-size: 13px; margin-bottom: 8px; text-align: left;">Отзывы пользователей</div>
+              ${itemsHtml}
+            </div>
+          </div>
+        `;
+      };
       
       const incRows = sortedIncPerformers.map(p => {
          const droppedCount = Array.isArray(p.droppedTasks) ? p.droppedTasks.length : (Number(p.droppedTasks) || 0);
          const closedHtml = droppedCount > 0 
             ? `${p.closed || 0}<br/><span style="font-size: 10px; color: #94a3b8; font-weight: normal;">(-${droppedCount} безд.)</span>`
             : `${p.closed || 0}`;
-         return [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, closedHtml, `${p.avgTimeMin || 0} мин.`, getContextStringHtml(p.taskContext), formatCSAT(p.csat)];
+         return [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, closedHtml, `${p.avgTimeMin || 0} мин.`, getContextStringHtml(p.taskContext), renderReportCsatCell(p)];
       });
 
       const csatFeedbackItems = sortedIncPerformers.flatMap(p => {
@@ -3049,6 +3126,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .csat-summary-pill { display: inline-block; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 999px; padding: 5px 10px; color: #475569; font-size: 12px; font-weight: 800; cursor: default; }
           .csat-popover { display: none; position: absolute; z-index: 20; left: 0; top: 30px; width: 620px; max-height: 360px; overflow-y: auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18); padding: 14px; }
           .csat-hover-wrap:hover .csat-popover { display: block; }
+          .report-csat-cell { display: inline-block; position: relative; cursor: default; }
+          .report-csat-score { display: inline-flex; align-items: center; gap: 3px; color: #0f172a; font-weight: 800; white-space: nowrap; }
+          .report-csat-popover { display: none; position: absolute; z-index: 40; right: 0; top: 24px; width: 520px; max-height: 340px; overflow-y: auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22); padding: 14px; }
+          .report-csat-cell:hover .report-csat-popover { display: block; }
           .value-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
           .value-card { border: 1px solid #e2e8f0; border-top: 4px solid #64748b; border-radius: 8px; padding: 12px; min-height: 120px; }
           ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
@@ -4069,4 +4150,3 @@ const App = () => {
 };
 
 export default App;
-
