@@ -2055,10 +2055,29 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     return normalizeTaskPriority(memoryPriority || task?.priority || task?.valuePriority || 'Standard');
   };
 
+  const getTaskMemoryEntry = (task) => {
+    const taskId = safeString(task?.id).trim();
+    return taskId ? aiTaskMemory?.[taskId] : null;
+  };
+
   const getTaskComplexity = (task) => {
     const taskId = safeString(task?.id).trim();
     const memoryComplexity = taskId ? aiTaskMemory?.[taskId]?.complexity : null;
     return normalizeTaskSize(memoryComplexity || task?.size || task?.complexity);
+  };
+
+  const getTaskReportBucket = (task) => {
+    const priority = getTaskPriority(task);
+    const complexity = getTaskComplexity(task);
+    if (priority === 'Impact' || complexity === 'L' || complexity === 'XL') return 'main';
+    if (priority === 'Routine' || complexity === 'S') return 'ktlo';
+    return 'main';
+  };
+
+  const getTaskReportBucketLabel = (task) => {
+    return getTaskReportBucket(task) === 'ktlo'
+      ? { label: 'В отчете: KTLO', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' }
+      : { label: 'В отчете: основной блок', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' };
   };
 
   const handleSetTaskPriority = (taskId, title, priority) => {
@@ -2098,6 +2117,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     setIsDirty(false);
   };
 
+  const handleClearTaskMemory = (taskId) => {
+    const cleanId = safeString(taskId).trim();
+    if (!cleanId) return;
+    setAiTaskMemory(prev => {
+      const next = { ...(prev || {}) };
+      delete next[cleanId];
+      return next;
+    });
+    setIsDirty(false);
+  };
+
   const handleDownloadAiMemory = () => {
     const payload = Object.values(aiTaskMemory || {})
       .filter(item => item && item.title)
@@ -2124,9 +2154,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     if (!taskId) return '';
     const activePriority = getTaskPriority(task);
     const options = [
-      { value: 'Impact', label: '🌟 Важное' },
-      { value: 'Standard', label: '⚙️ Обычное' },
-      { value: 'Routine', label: '🪫 Рутина' }
+      { value: 'Impact', label: '🌟 Важное', color: '#f59e0b' },
+      { value: 'Standard', label: '⚙️ Обычное', color: '#334155' },
+      { value: 'Routine', label: '🪫 Рутина', color: '#64748b' }
     ];
     return `
       <div class="no-print ai-priority-controls" contenteditable="false" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px 0;">
@@ -2137,7 +2167,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               data-task-priority="${option.value}"
               data-task-id="${escapeHtml(taskId)}"
               data-task-title="${escapeHtml(task.title)}"
-              style="border: 1px solid ${active ? '#0f172a' : '#cbd5e1'}; background: ${active ? '#0f172a' : '#ffffff'}; color: ${active ? '#ffffff' : '#475569'}; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+              style="border: 1px solid ${active ? option.color : '#cbd5e1'}; background: ${active ? option.color : '#ffffff'}; color: ${active ? '#ffffff' : '#475569'}; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
               ${option.label}
             </button>
           `;
@@ -2170,6 +2200,33 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </button>
           `;
         }).join('')}
+      </div>
+    `;
+  };
+
+  const renderMemoryStatusControls = (task) => {
+    const taskId = safeString(task.id).trim();
+    if (!taskId || !getTaskMemoryEntry(task)) return '';
+    return `
+      <div class="no-print ai-memory-status" contenteditable="false" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px 0;">
+        <span style="display: inline-flex; align-items: center; gap: 5px; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em;">
+          🧠 Добавлена в память
+        </span>
+        <button type="button"
+          data-task-memory-clear="true"
+          data-task-id="${escapeHtml(taskId)}"
+          style="border: 1px solid #fecaca; background: #ffffff; color: #dc2626; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+          Сбросить память
+        </button>
+      </div>
+    `;
+  };
+
+  const renderReportBucketBadge = (task) => {
+    const bucket = getTaskReportBucketLabel(task);
+    return `
+      <div class="no-print ai-report-bucket" contenteditable="false" style="display: inline-flex; align-items: center; margin: 0 0 10px 0; background: ${bucket.bg}; color: ${bucket.color}; border: 1px solid ${bucket.border}; border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em;">
+        ${bucket.label}
       </div>
     `;
   };
@@ -2366,8 +2423,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
 
   // --- ДАННЫЕ ДЛЯ ОТЧЕТА ---
-  const getReportHtmlString = () => {
+  const getReportHtmlString = (options = {}) => {
     try {
+      const exportMode = Boolean(options.exportMode);
       const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
       const top3 = sortedIncidents.slice(0, 3);
       const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
@@ -2423,8 +2481,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             return idB - idA;
         });
 
-      const keyDetailedTasks = completedDetailedTasks.filter(task => getTaskPriority(task) !== 'Routine');
-      const routineDetailedTasks = completedDetailedTasks.filter(task => getTaskPriority(task) === 'Routine');
+      const keyDetailedTasks = exportMode
+        ? completedDetailedTasks.filter(task => getTaskReportBucket(task) === 'main')
+        : completedDetailedTasks;
+      const routineDetailedTasks = exportMode
+        ? completedDetailedTasks.filter(task => getTaskReportBucket(task) === 'ktlo')
+        : [];
 
       // Фильтруем Тимлида из Телефонии
       const visibleTelephony = (weekData.telephonyData || []).filter(row => {
@@ -2836,15 +2898,23 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           : '';
 
         // Выбираем цвет полоски (Синяя если от руководства, красная если долг, иначе базовая серая)
-        const borderColor = isMgmtTask ? '#2563eb' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8');
+        const memoryEntry = getTaskMemoryEntry(t);
+        const taskPriority = getTaskPriority(t);
+        const memoryBorderColor = taskPriority === 'Impact' ? '#f59e0b' : (taskPriority === 'Routine' ? '#64748b' : '#334155');
+        const memoryBgColor = taskPriority === 'Impact' ? '#fffbeb' : (taskPriority === 'Routine' ? '#f8fafc' : '#f8fafc');
+        const memoryFrameColor = taskPriority === 'Impact' ? '#fde68a' : (taskPriority === 'Routine' ? '#cbd5e1' : '#cbd5e1');
+        const borderColor = memoryEntry ? memoryBorderColor : (isMgmtTask ? '#2563eb' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8'));
+        const cardBgStyle = memoryEntry ? `background: ${memoryBgColor}; border: 1px solid ${memoryFrameColor}; border-radius: 8px; padding: 12px 12px 12px 14px;` : '';
 
         return `
-          <div style="margin-bottom: 20px; border-left: 3px solid ${borderColor}; padding-left: 14px; padding-bottom: 5px;">
+          <div style="margin-bottom: 20px; border-left: 4px solid ${borderColor}; padding-left: 14px; padding-bottom: 5px; ${cardBgStyle}">
              <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px;">
                <span style="color: #3b82f6;">${t.id}</span>: ${safeString(t.title)}
              </div>
-             ${renderPriorityControls(t)}
-             ${renderComplexityControls(t)}
+             ${exportMode ? '' : renderPriorityControls(t)}
+             ${exportMode ? '' : renderComplexityControls(t)}
+             ${exportMode ? '' : renderMemoryStatusControls(t)}
+             ${exportMode ? '' : renderReportBucketBadge(t)}
              <div style="font-size: 12px; color: #64748b; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
                <span>Исполнитель: <span style="font-weight: 600; color: #1e293b;">${getFullName(t.assignee)}</span></span>
                <span style="color: #cbd5e1;">|</span>
@@ -2866,8 +2936,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <span style="font-weight: 800; color: #475569;">${escapeHtml(t.id)}</span>
               <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
               <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
-              ${renderPriorityControls(t)}
-              ${renderComplexityControls(t)}
+              ${exportMode ? '' : renderPriorityControls(t)}
+              ${exportMode ? '' : renderComplexityControls(t)}
             </li>
           `).join('')}
         </ul>
@@ -3019,14 +3089,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const handleAiMemoryClick = (event) => {
       const priorityButton = event.target.closest('[data-task-priority]');
       const complexityButton = event.target.closest('[data-task-complexity]');
-      const button = priorityButton || complexityButton;
+      const clearButton = event.target.closest('[data-task-memory-clear]');
+      const button = priorityButton || complexityButton || clearButton;
       if (!button || !reportEl.contains(button)) return;
       event.preventDefault();
       event.stopPropagation();
       if (priorityButton) {
         handleSetTaskPriority(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskPriority);
-      } else {
+      } else if (complexityButton) {
         handleSetTaskComplexity(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskComplexity);
+      } else {
+        handleClearTaskMemory(button.dataset.taskId);
       }
     };
     reportEl.addEventListener('click', handleAiMemoryClick);
@@ -3036,7 +3109,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   // Функция для очистки HTML перед экспортом
   const getCleanHtml = () => {
     if (!reportRef.current) return '';
-    const clone = reportRef.current.cloneNode(true);
+    const clone = document.createElement('div');
+    clone.innerHTML = weekData.isReportFrozen && weekData.customReportHtml
+      ? reportRef.current.innerHTML
+      : getReportHtmlString({ exportMode: true });
     
     // Удаляем элементы, которые не должны попасть в экспорт (кнопки +, селекты цветов)
     const noPrints = clone.querySelectorAll('.no-print');
