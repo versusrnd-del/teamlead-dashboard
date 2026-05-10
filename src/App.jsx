@@ -127,6 +127,18 @@ const escapeHtml = (value) => safeString(value)
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#039;');
 
+const normalizeTaskSize = (value) => {
+  const raw = safeString(value).trim();
+  if (!raw) return '';
+  const upper = raw.toUpperCase();
+  const normalized = raw.toLowerCase().replace(/[^a-zа-яё0-9]/gi, '');
+  if (upper === 'XL' || normalized.includes('xlarge') || normalized.includes('extra') || normalized.includes('тяж') || normalized.includes('стар') || normalized.includes('долг')) return 'XL';
+  if (upper === 'L' || normalized.includes('large') || normalized.includes('слож') || normalized.includes('круп')) return 'L';
+  if (upper === 'M' || normalized.includes('medium') || normalized.includes('сред')) return 'M';
+  if (upper === 'S' || normalized.includes('small') || normalized.includes('легк') || normalized.includes('прост') || normalized.includes('быстр')) return 'S';
+  return '';
+};
+
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const normalizeIncidentKey = (value) => safeString(value).trim().toUpperCase();
@@ -299,7 +311,7 @@ const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData, weeksHis
 
 // --- ВКЛАДКА: ПУЛЬС КОМАНДЫ ---
 
-const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, csatReviews }) => {
+const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, csatReviews, aiTaskMemory }) => {
   const sortedKeys = [...historyKeys].sort();
   const currentIndex = sortedKeys.indexOf(selectedWeekKey);
   const prevWeekKey = currentIndex > 0 ? sortedKeys[currentIndex - 1] : null;
@@ -364,6 +376,21 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       case 'XL': return 'bg-red-500 text-red-400 border-red-500/30';
       default: return 'bg-slate-500 text-slate-400 border-slate-500/30';
     }
+  };
+
+  const isClosedTask = (task) => task && (task.status === 'Закрыт' || task.status === 'Готово' || task.status === 'Resolved' || task.status === 'Завершен' || task.resolved);
+  const getTaskSize = (task) => {
+    const taskId = safeString(task?.id).trim();
+    const memorySize = taskId ? aiTaskMemory?.[taskId]?.complexity : null;
+    return normalizeTaskSize(memorySize || task?.size || task?.complexity || task?.name);
+  };
+  const closedDetailedTasks = (weekData.detailedTasks || []).filter(isClosedTask);
+  const hasDetailedSizingForPulse = closedDetailedTasks.some(task => getTaskSize(task));
+  const defaultSizeDescriptions = {
+    S: 'Быстрые точечные задачи: короткие настройки, хосты, доступы и типовая эксплуатация.',
+    M: 'Средние задачи с несколькими шагами: доступы, рабочие места, уточнение параметров и координация.',
+    L: 'Крупные прикладные и инфраструктурные работы: обновления ОС, серверы, DNS, сеть и терминальная среда.',
+    XL: 'Тяжелые задачи и старый технический долг: миграции, мониторинг, регламенты, модернизация и долгие хвосты.'
   };
 
   const reopenVal = Number(weekData.reopenRate) || 0;
@@ -764,24 +791,22 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       )}
 
       {/* ТРУДОЕМКОСТЬ СПРИНТА (T-Shirt Sizing) И ТИПЫ РАБОТ */}
-      {(weekData.taskComplexity?.length > 0 || weekData.sprintWin || weekData.sprintRisk || weekData.shieldHero || weekData.taskTypesDistribution?.length > 0) && (
+      {(weekData.taskComplexity?.length > 0 || hasDetailedSizingForPulse || weekData.sprintWin || weekData.sprintRisk || weekData.shieldHero || weekData.taskTypesDistribution?.length > 0) && (
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
           
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
             <div className="xl:col-span-2">
-              {weekData.taskComplexity && weekData.taskComplexity.length > 0 && (
+              {(weekData.taskComplexity?.length > 0 || hasDetailedSizingForPulse) && (
                 <>
                   <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><Layers size={20} className="text-indigo-400" /> Трудоемкость выполненных задач (T-Shirt Sizing)</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {['S', 'M', 'L', 'XL'].map((size) => {
                       // ЗАЩИТА ОТ ГАЛЛЮЦИНАЦИЙ ИИ: проверяем оба ключа (size и name)
-                      const taskInfo = weekData.taskComplexity.find(t => t.size === size || t.name === size);
-                      const count = taskInfo ? Number(taskInfo.count) : 0;
-                      const desc = taskInfo ? safeString(taskInfo.description) : 'Задач такого размера не было';
+                      const taskInfo = (weekData.taskComplexity || []).find(t => normalizeTaskSize(t.size || t.name) === size);
+                      const tasksOfSize = closedDetailedTasks.filter(t => getTaskSize(t) === size);
+                      const count = hasDetailedSizingForPulse ? tasksOfSize.length : (taskInfo ? Number(taskInfo.count) : 0);
+                      const desc = taskInfo ? safeString(taskInfo.description) : defaultSizeDescriptions[size];
                       
-                      // Фильтруем задачи этого размера для всплывающего окна
-                      const tasksOfSize = (weekData.detailedTasks || []).filter(t => t.size === size && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved));
-
                       return (
                         <div key={size} className={`group relative p-4 rounded-xl border flex flex-col ${count > 0 ? 'bg-slate-900/80 border-slate-700/50 shadow-inner hover:border-indigo-500/50 transition-colors cursor-help' : 'bg-slate-900/30 border-slate-800/50 opacity-50'}`}>
                           <div className="flex justify-between items-start mb-2">
@@ -855,7 +880,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           </div>
 
           {(weekData.sprintWin || weekData.sprintRisk || weekData.shieldHero) && (
-            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch ${weekData.taskComplexity?.length > 0 ? 'pt-6 border-t border-slate-700/50' : ''}`}>
+            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch ${(weekData.taskComplexity?.length > 0 || hasDetailedSizingForPulse) ? 'pt-6 border-t border-slate-700/50' : ''}`}>
                {weekData.sprintWin && (
                  <div className="bg-emerald-500/5 p-4 rounded-lg border border-emerald-500/20 h-full flex flex-col">
                    <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><CheckCircle size={14}/> Победа спринта</h4>
@@ -2030,27 +2055,61 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     return normalizeTaskPriority(memoryPriority || task?.priority || task?.valuePriority || 'Standard');
   };
 
+  const getTaskComplexity = (task) => {
+    const taskId = safeString(task?.id).trim();
+    const memoryComplexity = taskId ? aiTaskMemory?.[taskId]?.complexity : null;
+    return normalizeTaskSize(memoryComplexity || task?.size || task?.complexity);
+  };
+
   const handleSetTaskPriority = (taskId, title, priority) => {
     const cleanId = safeString(taskId).trim();
     if (!cleanId) return;
     const cleanPriority = normalizeTaskPriority(priority);
-    setAiTaskMemory(prev => ({
-      ...(prev || {}),
-      [cleanId]: {
-        title: safeString(title).trim(),
-        priority: cleanPriority
-      }
-    }));
+    setAiTaskMemory(prev => {
+      const previous = (prev || {})[cleanId] || {};
+      return {
+        ...(prev || {}),
+        [cleanId]: {
+          ...previous,
+          title: safeString(title).trim() || previous.title || cleanId,
+          priority: cleanPriority
+        }
+      };
+    });
+    setIsDirty(false);
+  };
+
+  const handleSetTaskComplexity = (taskId, title, complexity) => {
+    const cleanId = safeString(taskId).trim();
+    if (!cleanId) return;
+    const cleanComplexity = normalizeTaskSize(complexity);
+    if (!cleanComplexity) return;
+    setAiTaskMemory(prev => {
+      const previous = (prev || {})[cleanId] || {};
+      return {
+        ...(prev || {}),
+        [cleanId]: {
+          ...previous,
+          title: safeString(title).trim() || previous.title || cleanId,
+          complexity: cleanComplexity
+        }
+      };
+    });
     setIsDirty(false);
   };
 
   const handleDownloadAiMemory = () => {
     const payload = Object.values(aiTaskMemory || {})
       .filter(item => item && item.title)
-      .map(item => ({
-        task: safeString(item.title),
-        type: normalizeTaskPriority(item.priority)
-      }));
+      .map(item => {
+        const entry = {
+          task: safeString(item.title),
+          type: normalizeTaskPriority(item.priority)
+        };
+        const complexity = normalizeTaskSize(item.complexity);
+        if (complexity) entry.complexity = complexity;
+        return entry;
+      });
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2079,6 +2138,34 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               data-task-id="${escapeHtml(taskId)}"
               data-task-title="${escapeHtml(task.title)}"
               style="border: 1px solid ${active ? '#0f172a' : '#cbd5e1'}; background: ${active ? '#0f172a' : '#ffffff'}; color: ${active ? '#ffffff' : '#475569'}; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+              ${option.label}
+            </button>
+          `;
+        }).join('')}
+      </div>
+    `;
+  };
+
+  const renderComplexityControls = (task) => {
+    const taskId = safeString(task.id).trim();
+    if (!taskId) return '';
+    const activeComplexity = getTaskComplexity(task);
+    const options = [
+      { value: 'S', label: 'S Легкая', color: '#10b981' },
+      { value: 'M', label: 'M Средняя', color: '#3b82f6' },
+      { value: 'L', label: 'L Сложная', color: '#f97316' },
+      { value: 'XL', label: 'XL Тяжелая', color: '#ef4444' }
+    ];
+    return `
+      <div class="no-print ai-complexity-controls" contenteditable="false" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px 0;">
+        ${options.map(option => {
+          const active = activeComplexity === option.value;
+          return `
+            <button type="button"
+              data-task-complexity="${option.value}"
+              data-task-id="${escapeHtml(taskId)}"
+              data-task-title="${escapeHtml(task.title)}"
+              style="border: 1px solid ${active ? option.color : '#cbd5e1'}; background: ${active ? option.color : '#ffffff'}; color: ${active ? '#ffffff' : '#475569'}; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
               ${option.label}
             </button>
           `;
@@ -2757,6 +2844,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                <span style="color: #3b82f6;">${t.id}</span>: ${safeString(t.title)}
              </div>
              ${renderPriorityControls(t)}
+             ${renderComplexityControls(t)}
              <div style="font-size: 12px; color: #64748b; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
                <span>Исполнитель: <span style="font-weight: 600; color: #1e293b;">${getFullName(t.assignee)}</span></span>
                <span style="color: #cbd5e1;">|</span>
@@ -2779,6 +2867,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
               <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
               ${renderPriorityControls(t)}
+              ${renderComplexityControls(t)}
             </li>
           `).join('')}
         </ul>
@@ -2927,15 +3016,21 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   useEffect(() => {
     const reportEl = reportRef.current;
     if (!reportEl) return;
-    const handlePriorityClick = (event) => {
-      const button = event.target.closest('[data-task-priority]');
+    const handleAiMemoryClick = (event) => {
+      const priorityButton = event.target.closest('[data-task-priority]');
+      const complexityButton = event.target.closest('[data-task-complexity]');
+      const button = priorityButton || complexityButton;
       if (!button || !reportEl.contains(button)) return;
       event.preventDefault();
       event.stopPropagation();
-      handleSetTaskPriority(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskPriority);
+      if (priorityButton) {
+        handleSetTaskPriority(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskPriority);
+      } else {
+        handleSetTaskComplexity(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskComplexity);
+      }
     };
-    reportEl.addEventListener('click', handlePriorityClick);
-    return () => reportEl.removeEventListener('click', handlePriorityClick);
+    reportEl.addEventListener('click', handleAiMemoryClick);
+    return () => reportEl.removeEventListener('click', handleAiMemoryClick);
   }, [aiTaskMemory]);
 
   // Функция для очистки HTML перед экспортом
@@ -3697,7 +3792,7 @@ const App = () => {
 
   const renderContent = () => {
     switch(activeTab) {
-      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} />;
+      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} />;
       case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
