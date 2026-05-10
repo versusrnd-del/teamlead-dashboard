@@ -3082,28 +3082,91 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         `;
       };
 
-      const detailedTasksHtmlRendered = keyDetailedTasks.map(renderDetailedTaskCard).join('');
+      const renderTaskGroup = ({ title, subtitle, accent, background = '#ffffff', tasks }) => {
+        if (!tasks || tasks.length === 0) return '';
+        return `
+          <div class="task-group" style="--group-accent: ${accent}; background: ${background};">
+            <div class="task-group-header">
+              <div>
+                <div class="task-group-title">${escapeHtml(title)}</div>
+                <div class="task-group-subtitle">${escapeHtml(subtitle)}</div>
+              </div>
+              <div class="task-group-count">${tasks.length}</div>
+            </div>
+            <div class="task-group-body">
+              ${tasks.map(renderDetailedTaskCard).join('')}
+            </div>
+          </div>
+        `;
+      };
+
+      const renderMainTaskGroups = (tasks) => {
+        const importantTasks = tasks.filter(t => getTaskPriority(t) === 'Impact');
+        const heavyTasks = tasks.filter(t => getTaskPriority(t) !== 'Impact' && ['L', 'XL'].includes(getTaskComplexity(t)));
+        const standardTasks = tasks.filter(t => getTaskPriority(t) !== 'Impact' && !['L', 'XL'].includes(getTaskComplexity(t)));
+
+        return [
+          renderTaskGroup({
+            title: 'Ключевые и важные',
+            subtitle: 'Высокая ценность, заметный эффект для руководства или бизнеса',
+            accent: '#f59e0b',
+            background: '#fffbeb',
+            tasks: importantTasks
+          }),
+          renderTaskGroup({
+            title: 'Трудоемкие изменения',
+            subtitle: 'Сложные L/XL задачи, требующие отдельного внимания в отчете',
+            accent: '#f97316',
+            background: '#fff7ed',
+            tasks: heavyTasks
+          }),
+          renderTaskGroup({
+            title: 'Стандартные задачи',
+            subtitle: 'Обычные закрытые работы, которые поддерживают основной поток',
+            accent: '#3b82f6',
+            background: '#eff6ff',
+            tasks: standardTasks
+          })
+        ].join('');
+      };
+
+      const detailedTasksHtmlRendered = exportMode
+        ? renderMainTaskGroups(keyDetailedTasks)
+        : keyDetailedTasks.map(renderDetailedTaskCard).join('');
 
       const idmTasksHtmlRendered = idmDetailedTasks.length > 0 ? `
         <div class="section-title" style="--accent: #7c3aed;">Задачи по IDM</div>
-        <div>
-          ${idmDetailedTasks.map(renderDetailedTaskCard).join('')}
-        </div>
+        ${exportMode ? renderTaskGroup({
+          title: 'IDM / роли и доступы',
+          subtitle: 'Отдельный поток задач по ролям, доступам, IDM CUSTOM и ролевой модели',
+          accent: '#7c3aed',
+          background: '#f5f3ff',
+          tasks: idmDetailedTasks
+        }) : `<div>${idmDetailedTasks.map(renderDetailedTaskCard).join('')}</div>`}
       ` : '';
 
       const routineTasksHtmlRendered = routineDetailedTasks.length > 0 ? `
         <div class="section-title" style="--accent: #94a3b8;">Фоновая поддержка (KTLO)</div>
-        <ul style="margin: 0 0 20px 18px; padding: 0; color: #64748b; font-size: 11px; line-height: 1.45;">
-          ${routineDetailedTasks.map(t => `
-            <li style="margin-bottom: 7px;">
-              <span style="font-weight: 800; color: #475569;">${escapeHtml(t.id)}</span>
-              <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
-              <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
-              ${exportMode ? '' : renderPriorityControls(t)}
-              ${exportMode ? '' : renderComplexityControls(t)}
-            </li>
-          `).join('')}
-        </ul>
+        <div class="task-group task-group-compact" style="--group-accent: #94a3b8; background: #f8fafc;">
+          <div class="task-group-header">
+            <div>
+              <div class="task-group-title">Рутинные и легкие задачи</div>
+              <div class="task-group-subtitle">S-задачи и рутина: видимы, но не забивают список ключевых результатов</div>
+            </div>
+            <div class="task-group-count">${routineDetailedTasks.length}</div>
+          </div>
+          <ul style="margin: 12px 0 0 18px; padding: 0; color: #64748b; font-size: 11px; line-height: 1.45;">
+            ${routineDetailedTasks.map(t => `
+              <li style="margin-bottom: 7px;">
+                <span style="font-weight: 800; color: #475569;">${escapeHtml(t.id)}</span>
+                <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
+                <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
+                ${exportMode ? '' : renderPriorityControls(t)}
+                ${exportMode ? '' : renderComplexityControls(t)}
+              </li>
+            `).join('')}
+          </ul>
+        </div>
       ` : '';
 
       let sectionCounter = 1;
@@ -3132,6 +3195,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .report-csat-cell:hover .report-csat-popover { display: block; }
           .value-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
           .value-card { border: 1px solid #e2e8f0; border-top: 4px solid #64748b; border-radius: 8px; padding: 12px; min-height: 120px; }
+          .task-group { border: 1px solid #e2e8f0; border-left: 5px solid var(--group-accent); border-radius: 10px; padding: 14px 16px; margin: 16px 0 18px 0; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06); }
+          .task-group-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.35); padding-bottom: 10px; margin-bottom: 12px; }
+          .task-group-title { color: #0f172a; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
+          .task-group-subtitle { color: #64748b; font-size: 12px; margin-top: 2px; }
+          .task-group-count { flex-shrink: 0; color: var(--group-accent); background: #ffffff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 900; }
+          .task-group-body > div:last-child { margin-bottom: 0 !important; }
+          .task-group-compact { box-shadow: none; }
           ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
           ul.custom-list li { margin-bottom: 6px; }
         </style>
