@@ -2066,7 +2066,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     return normalizeTaskSize(memoryComplexity || task?.size || task?.complexity);
   };
 
+  const getTaskWorkType = (task) => {
+    const taskId = safeString(task?.id).trim();
+    const memoryWorkType = taskId ? aiTaskMemory?.[taskId]?.workType : null;
+    const raw = safeString(memoryWorkType || task?.workType || task?.taskType || '').trim().toUpperCase();
+    if (raw === 'IDM') return 'IDM';
+    return '';
+  };
+
   const getTaskReportBucket = (task) => {
+    const workType = getTaskWorkType(task);
+    if (workType === 'IDM') return 'idm';
     const priority = getTaskPriority(task);
     const complexity = getTaskComplexity(task);
     if (priority === 'Impact' || complexity === 'L' || complexity === 'XL') return 'main';
@@ -2075,9 +2085,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   };
 
   const getTaskReportBucketLabel = (task) => {
-    return getTaskReportBucket(task) === 'ktlo'
-      ? { label: 'В отчете: KTLO', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' }
-      : { label: 'В отчете: основной блок', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' };
+    const bucket = getTaskReportBucket(task);
+    if (bucket === 'idm') return { label: 'В отчете: IDM', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' };
+    if (bucket === 'ktlo') return { label: 'В отчете: KTLO', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' };
+    return { label: 'В отчете: основной блок', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' };
   };
 
   const handleSetTaskPriority = (taskId, title, priority) => {
@@ -2117,6 +2128,44 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     setIsDirty(false);
   };
 
+  const handleSetTaskWorkType = (taskId, title, workType) => {
+    const cleanId = safeString(taskId).trim();
+    if (!cleanId) return;
+    const cleanWorkType = safeString(workType).trim().toUpperCase();
+    if (cleanWorkType !== 'IDM') return;
+    setAiTaskMemory(prev => {
+      const previous = (prev || {})[cleanId] || {};
+      return {
+        ...(prev || {}),
+        [cleanId]: {
+          ...previous,
+          title: safeString(title).trim() || previous.title || cleanId,
+          workType: cleanWorkType
+        }
+      };
+    });
+    setIsDirty(false);
+  };
+
+  const handleClearTaskWorkType = (taskId) => {
+    const cleanId = safeString(taskId).trim();
+    if (!cleanId) return;
+    setAiTaskMemory(prev => {
+      const previous = (prev || {})[cleanId];
+      if (!previous) return prev || {};
+      const nextEntry = { ...previous };
+      delete nextEntry.workType;
+      const next = { ...(prev || {}) };
+      if (nextEntry.priority || nextEntry.complexity) {
+        next[cleanId] = nextEntry;
+      } else {
+        delete next[cleanId];
+      }
+      return next;
+    });
+    setIsDirty(false);
+  };
+
   const handleClearTaskMemory = (taskId) => {
     const cleanId = safeString(taskId).trim();
     if (!cleanId) return;
@@ -2138,6 +2187,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         };
         const complexity = normalizeTaskSize(item.complexity);
         if (complexity) entry.complexity = complexity;
+        if (safeString(item.workType).trim().toUpperCase() === 'IDM') entry.workType = 'IDM';
         return entry;
       });
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -2200,6 +2250,31 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </button>
           `;
         }).join('')}
+      </div>
+    `;
+  };
+
+  const renderWorkTypeControls = (task) => {
+    const taskId = safeString(task.id).trim();
+    if (!taskId) return '';
+    const activeWorkType = getTaskWorkType(task);
+    return `
+      <div class="no-print ai-worktype-controls" contenteditable="false" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px 0;">
+        <button type="button"
+          data-task-work-type="IDM"
+          data-task-id="${escapeHtml(taskId)}"
+          data-task-title="${escapeHtml(task.title)}"
+          style="border: 1px solid ${activeWorkType === 'IDM' ? '#7c3aed' : '#cbd5e1'}; background: ${activeWorkType === 'IDM' ? '#7c3aed' : '#ffffff'}; color: ${activeWorkType === 'IDM' ? '#ffffff' : '#475569'}; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+          🪪 IDM
+        </button>
+        ${activeWorkType === 'IDM' ? `
+          <button type="button"
+            data-task-work-type-clear="true"
+            data-task-id="${escapeHtml(taskId)}"
+            style="border: 1px solid #ddd6fe; background: #ffffff; color: #7c3aed; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+            Снять IDM
+          </button>
+        ` : ''}
       </div>
     `;
   };
@@ -2484,6 +2559,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const keyDetailedTasks = exportMode
         ? completedDetailedTasks.filter(task => getTaskReportBucket(task) === 'main')
         : completedDetailedTasks;
+      const idmDetailedTasks = exportMode
+        ? completedDetailedTasks.filter(task => getTaskReportBucket(task) === 'idm')
+        : [];
       const routineDetailedTasks = exportMode
         ? completedDetailedTasks.filter(task => getTaskReportBucket(task) === 'ktlo')
         : [];
@@ -2913,6 +2991,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
              </div>
              ${exportMode ? '' : renderPriorityControls(t)}
              ${exportMode ? '' : renderComplexityControls(t)}
+             ${exportMode ? '' : renderWorkTypeControls(t)}
              ${exportMode ? '' : renderMemoryStatusControls(t)}
              ${exportMode ? '' : renderReportBucketBadge(t)}
              <div style="font-size: 12px; color: #64748b; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
@@ -2927,6 +3006,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       };
 
       const detailedTasksHtmlRendered = keyDetailedTasks.map(renderDetailedTaskCard).join('');
+
+      const idmTasksHtmlRendered = idmDetailedTasks.length > 0 ? `
+        <div class="section-title" style="--accent: #7c3aed;">Задачи по IDM</div>
+        <div>
+          ${idmDetailedTasks.map(renderDetailedTaskCard).join('')}
+        </div>
+      ` : '';
 
       const routineTasksHtmlRendered = routineDetailedTasks.length > 0 ? `
         <div class="section-title" style="--accent: #94a3b8;">Фоновая поддержка (KTLO)</div>
@@ -3043,6 +3129,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 ${detailedTasksHtmlRendered}
               </div>
             ` : (completedDetailedTasks.length > 0 ? '<p style="font-size: 13px; color: #64748b; font-style: italic;">Все закрытые задачи помечены как фоновая поддержка и вынесены в KTLO-блок.</p>' : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>')}
+            ${idmTasksHtmlRendered}
 
             <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
             
@@ -3089,8 +3176,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const handleAiMemoryClick = (event) => {
       const priorityButton = event.target.closest('[data-task-priority]');
       const complexityButton = event.target.closest('[data-task-complexity]');
+      const workTypeButton = event.target.closest('[data-task-work-type]');
+      const workTypeClearButton = event.target.closest('[data-task-work-type-clear]');
       const clearButton = event.target.closest('[data-task-memory-clear]');
-      const button = priorityButton || complexityButton || clearButton;
+      const button = priorityButton || complexityButton || workTypeButton || workTypeClearButton || clearButton;
       if (!button || !reportEl.contains(button)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -3098,6 +3187,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         handleSetTaskPriority(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskPriority);
       } else if (complexityButton) {
         handleSetTaskComplexity(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskComplexity);
+      } else if (workTypeButton) {
+        handleSetTaskWorkType(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskWorkType);
+      } else if (workTypeClearButton) {
+        handleClearTaskWorkType(button.dataset.taskId);
       } else {
         handleClearTaskMemory(button.dataset.taskId);
       }
@@ -3976,3 +4069,4 @@ const App = () => {
 };
 
 export default App;
+
