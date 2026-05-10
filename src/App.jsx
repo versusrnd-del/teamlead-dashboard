@@ -102,12 +102,30 @@ const getFullName = (login) => {
   return foundKey ? USER_DICTIONARY[foundKey] : login;
 };
 
+const isKnownTeamMember = (value) => {
+  const raw = safeString(value).trim();
+  if (!raw) return false;
+  const normalized = raw.toLowerCase();
+  const knownLogin = Object.keys(USER_DICTIONARY).some(k => k.toLowerCase() === normalized);
+  const knownName = Object.values(USER_DICTIONARY).some(name => name.toLowerCase() === normalized);
+  const fullName = getFullName(raw);
+  const knownFullName = Object.values(USER_DICTIONARY).some(name => name.toLowerCase() === safeString(fullName).toLowerCase());
+  return knownLogin || knownName || knownFullName;
+};
+
 const safeString = (val) => {
   if (val === null || val === undefined) return '';
   if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(' ');
   if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
 };
+
+const escapeHtml = (value) => safeString(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
 
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -1400,12 +1418,25 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
           if (!parsedData.staleBacklog || parsedData.staleBacklog.length === 0) finalData.staleBacklog = formData.staleBacklog;
       }
 
-      // УМНОЕ СЛИЯНИЕ МАССИВОВ ДЕТАЛЬНЫХ ЗАДАЧ
+      // detailedTasks для task-импорта заменяют текущую неделю, чтобы повторная загрузка не раздувала отчет.
+      // Для смешанных JSON оставляем старое безопасное слияние.
       let mergedDetailedTasks = formData.detailedTasks || [];
       if (parsedData.detailedTasks && Array.isArray(parsedData.detailedTasks)) {
-         const existingIds = new Set(mergedDetailedTasks.map(t => t.id));
-         const newTasks = parsedData.detailedTasks.filter(t => t.id && !existingIds.has(t.id));
-         mergedDetailedTasks = [...newTasks, ...mergedDetailedTasks];
+         const seenImportedIds = new Set();
+         const importedDetailedTasks = parsedData.detailedTasks.filter(t => {
+            const id = safeString(t.id).trim();
+            if (!id || seenImportedIds.has(id)) return false;
+            seenImportedIds.add(id);
+            return true;
+         });
+
+         if (isTasksImport && !isIncidentsImport) {
+            mergedDetailedTasks = importedDetailedTasks;
+         } else {
+            const existingIds = new Set(mergedDetailedTasks.map(t => safeString(t.id).trim()).filter(Boolean));
+            const newTasks = importedDetailedTasks.filter(t => !existingIds.has(safeString(t.id).trim()));
+            mergedDetailedTasks = [...newTasks, ...mergedDetailedTasks];
+         }
       }
       finalData.detailedTasks = mergedDetailedTasks;
 
@@ -1975,7 +2006,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
 
 // --- ВКЛАДКА: НОВЫЙ СТАТУС-ОТЧЕТ (ELITE REPORT) ---
 
-const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek, projectTasks, setProjectTasks, csatReviews }) => {
+const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek, projectTasks, setProjectTasks, csatReviews, aiTaskMemory, setAiTaskMemory }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
   
@@ -1985,6 +2016,76 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const [newTaskColor, setNewTaskColor] = useState('#10b981'); // Зеленый по умолчанию
 
   const reportRef = useRef(null);
+
+  const normalizeTaskPriority = (value) => {
+    const raw = safeString(value).trim().toLowerCase();
+    if (raw === 'impact' || raw === 'важное' || raw === 'important' || raw === 'high') return 'Impact';
+    if (raw === 'routine' || raw === 'рутина' || raw === 'ktlo' || raw === 'low') return 'Routine';
+    return 'Standard';
+  };
+
+  const getTaskPriority = (task) => {
+    const taskId = safeString(task?.id).trim();
+    const memoryPriority = taskId ? aiTaskMemory?.[taskId]?.priority : null;
+    return normalizeTaskPriority(memoryPriority || task?.priority || task?.valuePriority || 'Standard');
+  };
+
+  const handleSetTaskPriority = (taskId, title, priority) => {
+    const cleanId = safeString(taskId).trim();
+    if (!cleanId) return;
+    const cleanPriority = normalizeTaskPriority(priority);
+    setAiTaskMemory(prev => ({
+      ...(prev || {}),
+      [cleanId]: {
+        title: safeString(title).trim(),
+        priority: cleanPriority
+      }
+    }));
+    setIsDirty(false);
+  };
+
+  const handleDownloadAiMemory = () => {
+    const payload = Object.values(aiTaskMemory || {})
+      .filter(item => item && item.title)
+      .map(item => ({
+        task: safeString(item.title),
+        type: normalizeTaskPriority(item.priority)
+      }));
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ai_weights_config.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const renderPriorityControls = (task) => {
+    const taskId = safeString(task.id).trim();
+    if (!taskId) return '';
+    const activePriority = getTaskPriority(task);
+    const options = [
+      { value: 'Impact', label: '🌟 Важное' },
+      { value: 'Standard', label: '⚙️ Обычное' },
+      { value: 'Routine', label: '🪫 Рутина' }
+    ];
+    return `
+      <div class="no-print ai-priority-controls" contenteditable="false" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px 0;">
+        ${options.map(option => {
+          const active = activePriority === option.value;
+          return `
+            <button type="button"
+              data-task-priority="${option.value}"
+              data-task-id="${escapeHtml(taskId)}"
+              data-task-title="${escapeHtml(task.title)}"
+              style="border: 1px solid ${active ? '#0f172a' : '#cbd5e1'}; background: ${active ? '#0f172a' : '#ffffff'}; color: ${active ? '#ffffff' : '#475569'}; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+              ${option.label}
+            </button>
+          `;
+        }).join('')}
+      </div>
+    `;
+  };
 
   useEffect(() => {
     setIsDirty(false);
@@ -2224,15 +2325,19 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const completedDetailedTasks = (weekData.detailedTasks || [])
         .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved))
         .filter(t => {
-           // Убираем Тимлида из списка видимых задач
+           // В автоматическую сводку попадают только администраторы из USER_DICTIONARY; чужие исполнители отсекаются.
            const fName = getFullName(t.assignee);
-           return fName !== TEAM_LEAD_NAME && t.assignee !== TEAM_LEAD_ID && !String(t.assignee).includes('Виктор');
+           const isTeamLead = fName === TEAM_LEAD_NAME || t.assignee === TEAM_LEAD_ID || String(t.assignee).includes('Виктор');
+           return !isTeamLead && isKnownTeamMember(t.assignee);
         })
         .sort((a, b) => {
             const idA = parseInt(String(a.id).replace(/\D/g, '')) || 0;
             const idB = parseInt(String(b.id).replace(/\D/g, '')) || 0;
             return idB - idA;
         });
+
+      const keyDetailedTasks = completedDetailedTasks.filter(task => getTaskPriority(task) !== 'Routine');
+      const routineDetailedTasks = completedDetailedTasks.filter(task => getTaskPriority(task) === 'Routine');
 
       // Фильтруем Тимлида из Телефонии
       const visibleTelephony = (weekData.telephonyData || []).filter(row => {
@@ -2353,31 +2458,59 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       };
 
       const getTaskValueCategory = (task) => {
-        const raw = safeString(task.valueCategory || task.impactCategory || task.category || task.valueType || task.type || task.tags).toLowerCase();
+        const categories = {
+          business: { key: 'business', label: 'Бизнес-проект', color: '#8b5cf6', bg: '#f5f3ff' },
+          stability: { key: 'stability', label: 'Стабильность', color: '#2563eb', bg: '#eff6ff' },
+          optimization: { key: 'optimization', label: 'Оптимизация', color: '#059669', bg: '#ecfdf5' },
+          techDebt: { key: 'techDebt', label: 'Техдолг', color: '#dc2626', bg: '#fff1f2' },
+          routine: { key: 'routine', label: 'Рутина', color: '#64748b', bg: '#f8fafc' }
+        };
+        const raw = safeString(task.valueCategory || task.impactCategory || task.category || task.valueType || task.type).toLowerCase();
+        const normalizedRaw = raw.replace(/[\s_-]+/g, '');
+        if (['business', 'businessproject', 'project', 'biz', 'бизнес', 'бизнеспроект', 'проект'].includes(normalizedRaw)) {
+          return categories.business;
+        }
+        if (['stability', 'reliability', 'incidentprevention', 'стабильность', 'надежность', 'аварии'].includes(normalizedRaw)) {
+          return categories.stability;
+        }
+        if (['optimization', 'automation', 'improvement', 'оптимизация', 'автоматизация', 'улучшение'].includes(normalizedRaw)) {
+          return categories.optimization;
+        }
+        if (['techdebt', 'debt', 'legacy', 'техдолг', 'техническийдолг', 'старыйдолг'].includes(normalizedRaw)) {
+          return categories.techDebt;
+        }
+        if (['routine', 'support', 'operations', 'рутина', 'эксплуатация', 'поддержка'].includes(normalizedRaw)) {
+          return categories.routine;
+        }
+
         const text = `${raw} ${safeString(task.title)} ${safeString(task.comments)}`.toLowerCase();
         if (text.includes('бизнес') || text.includes('проект') || text.includes('руковод') || text.includes('миграц')) {
-          return { key: 'business', label: 'Бизнес-проект', color: '#8b5cf6', bg: '#f5f3ff' };
+          return categories.business;
+        }
+        if (text.includes('техдолг') || text.includes('технический долг') || (Number(task.cycleTime) || 0) >= 30) {
+          return categories.techDebt;
         }
         if (text.includes('стабиль') || text.includes('авар') || text.includes('сбой') || text.includes('восстанов') || text.includes('сервер') || text.includes('сеть')) {
-          return { key: 'stability', label: 'Стабильность', color: '#2563eb', bg: '#eff6ff' };
+          return categories.stability;
         }
         if (text.includes('оптим') || text.includes('автомат') || text.includes('ускор') || text.includes('улучш')) {
-          return { key: 'optimization', label: 'Оптимизация', color: '#059669', bg: '#ecfdf5' };
+          return categories.optimization;
         }
-        return { key: 'routine', label: 'Рутина', color: '#64748b', bg: '#f8fafc' };
+        return categories.routine;
       };
 
       const renderValueShowcase = () => {
-        if (!completedDetailedTasks || completedDetailedTasks.length === 0) return '';
+        if (!keyDetailedTasks || keyDetailedTasks.length === 0) return '';
         const groups = [
           { key: 'business', label: 'Бизнес-проект', color: '#8b5cf6', bg: '#f5f3ff', items: [] },
           { key: 'stability', label: 'Стабильность', color: '#2563eb', bg: '#eff6ff', items: [] },
           { key: 'optimization', label: 'Оптимизация', color: '#059669', bg: '#ecfdf5', items: [] },
+          { key: 'techDebt', label: 'Техдолг', color: '#dc2626', bg: '#fff1f2', items: [] },
           { key: 'routine', label: 'Рутина', color: '#64748b', bg: '#f8fafc', items: [] }
         ];
-        completedDetailedTasks.forEach(task => {
+        keyDetailedTasks.forEach(task => {
           const category = getTaskValueCategory(task);
-          const group = groups.find(g => g.key === category.key) || groups[3];
+          const group = groups.find(g => g.key === category.key) || groups[groups.length - 1];
           group.items.push(task);
         });
 
@@ -2572,7 +2705,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       ` : '';
 
       // КРАСИВЫЙ БЛОК ДЛЯ ДЕТАЛЬНЫХ ЗАДАЧ С УМНЫМИ БЕЙДЖАМИ И ФИЛЬТРАЦИЕЙ ИИ-ГАЛЛЮЦИНАЦИЙ
-      const detailedTasksHtmlRendered = completedDetailedTasks.map(t => {
+      const renderDetailedTaskCard = (t) => {
         let contextHtml = '';
         
         // 1. Проверяем комментарии на предмет мусора от ИИ (заглушки)
@@ -2623,6 +2756,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
              <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px;">
                <span style="color: #3b82f6;">${t.id}</span>: ${safeString(t.title)}
              </div>
+             ${renderPriorityControls(t)}
              <div style="font-size: 12px; color: #64748b; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
                <span>Исполнитель: <span style="font-weight: 600; color: #1e293b;">${getFullName(t.assignee)}</span></span>
                <span style="color: #cbd5e1;">|</span>
@@ -2632,7 +2766,23 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
              ${contextHtml}
           </div>
         `;
-      }).join('');
+      };
+
+      const detailedTasksHtmlRendered = keyDetailedTasks.map(renderDetailedTaskCard).join('');
+
+      const routineTasksHtmlRendered = routineDetailedTasks.length > 0 ? `
+        <div class="section-title" style="--accent: #94a3b8;">Фоновая поддержка (KTLO)</div>
+        <ul style="margin: 0 0 20px 18px; padding: 0; color: #64748b; font-size: 11px; line-height: 1.45;">
+          ${routineDetailedTasks.map(t => `
+            <li style="margin-bottom: 7px;">
+              <span style="font-weight: 800; color: #475569;">${escapeHtml(t.id)}</span>
+              <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
+              <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
+              ${renderPriorityControls(t)}
+            </li>
+          `).join('')}
+        </ul>
+      ` : '';
 
       let sectionCounter = 1;
 
@@ -2728,12 +2878,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <ul class="custom-list" style="color: #94a3b8; font-style: italic; margin-bottom: 15px;">
               <li><span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и впишите достижения вручную... ]</span></li>
             </ul>
-            ${completedDetailedTasks.length > 0 ? `
+            ${keyDetailedTasks.length > 0 ? `
               <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 10px;">Автоматическая сводка из Jira:</p>
               <div>
                 ${detailedTasksHtmlRendered}
               </div>
-            ` : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>'}
+            ` : (completedDetailedTasks.length > 0 ? '<p style="font-size: 13px; color: #64748b; font-style: italic;">Все закрытые задачи помечены как фоновая поддержка и вынесены в KTLO-блок.</p>' : '<p style="font-size: 13px; color: #64748b; font-style: italic;">Список задач загружается через импорт подробного архива JSON.</p>')}
 
             <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
             
@@ -2747,6 +2897,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <li><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
               <li><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
             </ul>
+            ${routineTasksHtmlRendered}
 
           </div>
         </div>
@@ -2771,7 +2922,21 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             reportRef.current.innerHTML = getReportHtmlString();
         }
     }
-  }, [weekData]);
+  }, [weekData, aiTaskMemory]);
+
+  useEffect(() => {
+    const reportEl = reportRef.current;
+    if (!reportEl) return;
+    const handlePriorityClick = (event) => {
+      const button = event.target.closest('[data-task-priority]');
+      if (!button || !reportEl.contains(button)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handleSetTaskPriority(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskPriority);
+    };
+    reportEl.addEventListener('click', handlePriorityClick);
+    return () => reportEl.removeEventListener('click', handlePriorityClick);
+  }, [aiTaskMemory]);
 
   // Функция для очистки HTML перед экспортом
   const getCleanHtml = () => {
@@ -2992,6 +3157,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </button>
             <button onClick={handleDownloadHtml} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg transition-colors shadow-lg flex items-center gap-2" title="Скачать как HTML файл (для PDF)">
               <Download size={18} /> <span className="hidden sm:inline">Скачать HTML</span>
+            </button>
+            <button onClick={handleDownloadAiMemory} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded-lg transition-colors shadow-lg flex items-center gap-2" title="Скачать базу классификации задач для ИИ">
+              <Download size={18} /> <span className="hidden sm:inline">🧠 Скачать AI-Память</span>
             </button>
           </div>
         </div>
@@ -3357,6 +3525,7 @@ const App = () => {
   const [profiles, setProfiles] = useState(() => { try { const saved = localStorage.getItem('teamlead_profiles_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return defaultProfiles; });
   const [tasksArchive, setTasksArchive] = useState(() => { try { const saved = localStorage.getItem('teamlead_tasks_archive_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
   const [csatReviews, setCsatReviews] = useState(() => { try { const saved = localStorage.getItem('teamlead_csat_reviews_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return {}; });
+  const [aiTaskMemory, setAiTaskMemory] = useState(() => { try { const saved = localStorage.getItem('teamlead_ai_memory_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return {}; });
   
   // НОВЫЙ ГЛОБАЛЬНЫЙ СТЕЙТ ПРОЕКТНЫХ ПОРУЧЕНИЙ РУКОВОДСТВА
   const [projectTasks, setProjectTasks] = useState(() => { try { const saved = localStorage.getItem('teamlead_project_tasks_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
@@ -3386,6 +3555,7 @@ const App = () => {
         const taskRow = cloudData.find(r => r.key_name === 'tasks_archive'); if (taskRow) setTasksArchive(taskRow.value_data);
         const projTaskRow = cloudData.find(r => r.key_name === 'project_tasks'); if (projTaskRow) setProjectTasks(projTaskRow.value_data);
         const csatRow = cloudData.find(r => r.key_name === 'csat_reviews'); if (csatRow) setCsatReviews(csatRow.value_data || {});
+        const aiMemoryRow = cloudData.find(r => r.key_name === 'ai_task_memory'); if (aiMemoryRow) setAiTaskMemory(aiMemoryRow.value_data || {});
       }
 
       // 2. ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ (АВТОРИЗАЦИЯ)
@@ -3475,6 +3645,7 @@ const App = () => {
   useEffect(() => { saveToDb('auth_users', authUsers, 'teamlead_auth_v8'); }, [authUsers]);
   useEffect(() => { saveToDb('project_tasks', projectTasks, 'teamlead_project_tasks_v8'); }, [projectTasks]);
   useEffect(() => { saveToDb('csat_reviews', csatReviews, 'teamlead_csat_reviews_v8'); }, [csatReviews]);
+  useEffect(() => { saveToDb('ai_task_memory', aiTaskMemory, 'teamlead_ai_memory_v8'); }, [aiTaskMemory]);
 
   // ФУНКЦИИ АВТОРИЗАЦИИ
   const handleLogin = async (username, password) => {
@@ -3528,7 +3699,7 @@ const App = () => {
     switch(activeTab) {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} />;
-      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} />;
+      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
       case 'achievements': return <AchievementsBoard achievements={achievements} />;
