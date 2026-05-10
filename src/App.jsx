@@ -2080,8 +2080,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const priority = getTaskPriority(task);
     const complexity = getTaskComplexity(task);
     if (priority === 'Impact' || complexity === 'L' || complexity === 'XL') return 'main';
-    if (priority === 'Routine' || complexity === 'S') return 'ktlo';
-    return 'main';
+    return 'ktlo';
   };
 
   const getTaskReportBucketLabel = (task) => {
@@ -3060,12 +3059,31 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const memoryFrameColor = taskPriority === 'Impact' ? '#fde68a' : (taskPriority === 'Routine' ? '#cbd5e1' : '#cbd5e1');
         const borderColor = memoryEntry ? memoryBorderColor : (isMgmtTask ? '#2563eb' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8'));
         const cardBgStyle = memoryEntry ? `background: ${memoryBgColor}; border: 1px solid ${memoryFrameColor}; border-radius: 8px; padding: 12px 12px 12px 14px;` : '';
+        const complexity = getTaskComplexity(t) || 'M';
+        const priorityMeta = taskPriority === 'Impact'
+          ? { label: 'Важное', color: '#92400e', bg: '#fef3c7', border: '#fcd34d' }
+          : (taskPriority === 'Routine'
+            ? { label: 'Рутина', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' }
+            : { label: 'Обычное', color: '#475569', bg: '#f8fafc', border: '#cbd5e1' });
+        const complexityMeta = {
+          S: { label: 'S легкая', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' },
+          M: { label: 'M средняя', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+          L: { label: 'L сложная', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
+          XL: { label: 'XL тяжелая', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }
+        }[complexity] || { label: 'M средняя', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' };
+        const exportBadges = exportMode ? `
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px 0;">
+            <span style="display: inline-block; background: ${priorityMeta.bg}; color: ${priorityMeta.color}; border: 1px solid ${priorityMeta.border}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${priorityMeta.label}</span>
+            <span style="display: inline-block; background: ${complexityMeta.bg}; color: ${complexityMeta.color}; border: 1px solid ${complexityMeta.border}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${complexityMeta.label}</span>
+          </div>
+        ` : '';
 
         return `
           <div style="margin-bottom: 20px; border-left: 4px solid ${borderColor}; padding-left: 14px; padding-bottom: 5px; ${cardBgStyle}">
              <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px;">
                <span style="color: #3b82f6;">${t.id}</span>: ${safeString(t.title)}
              </div>
+             ${exportBadges}
              ${exportMode ? '' : renderPriorityControls(t)}
              ${exportMode ? '' : renderComplexityControls(t)}
              ${exportMode ? '' : renderWorkTypeControls(t)}
@@ -3101,31 +3119,39 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       };
 
       const renderMainTaskGroups = (tasks) => {
-        const importantTasks = tasks.filter(t => getTaskPriority(t) === 'Impact');
+        const importantHeavyTasks = tasks.filter(t => getTaskPriority(t) === 'Impact' && ['L', 'XL'].includes(getTaskComplexity(t)));
+        const importantMediumTasks = tasks.filter(t => getTaskPriority(t) === 'Impact' && getTaskComplexity(t) === 'M');
+        const importantLightTasks = tasks.filter(t => getTaskPriority(t) === 'Impact' && !['M', 'L', 'XL'].includes(getTaskComplexity(t)));
         const heavyTasks = tasks.filter(t => getTaskPriority(t) !== 'Impact' && ['L', 'XL'].includes(getTaskComplexity(t)));
-        const standardTasks = tasks.filter(t => getTaskPriority(t) !== 'Impact' && !['L', 'XL'].includes(getTaskComplexity(t)));
 
         return [
           renderTaskGroup({
-            title: 'Ключевые и важные',
-            subtitle: 'Высокая ценность, заметный эффект для руководства или бизнеса',
+            title: 'Важные тяжелые',
+            subtitle: 'Impact + L/XL: высокий эффект и высокая трудоемкость',
             accent: '#f59e0b',
             background: '#fffbeb',
-            tasks: importantTasks
+            tasks: importantHeavyTasks
           }),
           renderTaskGroup({
-            title: 'Трудоемкие изменения',
-            subtitle: 'Сложные L/XL задачи, требующие отдельного внимания в отчете',
+            title: 'Важные средние',
+            subtitle: 'Impact + M: заметные задачи без перегруза основного отчета',
+            accent: '#3b82f6',
+            background: '#eff6ff',
+            tasks: importantMediumTasks
+          }),
+          renderTaskGroup({
+            title: 'Важные быстрые',
+            subtitle: 'Impact + S: важные, но небольшие изменения',
+            accent: '#10b981',
+            background: '#ecfdf5',
+            tasks: importantLightTasks
+          }),
+          renderTaskGroup({
+            title: 'Трудоемкие без флага важности',
+            subtitle: 'L/XL задачи, которые стоит показать из-за сложности, даже если они не отмечены как важные',
             accent: '#f97316',
             background: '#fff7ed',
             tasks: heavyTasks
-          }),
-          renderTaskGroup({
-            title: 'Стандартные задачи',
-            subtitle: 'Обычные закрытые работы, которые поддерживают основной поток',
-            accent: '#3b82f6',
-            background: '#eff6ff',
-            tasks: standardTasks
           })
         ].join('');
       };
@@ -3156,15 +3182,21 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <div class="task-group-count">${routineDetailedTasks.length}</div>
           </div>
           <ul style="margin: 12px 0 0 18px; padding: 0; color: #64748b; font-size: 11px; line-height: 1.45;">
-            ${routineDetailedTasks.map(t => `
-              <li style="margin-bottom: 7px;">
-                <span style="font-weight: 800; color: #475569;">${escapeHtml(t.id)}</span>
-                <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
-                <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
-                ${exportMode ? '' : renderPriorityControls(t)}
-                ${exportMode ? '' : renderComplexityControls(t)}
-              </li>
-            `).join('')}
+            ${routineDetailedTasks.map(t => {
+              const complexity = getTaskComplexity(t) || 'M';
+              const priority = getTaskPriority(t) === 'Routine' ? 'Рутина' : 'Обычное';
+              return `
+                <li style="margin-bottom: 7px;">
+                  <span style="font-weight: 800; color: #475569;">${escapeHtml(t.id)}</span>
+                  <span style="display: inline-block; margin-left: 5px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">${priority}</span>
+                  <span style="display: inline-block; margin-left: 3px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">${escapeHtml(complexity)}</span>
+                  <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
+                  <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
+                  ${exportMode ? '' : renderPriorityControls(t)}
+                  ${exportMode ? '' : renderComplexityControls(t)}
+                </li>
+              `;
+            }).join('')}
           </ul>
         </div>
       ` : '';
@@ -3206,7 +3238,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ul.custom-list li { margin-bottom: 6px; }
         </style>
 
-        <div class="report-container">
+        <div class="report-container">ф
           
           <div class="header">
             <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
