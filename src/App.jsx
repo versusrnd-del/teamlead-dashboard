@@ -2078,9 +2078,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     const workType = getTaskWorkType(task);
     if (workType === 'IDM') return 'idm';
     const priority = getTaskPriority(task);
-    const complexity = getTaskComplexity(task);
-    if (priority === 'Impact' || complexity === 'L' || complexity === 'XL') return 'main';
-    return 'ktlo';
+    if (priority === 'Routine') return 'ktlo';
+    return 'main';
   };
 
   const getTaskReportBucketLabel = (task) => {
@@ -2573,23 +2572,39 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         ? completedDetailedTasks.filter(task => getTaskReportBucket(task) === 'ktlo')
         : [];
 
-      // Фильтруем Тимлида из Телефонии
+      const normalizeReportPersonName = (name) => safeString(name).toLowerCase().replace(/ё/g, 'е').replace(/[^а-яa-z\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+      const getReportPersonTokens = (name) => normalizeReportPersonName(name).split(/[\s-]+/).filter(part => part.length > 1);
+      const isSameReportPerson = (leftName, rightName) => {
+        const leftTokens = getReportPersonTokens(leftName);
+        const rightTokens = getReportPersonTokens(rightName);
+        if (leftTokens.length === 0 || rightTokens.length === 0) return false;
+        return rightTokens.every(token => leftTokens.includes(token));
+      };
+      const FIRST_LINE_REPORT_NAMES = [
+        'Халеддинов Руслан',
+        'Руслан Халеддинов',
+        'Никита Лысов',
+        'Максим Отрошко',
+        'Максим Гуртов',
+        'Марк Соколов'
+      ];
+      const isReportFirstLineOperator = (name) => FIRST_LINE_REPORT_NAMES.some(targetName => isSameReportPerson(name, targetName));
+
+      // В отчете по телефонии показываем только целевую 1-ю линию; 2-3 линия может помогать, но не попадает в управленческий контроль.
       const visibleTelephony = (weekData.telephonyData || []).filter(row => {
          const fName = getFullName(row.name);
-         return fName !== TEAM_LEAD_NAME && row.name !== TEAM_LEAD_ID && !String(row.name).includes('Виктор');
+         return fName !== TEAM_LEAD_NAME && row.name !== TEAM_LEAD_ID && !String(row.name).includes('Виктор') && isReportFirstLineOperator(row.name);
       });
 
       const buildReportTelephonyInsight = () => {
-        if (!visibleTelephony || visibleTelephony.length === 0) return safeString(weekData.telephonyInsight);
-        const normalizePersonName = (name) => safeString(name).toLowerCase().replace(/ё/g, 'е').replace(/[^а-яa-z\s-]/g, ' ').replace(/\s+/g, ' ').trim();
-        const getPersonTokens = (name) => normalizePersonName(name).split(/[\s-]+/).filter(part => part.length > 1);
+        if (!visibleTelephony || visibleTelephony.length === 0) return '';
         const findJiraPerformer = (operatorName) => {
-          const opTokens = getPersonTokens(operatorName);
+          const opTokens = getReportPersonTokens(operatorName);
           if (opTokens.length === 0) return null;
           const candidates = sortedIncPerformers.map(p => ({
             performer: p,
-            tokens: getPersonTokens(getFullName(p.name)),
-            rawTokens: getPersonTokens(p.name)
+            tokens: getReportPersonTokens(getFullName(p.name)),
+            rawTokens: getReportPersonTokens(p.name)
           }));
           const exact = candidates.find(c => {
             const allTokens = [...new Set([...c.tokens, ...c.rawTokens])];
@@ -2605,43 +2620,72 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
         let missed = 0;
         let total = 0;
-        const lines = [];
-        const effectiveTotalIncClosed = sortedIncPerformers.reduce((sum, p) => sum + (Number(p.closed) || 0), 0) || totalIncidents;
-
-        visibleTelephony.forEach(op => {
+        let closedTotal = 0;
+        const operatorCards = visibleTelephony.map(op => {
           total += Number(op.total) || 0;
           missed += Number(op.missed) || 0;
           const perf = findJiraPerformer(op.name);
           const closedTickets = perf ? (Number(perf.closed) || 0) : 0;
+          closedTotal += closedTickets;
           const missedCalls = Number(op.missed) || 0;
           const answeredCalls = Number(op.answered) || 0;
-          let profileLabel = '';
-          if (missedCalls > 0 && closedTickets >= 80) {
-            profileLabel = 'Профиль: перегруз';
-          } else if (missedCalls > 10 && closedTickets < 50) {
-            profileLabel = 'Профиль: дисциплина/доступность';
-          } else if (answeredCalls > 10 && closedTickets < 10 && effectiveTotalIncClosed >= 300) {
-            profileLabel = 'Профиль: помощь при аварии';
-          } else if (missedCalls === 0 && (closedTickets >= 40 || answeredCalls > 0)) {
-            profileLabel = 'Профиль: норма';
+          const missRate = Number(op.total) > 0 ? Math.round((missedCalls / Number(op.total)) * 100) : 0;
+          const availability = Math.max(0, 100 - missRate);
+          let status = { label: 'Норма', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' };
+          let recommendation = 'Держит линию в рабочем режиме.';
+          if (missedCalls > 10 && closedTickets < 50) {
+            status = { label: 'Риск доступности', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' };
+            recommendation = 'Проверить доступность в АТС и фактическое присутствие на линии.';
+          } else if (missedCalls > 0 && closedTickets >= 40) {
+            status = { label: 'Контроль', color: '#b45309', bg: '#fffbeb', border: '#fde68a' };
+            recommendation = 'Нагрузка по Jira есть, но пропущенные звонки нужно держать на контроле.';
+          } else if (missedCalls > 0) {
+            status = { label: 'Контроль', color: '#b45309', bg: '#fffbeb', border: '#fde68a' };
+            recommendation = 'Есть пропущенные вызовы; проверить дисциплину линии и статусы АТС.';
           }
-          if ((Number(op.missed) || 0) > 0) {
-            if (closedTickets >= 80) {
-              lines.push(`🔥 ${op.name}: ${profileLabel}. Пропущено ${op.missed} вызовов. Причина: перегруз (закрыто ${closedTickets} инцидентов).`);
-            } else if (closedTickets >= 50) {
-              lines.push(`⚠️ ${op.name}: ${profileLabel || 'Профиль: рабочая нагрузка'}. Норма в Jira выполнена (${closedTickets}), но есть пропущенные вызовы (${op.missed}).`);
-            } else {
-              lines.push(`⚠️ ${op.name}: ${profileLabel || 'Профиль: контроль'}. Закрыто ${closedTickets} инцидентов, пропущено ${op.missed} вызовов. Взять на контроль.`);
-            }
-          } else if (profileLabel === 'Профиль: помощь при аварии') {
-            lines.push(`🛡️ ${op.name}: ${profileLabel}. Отвечено ${answeredCalls} звонков при аварийном фоне, закрыто ${closedTickets} инцидентов.`);
-          }
-        });
 
-        const header = missed > 0
-          ? `⚠️ Внимание: потеряно ${missed} вызовов на 1-й линии (из ${total} общих). Закрыто инцидентов по Jira: ${effectiveTotalIncClosed}.\n`
-          : `✅ Отличная работа: 1-я линия отработала без пропущенных вызовов. Закрыто инцидентов по Jira: ${effectiveTotalIncClosed}.\n`;
-        return header + (lines.length > 0 ? lines.join('\n') : 'Отклонений в дисциплине и перегрузок на 1-й линии не выявлено.');
+          return `
+            <div class="telephony-operator-card">
+              <div class="telephony-operator-head">
+                <div style="font-weight: 900; color: #0f172a; font-size: 13px;">${escapeHtml(op.name)}</div>
+                <span style="background: ${status.bg}; color: ${status.color}; border: 1px solid ${status.border}; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${status.label}</span>
+              </div>
+              <div class="telephony-metrics">
+                <div><span>Инциденты</span><b>${closedTickets}</b></div>
+                <div><span>Отвечено</span><b>${answeredCalls}</b></div>
+                <div><span>Пропущено</span><b style="color: ${missedCalls > 0 ? '#dc2626' : '#047857'};">${missedCalls}</b></div>
+                <div><span>Доступность</span><b>${availability}%</b></div>
+              </div>
+              <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-top: 8px;">${recommendation}</div>
+            </div>
+          `;
+        }).join('');
+
+        const missRateTotal = total > 0 ? Math.round((missed / total) * 100) : 0;
+        const summaryStatus = missed > 0
+          ? { label: 'Есть потери звонков', color: '#b45309', bg: '#fffbeb', border: '#fde68a' }
+          : { label: 'Без потерь', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' };
+
+        return `
+          <div class="telephony-panel">
+            <div class="telephony-panel-head">
+              <div>
+                <div class="telephony-panel-title">Контроль первой линии</div>
+                <div class="telephony-panel-subtitle">Телефония, закрытые инциденты и доступность операторов поддержки</div>
+              </div>
+              <span style="background: ${summaryStatus.bg}; color: ${summaryStatus.color}; border: 1px solid ${summaryStatus.border}; border-radius: 999px; padding: 5px 10px; font-size: 11px; font-weight: 900; text-transform: uppercase;">${summaryStatus.label}</span>
+            </div>
+            <div class="telephony-summary-grid">
+              <div><span>Всего вызовов</span><b>${total}</b></div>
+              <div><span>Пропущено</span><b style="color: ${missed > 0 ? '#dc2626' : '#047857'};">${missed}</b></div>
+              <div><span>Потери</span><b>${missRateTotal}%</b></div>
+              <div><span>Инциденты Jira</span><b>${closedTotal || totalIncidents}</b></div>
+            </div>
+            <div class="telephony-operators-grid">
+              ${operatorCards}
+            </div>
+          </div>
+        `;
       };
 
       const renderProgressBar = (value, max, color) => {
@@ -3001,10 +3045,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       
       const reportTelephonyInsight = buildReportTelephonyInsight();
       const telephonyInsightHtml = reportTelephonyInsight ? `
-        <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px; color: #92400e; margin-bottom: 30px;">
-          <div style="font-weight: bold; margin-bottom: 5px;">🤖 Анализ телефонии и выгорания:</div>
-          <div style="white-space: pre-wrap;">${safeString(reportTelephonyInsight)}</div>
-        </div>
+        ${reportTelephonyInsight}
       ` : '';
 
       // КРАСИВЫЙ БЛОК ДЛЯ ДЕТАЛЬНЫХ ЗАДАЧ С УМНЫМИ БЕЙДЖАМИ И ФИЛЬТРАЦИЕЙ ИИ-ГАЛЛЮЦИНАЦИЙ
@@ -3020,6 +3061,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             "выполнена задача",
             "стандартная процедура",
             "согласно заявке",
+            "обработана задача по idm",
+            "обработана задача по доступам",
+            "обработана задача по ролям",
+            "выполнена проверка и необходимые изменения",
+            "выполнены инфраструктурные работы по серверу",
+            "ресурсу, мониторингу или сервисной настройке",
             "готово",
             "решено"
         ];
@@ -3040,7 +3087,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         if (cycleDays >= 30) {
           debtBadge = `<span style="background-color: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">☠️ Закрыт старый долг (${cycleDays} дн.)</span>`;
         } else {
-          debtBadge = `<span style="background-color: #f0fdf4; color: #10b981; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">⚡ Свежая задача</span>`;
+          debtBadge = exportMode ? '' : `<span style="background-color: #f0fdf4; color: #10b981; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">⚡ Свежая задача</span>`;
         }
 
         // 3. Сопоставляем с задачами руководства (умный и ЖЕСТКИЙ матчинг корней слов)
@@ -3059,6 +3106,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const memoryFrameColor = taskPriority === 'Impact' ? '#fde68a' : (taskPriority === 'Routine' ? '#cbd5e1' : '#cbd5e1');
         const borderColor = memoryEntry ? memoryBorderColor : (isMgmtTask ? '#2563eb' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8'));
         const cardBgStyle = memoryEntry ? `background: ${memoryBgColor}; border: 1px solid ${memoryFrameColor}; border-radius: 8px; padding: 12px 12px 12px 14px;` : '';
+        const isIdmTask = getTaskWorkType(t) === 'IDM';
         const complexity = getTaskComplexity(t) || 'M';
         const priorityMeta = taskPriority === 'Impact'
           ? { label: 'Важное', color: '#92400e', bg: '#fef3c7', border: '#fcd34d' }
@@ -3071,12 +3119,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           L: { label: 'L сложная', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
           XL: { label: 'XL тяжелая', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }
         }[complexity] || { label: 'M средняя', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' };
-        const exportBadges = exportMode ? `
+        const exportBadges = exportMode && !isIdmTask ? `
           <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px 0;">
             <span style="display: inline-block; background: ${priorityMeta.bg}; color: ${priorityMeta.color}; border: 1px solid ${priorityMeta.border}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${priorityMeta.label}</span>
             <span style="display: inline-block; background: ${complexityMeta.bg}; color: ${complexityMeta.color}; border: 1px solid ${complexityMeta.border}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${complexityMeta.label}</span>
           </div>
         ` : '';
+        const taskMetaBadges = [debtBadge, mgmtBadge].filter(Boolean).join(' ');
+        const taskMetaBadgesHtml = taskMetaBadges ? `<span style="color: #cbd5e1;">|</span> ${taskMetaBadges}` : '';
 
         return `
           <div style="margin-bottom: 20px; border-left: 4px solid ${borderColor}; padding-left: 14px; padding-bottom: 5px; ${cardBgStyle}">
@@ -3091,16 +3141,32 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
              ${exportMode ? '' : renderReportBucketBadge(t)}
              <div style="font-size: 12px; color: #64748b; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
                <span>Исполнитель: <span style="font-weight: 600; color: #1e293b;">${getFullName(t.assignee)}</span></span>
-               <span style="color: #cbd5e1;">|</span>
-               ${debtBadge}
-               ${mgmtBadge}
+               ${taskMetaBadgesHtml}
              </div>
              ${contextHtml}
           </div>
         `;
       };
 
-      const renderTaskGroup = ({ title, subtitle, accent, background = '#ffffff', tasks }) => {
+      const renderIdmTaskCard = (t) => {
+        const cycleDays = Number(t.cycleTime) || 0;
+        const debtBadge = cycleDays >= 30
+          ? `<span style="background-color: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 2px 6px; border-radius: 999px; font-weight: 800; font-size: 10px; text-transform: uppercase;">старый долг ${cycleDays} дн.</span>`
+          : '';
+        return `
+          <div class="idm-task-card">
+            <div style="font-weight: 800; font-size: 13px; color: #0f172a; line-height: 1.35;">
+              <span style="color: #7c3aed;">${escapeHtml(t.id)}</span>: ${escapeHtml(t.title)}
+            </div>
+            <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 7px; color: #64748b; font-size: 12px;">
+              <span>Исполнитель: <span style="font-weight: 700; color: #334155;">${escapeHtml(getFullName(t.assignee))}</span></span>
+              ${debtBadge}
+            </div>
+          </div>
+        `;
+      };
+
+      const renderTaskGroup = ({ title, subtitle, accent, background = '#ffffff', tasks, renderer = renderDetailedTaskCard }) => {
         if (!tasks || tasks.length === 0) return '';
         return `
           <div class="task-group" style="--group-accent: ${accent}; background: ${background};">
@@ -3112,7 +3178,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <div class="task-group-count">${tasks.length}</div>
             </div>
             <div class="task-group-body">
-              ${tasks.map(renderDetailedTaskCard).join('')}
+              ${tasks.map(renderer).join('')}
             </div>
           </div>
         `;
@@ -3123,6 +3189,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const importantMediumTasks = tasks.filter(t => getTaskPriority(t) === 'Impact' && getTaskComplexity(t) === 'M');
         const importantLightTasks = tasks.filter(t => getTaskPriority(t) === 'Impact' && !['M', 'L', 'XL'].includes(getTaskComplexity(t)));
         const heavyTasks = tasks.filter(t => getTaskPriority(t) !== 'Impact' && ['L', 'XL'].includes(getTaskComplexity(t)));
+        const standardTasks = tasks.filter(t => getTaskPriority(t) === 'Standard' && !['L', 'XL'].includes(getTaskComplexity(t)));
 
         return [
           renderTaskGroup({
@@ -3152,6 +3219,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             accent: '#f97316',
             background: '#fff7ed',
             tasks: heavyTasks
+          }),
+          renderTaskGroup({
+            title: 'Обычные рабочие задачи',
+            subtitle: 'Standard: нормальная выполненная работа без отдельного управленческого акцента',
+            accent: '#64748b',
+            background: '#f8fafc',
+            tasks: standardTasks
           })
         ].join('');
       };
@@ -3167,7 +3241,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           subtitle: 'Отдельный поток задач по ролям, доступам, IDM CUSTOM и ролевой модели',
           accent: '#7c3aed',
           background: '#f5f3ff',
-          tasks: idmDetailedTasks
+          tasks: idmDetailedTasks,
+          renderer: renderIdmTaskCard
         }) : `<div>${idmDetailedTasks.map(renderDetailedTaskCard).join('')}</div>`}
       ` : '';
 
@@ -3176,19 +3251,18 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <div class="task-group task-group-compact" style="--group-accent: #94a3b8; background: #f8fafc;">
           <div class="task-group-header">
             <div>
-              <div class="task-group-title">Рутинные и легкие задачи</div>
-              <div class="task-group-subtitle">S-задачи и рутина: видимы, но не забивают список ключевых результатов</div>
+              <div class="task-group-title">Рутинные задачи</div>
+              <div class="task-group-subtitle">Только явно помеченная Routine/KTLO: видима, но не забивает список результатов</div>
             </div>
             <div class="task-group-count">${routineDetailedTasks.length}</div>
           </div>
           <ul style="margin: 12px 0 0 18px; padding: 0; color: #64748b; font-size: 11px; line-height: 1.45;">
             ${routineDetailedTasks.map(t => {
               const complexity = getTaskComplexity(t) || 'M';
-              const priority = getTaskPriority(t) === 'Routine' ? 'Рутина' : 'Обычное';
               return `
                 <li style="margin-bottom: 7px;">
                   <span style="font-weight: 800; color: #475569;">${escapeHtml(t.id)}</span>
-                  <span style="display: inline-block; margin-left: 5px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">${priority}</span>
+                  <span style="display: inline-block; margin-left: 5px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">Рутина</span>
                   <span style="display: inline-block; margin-left: 3px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">${escapeHtml(complexity)}</span>
                   <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
                   <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
@@ -3234,11 +3308,26 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .task-group-count { flex-shrink: 0; color: var(--group-accent); background: #ffffff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 900; }
           .task-group-body > div:last-child { margin-bottom: 0 !important; }
           .task-group-compact { box-shadow: none; }
+          .idm-task-card { background: #ffffff; border: 1px solid #ddd6fe; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+          .telephony-panel { background: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #2563eb; border-radius: 10px; padding: 16px; margin-bottom: 30px; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06); }
+          .telephony-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 12px; }
+          .telephony-panel-title { color: #0f172a; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
+          .telephony-panel-subtitle { color: #64748b; font-size: 12px; margin-top: 2px; }
+          .telephony-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+          .telephony-summary-grid div { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 10px; }
+          .telephony-summary-grid span, .telephony-metrics span { display: block; color: #64748b; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+          .telephony-summary-grid b { display: block; color: #0f172a; font-size: 18px; margin-top: 2px; }
+          .telephony-operators-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+          .telephony-operator-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+          .telephony-operator-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 9px; }
+          .telephony-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+          .telephony-metrics div { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 7px; }
+          .telephony-metrics b { display: block; color: #0f172a; font-size: 14px; margin-top: 2px; }
           ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
           ul.custom-list li { margin-bottom: 6px; }
         </style>
 
-        <div class="report-container">ф
+        <div class="report-container">
           
           <div class="header">
             <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #0f172a; text-transform: uppercase;">ОТЧЕТ РУКОВОДИТЕЛЮ</h1>
@@ -3303,9 +3392,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             ${renderValueShowcase()}
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Выполненные ключевые задачи (Ценность)</h3>
-            <ul class="custom-list" style="color: #94a3b8; font-style: italic; margin-bottom: 15px;">
-              <li><span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и впишите достижения вручную... ]</span></li>
-            </ul>
+            ${exportMode ? '' : `
+              <ul class="custom-list" style="color: #94a3b8; font-style: italic; margin-bottom: 15px;">
+                <li><span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Кликните на этот текст, удалите его и впишите достижения вручную... ]</span></li>
+              </ul>
+            `}
             ${keyDetailedTasks.length > 0 ? `
               <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 10px;">Автоматическая сводка из Jira:</p>
               <div>
