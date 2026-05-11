@@ -2469,10 +2469,66 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     return (projectTasks || []).find(pt => doesProjectTaskMatchJiraTask(pt, jiraTask));
   };
 
-  // Фильтруем задачи, которые должны попасть в отчет ТЕКУЩЕЙ недели
-  const tasksForThisWeek = (projectTasks || []).filter(t => 
-    t.status === 'active' || t.completedWeekKey === selectedKey
-  );
+  const compareWeekKeys = (leftKey, rightKey) => {
+    const [leftYear, leftWeek] = safeString(leftKey).split('-').map(Number);
+    const [rightYear, rightWeek] = safeString(rightKey).split('-').map(Number);
+    if (!leftYear || !leftWeek || !rightYear || !rightWeek) return 0;
+    if (leftYear !== rightYear) return leftYear - rightYear;
+    return leftWeek - rightWeek;
+  };
+
+  const isProjectTaskVisibleInWeek = (task, weekKey) => {
+    if (!task) return false;
+    const createdKey = task.createdWeekKey || weekKey;
+    if (compareWeekKeys(createdKey, weekKey) > 0) return false;
+    if (task.completedWeekKey) return compareWeekKeys(weekKey, task.completedWeekKey) <= 0;
+    return task.status === 'active';
+  };
+
+  const isProjectTaskCompletedInWeek = (task, weekKey) => {
+    if (!task || task.status !== 'completed' || !task.completedWeekKey) return false;
+    return compareWeekKeys(weekKey, task.completedWeekKey) >= 0;
+  };
+
+  const getProjectTaskAgingMeta = (weeksActive) => {
+    if (weeksActive >= 4) {
+      return {
+        label: `Эскалация: ${weeksActive + 1}-я неделя`,
+        color: '#b91c1c',
+        bg: '#fef2f2',
+        border: '#fecaca',
+        note: 'Нужен владелец, решение по блокеру или закрытие как неактуальной.'
+      };
+    }
+    if (weeksActive >= 2) {
+      return {
+        label: `Просрочено: ${weeksActive + 1}-я неделя`,
+        color: '#dc2626',
+        bg: '#fef2f2',
+        border: '#fecaca',
+        note: 'Нужен следующий конкретный шаг и срок.'
+      };
+    }
+    if (weeksActive === 1) {
+      return {
+        label: 'Контроль срока: 2-я неделя',
+        color: '#b45309',
+        bg: '#fffbeb',
+        border: '#fde68a',
+        note: 'Проверить, есть ли блокер или дата выполнения.'
+      };
+    }
+    return {
+      label: 'Новая задача',
+      color: '#2563eb',
+      bg: '#eff6ff',
+      border: '#bfdbfe',
+      note: 'Нормальный старт в текущем отчетном периоде.'
+    };
+  };
+
+  // Поручение видно с недели создания до недели закрытия. В прошлые недели до создания оно не попадает.
+  const tasksForThisWeek = (projectTasks || []).filter(t => isProjectTaskVisibleInWeek(t, selectedKey));
 
   useEffect(() => {
     if (!projectTasks || projectTasks.length === 0 || !weekData.detailedTasks || weekData.isReportFrozen) return;
@@ -2509,7 +2565,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       
       return tasksForThisWeek.map(t => {
         const weeksActive = getWeeksDiff(t.createdWeekKey, selectedKey);
-        const isCompleted = t.status === 'completed';
+        const isCompleted = isProjectTaskCompletedInWeek(t, selectedKey);
+        const agingMeta = getProjectTaskAgingMeta(weeksActive);
         const bgColor = isCompleted ? '#f0fdf4' : '#ffffff';
         const borderColor = isCompleted ? '#bbf7d0' : '#e2e8f0';
         const leftBorderColor = isCompleted ? '#22c55e' : t.color;
@@ -2520,15 +2577,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ? `<span style="color: #16a34a; font-weight: bold; background: #dcfce3; padding: 2px 6px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">Выполнено</span>`
           : `[ <span style="color: ${t.color}; font-weight: bold;">${safeString(t.comment)}</span> ]`;
 
-        // Стикеры просрочки для HTML-отчета
-        let delaySticker = '';
-        if (!isCompleted && weeksActive > 0) {
-          if (weeksActive >= 2) {
-              delaySticker = `<span style="display: inline-block; margin-top: 6px; background-color: #fef2f2; color: #ef4444; border: 1px solid #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">⚠️ Затянуто: ${weeksActive} нед.</span>`;
-          } else {
-              delaySticker = `<span style="display: inline-block; margin-top: 6px; background-color: #fffbeb; color: #d97706; border: 1px solid #fcd34d; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">⏳ В работе 2-ю неделю</span>`;
-          }
-        }
+        const delaySticker = !isCompleted
+          ? `<span style="display: inline-block; margin-top: 6px; background-color: ${agingMeta.bg}; color: ${agingMeta.color}; border: 1px solid ${agingMeta.border}; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: bold;">${agingMeta.label}</span>`
+          : '';
 
         return `
           <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-left: 4px solid ${leftBorderColor}; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px;">
@@ -2541,6 +2592,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                    ${statusBadge}
                </div>
                ${delaySticker}
+               ${weeksActive >= 1 ? `<div style="font-size: 12px; color: #64748b; margin-top: 5px;">${agingMeta.note}</div>` : ''}
              ` : `
                <div style="font-size: 13px; text-align: left; margin-top: 4px;">
                    ${statusBadge} <span style="color: #475569; margin-left: 8px;">Итог: ${safeString(t.comment)}</span>
@@ -3703,7 +3755,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <div className="space-y-4 mb-6">
               {tasksForThisWeek.map(t => {
                 const weeksActive = getWeeksDiff(t.createdWeekKey, selectedKey);
-                const isCompleted = t.status === 'completed';
+                const isCompleted = isProjectTaskCompletedInWeek(t, selectedKey);
+                const agingMeta = getProjectTaskAgingMeta(weeksActive);
                 
                 return (
                   <div key={t.id} className={`p-4 rounded-lg border ${isCompleted ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-slate-900/50 border-slate-700/50'} flex flex-col gap-3 relative transition-all`}>
@@ -3753,9 +3806,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                           </div>
 
                           {/* AI Подсказка по срокам */}
-                          {!isCompleted && weeksActive > 0 && (
-                             <div className={`text-[10px] font-bold flex items-center gap-1 mt-2 w-max px-2 py-0.5 rounded ${weeksActive >= 2 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
-                               <AlertTriangle size={12}/> {weeksActive >= 2 ? `Внимание: Задача висит ${weeksActive} нед.! Риск затягивания.` : `В работе 2-ю неделю.`}
+                          {!isCompleted && (
+                             <div
+                               className="text-[10px] font-bold flex items-center gap-1 mt-2 w-max px-2 py-0.5 rounded border"
+                               style={{ backgroundColor: agingMeta.bg, color: agingMeta.color, borderColor: agingMeta.border }}
+                               title={agingMeta.note}
+                             >
+                               <AlertTriangle size={12}/> {agingMeta.label}
                              </div>
                           )}
                        </div>
