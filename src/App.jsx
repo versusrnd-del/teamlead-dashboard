@@ -2590,6 +2590,24 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       ];
       const isReportFirstLineOperator = (name) => FIRST_LINE_REPORT_NAMES.some(targetName => isSameReportPerson(name, targetName));
 
+      const parseReportDurationToSeconds = (value) => {
+        const parts = safeString(value).match(/\d+/g);
+        if (!parts || parts.length === 0) return 0;
+        const [hours = 0, minutes = 0, seconds = 0] = parts.map(Number);
+        if (parts.length === 1) return Number(parts[0]) || 0;
+        if (parts.length === 2) return ((Number(hours) || 0) * 60) + (Number(minutes) || 0);
+        return ((Number(hours) || 0) * 3600) + ((Number(minutes) || 0) * 60) + (Number(seconds) || 0);
+      };
+
+      const formatReportDurationShort = (seconds) => {
+        const value = Number(seconds) || 0;
+        if (value <= 0) return '-';
+        const minutes = Math.floor(value / 60);
+        const restSeconds = value % 60;
+        if (minutes <= 0) return `${restSeconds}с`;
+        return `${minutes}м ${String(restSeconds).padStart(2, '0')}с`;
+      };
+
       // В отчете по телефонии показываем только целевую 1-ю линию; 2-3 линия может помогать, но не попадает в управленческий контроль.
       const visibleTelephony = (weekData.telephonyData || []).filter(row => {
          const fName = getFullName(row.name);
@@ -2621,6 +2639,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         let missed = 0;
         let total = 0;
         let closedTotal = 0;
+        const talkDurations = visibleTelephony
+          .map(op => parseReportDurationToSeconds(op.avgTalk))
+          .filter(value => value > 0);
+        const avgLineTalk = talkDurations.length > 0
+          ? Math.round(talkDurations.reduce((sum, value) => sum + value, 0) / talkDurations.length)
+          : 0;
+
         const operatorCards = visibleTelephony.map(op => {
           total += Number(op.total) || 0;
           missed += Number(op.missed) || 0;
@@ -2629,10 +2654,19 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           closedTotal += closedTickets;
           const missedCalls = Number(op.missed) || 0;
           const answeredCalls = Number(op.answered) || 0;
+          const totalCalls = Number(op.total) || 0;
           const missRate = Number(op.total) > 0 ? Math.round((missedCalls / Number(op.total)) * 100) : 0;
           const availability = Math.max(0, 100 - missRate);
+          const avgResolveMin = perf ? (Number(perf.avgTimeMin) || 0) : 0;
+          const avgTalkSeconds = parseReportDurationToSeconds(op.avgTalk);
+          const talkDiffPct = avgLineTalk > 0 && avgTalkSeconds > 0 ? Math.round(((avgTalkSeconds - avgLineTalk) / avgLineTalk) * 100) : 0;
+          const closedPerAnswered = answeredCalls > 0 ? Number((closedTickets / answeredCalls).toFixed(1)) : 0;
           let status = { label: 'Норма', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' };
           let recommendation = 'Держит линию в рабочем режиме.';
+          let workloadLabel = 'Сбалансированная работа';
+          let workloadColor = '#2563eb';
+          let workloadBg = '#eff6ff';
+          let workloadText = 'Закрытия и телефонная нагрузка выглядят ровно.';
           if (missedCalls > 10 && closedTickets < 50) {
             status = { label: 'Риск доступности', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' };
             recommendation = 'Проверить доступность в АТС и фактическое присутствие на линии.';
@@ -2644,6 +2678,39 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             recommendation = 'Есть пропущенные вызовы; проверить дисциплину линии и статусы АТС.';
           }
 
+          if (closedTickets >= 65 && avgResolveMin > 20) {
+            workloadLabel = 'Сложная нагрузка';
+            workloadColor = '#c2410c';
+            workloadBg = '#fff7ed';
+            workloadText = `Много закрытий при среднем решении ${avgResolveMin} мин.: похоже на реальную тяжелую смену, а не набор легких тикетов.`;
+          } else if (closedTickets >= 65 && avgResolveMin > 0 && avgResolveMin <= 10) {
+            workloadLabel = 'Риск легких закрытий';
+            workloadColor = '#b45309';
+            workloadBg = '#fffbeb';
+            workloadText = `Высокое число закрытий при среднем решении ${avgResolveMin} мин.: стоит проверить, не набирались ли в основном быстрые однотипные обращения.`;
+          } else if (closedTickets >= 45 && avgResolveMin >= 15) {
+            workloadLabel = 'Работал с содержательными';
+            workloadColor = '#2563eb';
+            workloadBg = '#eff6ff';
+            workloadText = `Закрытий достаточно, среднее решение ${avgResolveMin} мин.: нагрузка выглядит не только количественной.`;
+          } else if (closedTickets < 35 && answeredCalls >= 25) {
+            workloadLabel = 'Фокус на линии';
+            workloadColor = '#475569';
+            workloadBg = '#f8fafc';
+            workloadText = 'Jira-закрытий немного, но есть заметный телефонный поток: оценивать вместе с дежурством на линии.';
+          }
+
+          let talkText = avgTalkSeconds > 0
+            ? `Средний разговор ${formatReportDurationShort(avgTalkSeconds)}.`
+            : 'Средний разговор не распознан из телефонии.';
+          if (avgLineTalk > 0 && avgTalkSeconds > 0) {
+            if (talkDiffPct >= 30) {
+              talkText = `Разговоры длиннее среднего линии на ${talkDiffPct}%: вероятны консультации или сложные обращения.`;
+            } else if (talkDiffPct <= -30 && closedTickets >= 45) {
+              talkText = `Разговоры короче среднего линии на ${Math.abs(talkDiffPct)}% при высокой выработке: проверить долю простых закрытий.`;
+            }
+          }
+
           return `
             <div class="telephony-operator-card">
               <div class="telephony-operator-head">
@@ -2652,11 +2719,18 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </div>
               <div class="telephony-metrics">
                 <div><span>Инциденты</span><b>${closedTickets}</b></div>
-                <div><span>Отвечено</span><b>${answeredCalls}</b></div>
+                <div><span>Звонки</span><b>${answeredCalls}/${totalCalls}</b></div>
                 <div><span>Пропущено</span><b style="color: ${missedCalls > 0 ? '#dc2626' : '#047857'};">${missedCalls}</b></div>
-                <div><span>Доступность</span><b>${availability}%</b></div>
+                <div><span>Ср. разговор</span><b>${formatReportDurationShort(avgTalkSeconds)}</b></div>
               </div>
-              <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-top: 8px;">${recommendation}</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+                <span style="background: ${workloadBg}; color: ${workloadColor}; border: 1px solid ${workloadColor}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${workloadLabel}</span>
+                <span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">доступность ${availability}%</span>
+                ${closedPerAnswered > 0 ? `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">${closedPerAnswered} Jira/звонок</span>` : ''}
+              </div>
+              <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-top: 8px;">${workloadText}</div>
+              <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-top: 4px;">${talkText}</div>
+              <div style="font-size: 12px; color: #64748b; line-height: 1.45; margin-top: 4px;">${recommendation}</div>
             </div>
           `;
         }).join('');
@@ -2679,7 +2753,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <div><span>Всего вызовов</span><b>${total}</b></div>
               <div><span>Пропущено</span><b style="color: ${missed > 0 ? '#dc2626' : '#047857'};">${missed}</b></div>
               <div><span>Потери</span><b>${missRateTotal}%</b></div>
-              <div><span>Инциденты Jira</span><b>${closedTotal || totalIncidents}</b></div>
+              <div><span>Ср. разговор</span><b>${formatReportDurationShort(avgLineTalk)}</b></div>
             </div>
             <div class="telephony-operators-grid">
               ${operatorCards}
@@ -2780,11 +2854,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const renderValueShowcase = () => {
         if (!keyDetailedTasks || keyDetailedTasks.length === 0) return '';
         const groups = [
-          { key: 'business', label: 'Бизнес-проект', color: '#8b5cf6', bg: '#f5f3ff', items: [] },
-          { key: 'stability', label: 'Стабильность', color: '#2563eb', bg: '#eff6ff', items: [] },
-          { key: 'optimization', label: 'Оптимизация', color: '#059669', bg: '#ecfdf5', items: [] },
-          { key: 'techDebt', label: 'Техдолг', color: '#dc2626', bg: '#fff1f2', items: [] },
-          { key: 'routine', label: 'Рутина', color: '#64748b', bg: '#f8fafc', items: [] }
+          { key: 'business', label: 'Бизнес-проект', value: 'движение проектов и поручений', color: '#8b5cf6', bg: '#f5f3ff', items: [] },
+          { key: 'stability', label: 'Стабильность', value: 'меньше сбоев и ручного тушения', color: '#2563eb', bg: '#eff6ff', items: [] },
+          { key: 'optimization', label: 'Оптимизация', value: 'ускорение и автоматизация работы', color: '#059669', bg: '#ecfdf5', items: [] },
+          { key: 'techDebt', label: 'Техдолг', value: 'снятие старых рисков сопровождения', color: '#dc2626', bg: '#fff1f2', items: [] },
+          { key: 'routine', label: 'Рутина', value: 'фоновая эксплуатация без отдельного акцента', color: '#64748b', bg: '#f8fafc', items: [] }
         ];
         keyDetailedTasks.forEach(task => {
           const category = getTaskValueCategory(task);
@@ -2792,27 +2866,46 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           group.items.push(task);
         });
 
-        const cardsHtml = groups.filter(g => g.items.length > 0).map(group => `
+        const activeGroups = groups.filter(g => g.items.length > 0);
+        const valueTasksCount = activeGroups
+          .filter(group => group.key !== 'routine')
+          .reduce((sum, group) => sum + group.items.length, 0);
+        const heavyValueTasksCount = keyDetailedTasks.filter(task => ['L', 'XL'].includes(getTaskComplexity(task))).length;
+        const topGroup = activeGroups.length > 0
+          ? [...activeGroups].sort((a, b) => b.items.length - a.items.length)[0]
+          : null;
+        const totalTasks = keyDetailedTasks.length || 1;
+        const showcaseConclusion = topGroup
+          ? `Главный фокус недели: ${topGroup.label.toLowerCase()} (${topGroup.items.length} из ${keyDetailedTasks.length}). Ценность есть, если эта доля отражает реальные приоритеты недели; детализация ниже раскрывает конкретные задачи.`
+          : 'Подробные задачи загружены, но категории ценности пока не распознаны.';
+
+        const cardsHtml = activeGroups.map(group => {
+          const percent = Math.round((group.items.length / totalTasks) * 100);
+          const sampleTask = group.items[0];
+          return `
           <div class="value-card" style="border-top-color: ${group.color}; background: ${group.bg};">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <div style="font-size: 13px; font-weight: 800; color: ${group.color};">${group.label}</div>
-              <div style="font-size: 12px; font-weight: 800; color: ${group.color};">${group.items.length}</div>
+              <div style="font-size: 12px; font-weight: 900; color: ${group.color};">${group.items.length} / ${percent}%</div>
             </div>
-            ${group.items.slice(0, 4).map(task => {
-              const size = safeString(task.size || task.complexity || '').toUpperCase();
-              const sizeBadge = size ? `<span style="font-size: 10px; font-weight: 800; color: ${group.color}; border: 1px solid ${group.color}; border-radius: 999px; padding: 1px 5px; margin-left: 5px;">${size}</span>` : '';
-              return `
-                <div style="font-size: 12px; color: #334155; line-height: 1.35; margin-bottom: 7px;">
-                  <span style="font-weight: 800; color: ${group.color};">${safeString(task.id)}</span>${sizeBadge}
-                  <div style="margin-top: 2px;">${safeString(task.title)}</div>
-                </div>
-              `;
-            }).join('')}
+            <div style="font-size: 12px; color: #475569; line-height: 1.45;">${group.value}</div>
+            ${sampleTask ? `<div style="font-size: 11px; color: #64748b; line-height: 1.35; margin-top: 7px;">Пример: <b style="color: ${group.color};">${escapeHtml(sampleTask.id)}</b> ${escapeHtml(safeString(sampleTask.title).slice(0, 74))}${safeString(sampleTask.title).length > 74 ? '...' : ''}</div>` : ''}
           </div>
-        `).join('');
+        `;
+        }).join('');
 
         return `
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Витрина ценности закрытых задач</h3>
+          <div class="value-summary">
+            <div>
+              <div class="value-summary-title">Что полезного дала неделя</div>
+              <div class="value-summary-text">${escapeHtml(showcaseConclusion)}</div>
+            </div>
+            <div class="value-summary-stats">
+              <span><b>${valueTasksCount}</b> ценных</span>
+              <span><b>${heavyValueTasksCount}</b> L/XL</span>
+            </div>
+          </div>
           <div class="value-grid">
             ${cardsHtml}
           </div>
@@ -3012,32 +3105,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         `;
       }).join('');
       
-      const telephonyHtml = visibleTelephony && visibleTelephony.length > 0 ? `
-        <table class="data-table" style="margin-bottom: 10px;">
-          <thead>
-            <tr>
-              <th>Оператор</th>
-              <th style="text-align: center;">Всего</th>
-              <th style="text-align: center;">Отвечено</th>
-              <th style="text-align: center;">Пропущено</th>
-              <th style="text-align: center;">Ср. ожидание</th>
-              <th style="text-align: center;">Ср. разговор</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${visibleTelephony.map(row => `
-              <tr>
-                <td style="font-weight: 500;">${row.name}</td>
-                <td style="text-align: center;">${row.total}</td>
-                <td style="text-align: center; color: #10b981; font-weight: bold;">${row.answered}</td>
-                <td style="text-align: center; color: ${row.missed > 0 ? '#ef4444' : '#64748b'}; font-weight: ${row.missed > 0 ? 'bold' : 'normal'};">${row.missed}</td>
-                <td style="text-align: center;">${row.avgWait}</td>
-                <td style="text-align: center;">${row.avgTalk}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      ` : `
+      const telephonyHtml = visibleTelephony && visibleTelephony.length > 0 ? '' : `
         <div class="editable-box" style="background-color: #f1f5f9; border-color: #cbd5e1; color: #64748b; font-style: italic; text-align: center; margin-bottom: 30px;">
           <span contenteditable="true" style="outline: none; border-bottom: 1px dashed #cbd5e1;">[ Загрузите статистику телефонии на вкладке "Заполнить неделю" или вставьте таблицу сюда ]</span>
         </div>
@@ -3300,7 +3368,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .report-csat-popover { display: none; position: absolute; z-index: 40; right: 0; top: 24px; width: 520px; max-height: 340px; overflow-y: auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22); padding: 14px; }
           .report-csat-cell:hover .report-csat-popover { display: block; }
           .value-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
-          .value-card { border: 1px solid #e2e8f0; border-top: 4px solid #64748b; border-radius: 8px; padding: 12px; min-height: 120px; }
+          .value-summary { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 5px solid #10b981; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+          .value-summary-title { color: #0f172a; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px; }
+          .value-summary-text { color: #475569; font-size: 12px; line-height: 1.45; }
+          .value-summary-stats { flex-shrink: 0; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+          .value-summary-stats span { display: inline-block; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 8px; color: #475569; font-size: 11px; font-weight: 800; }
+          .value-summary-stats b { color: #0f172a; }
+          .value-card { border: 1px solid #e2e8f0; border-top: 4px solid #64748b; border-radius: 8px; padding: 12px; min-height: 104px; }
           .task-group { border: 1px solid #e2e8f0; border-left: 5px solid var(--group-accent); border-radius: 10px; padding: 14px 16px; margin: 16px 0 18px 0; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06); }
           .task-group-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.35); padding-bottom: 10px; margin-bottom: 12px; }
           .task-group-title { color: #0f172a; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
@@ -3322,7 +3396,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .telephony-operator-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 9px; }
           .telephony-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
           .telephony-metrics div { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 7px; }
-          .telephony-metrics b { display: block; color: #0f172a; font-size: 14px; margin-top: 2px; }
+          .telephony-metrics b { display: block; color: #0f172a; font-size: 13px; margin-top: 2px; white-space: nowrap; }
           ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
           ul.custom-list li { margin-bottom: 6px; }
         </style>
