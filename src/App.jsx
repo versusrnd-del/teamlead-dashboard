@@ -1684,6 +1684,59 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     setTimeout(() => setIsSaved(false), 3000);
   };
 
+  const buildEmptyReportPeriodData = () => ({
+    ...defaultWeekData,
+    year: formData.year,
+    month: formData.month,
+    weekNumber: formData.weekNumber,
+    dates: formData.dates,
+    status: 'green',
+    managementIndex: 0,
+    mainInsight: 'Ожидание данных недели.',
+    mainRisk: 'Ожидание данных недели.',
+    nextFocus: 'Ожидание данных недели.',
+    trainingHypothesis: 'Ожидание данных недели.',
+    blockersAndWaste: '',
+    mainWin: '',
+    thanks: '',
+    sprintWin: '',
+    sprintRisk: '',
+    shieldHero: '',
+    topIncidents: [],
+    slaMetrics: [],
+    topPerformers: [],
+    taskPerformers: [],
+    taskComplexity: [],
+    taskTypesDistribution: [],
+    techDebtCategories: [],
+    staleBacklog: [],
+    detailedTasks: [],
+    telephonyData: [],
+    telephonyInsight: '',
+    customReportHtml: null,
+    isReportFrozen: false
+  });
+
+  const handleResetReportPeriod = () => {
+    const label = `неделю ${formData.weekNumber} (${safeString(formData.dates)})`;
+    if (!window.confirm(`Обнулить отчетный период за ${label}? Метрики, импорт Jira, телефония и сгенерированный HTML будут очищены. Поручения руководства останутся.`)) return;
+    const emptyData = buildEmptyReportPeriodData();
+    setFormData(emptyData);
+    setImportJson('');
+    setImportTelephonyText('');
+    setImportCsatText('');
+    setImportStatus('reset');
+    setTelephonyStatus(null);
+    setCsatImportStatus(null);
+    setLastCsatPreview([]);
+    onSaveWeek(emptyData);
+    setIsSaved(true);
+    setTimeout(() => {
+      setIsSaved(false);
+      setImportStatus(null);
+    }, 3000);
+  };
+
   return (
     <div className="animate-in fade-in duration-500 max-w-5xl pb-24 text-left">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
@@ -1789,7 +1842,15 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
       <form onSubmit={(e)=>{e.preventDefault(); onSaveWeek(formData); setIsSaved(true); setTimeout(()=>setIsSaved(false), 3000);}} className="space-y-6">
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700/50 shadow-sm relative overflow-hidden text-left">
           <div className="absolute top-0 right-0 p-4 opacity-5"><Calendar size={80} /></div>
-          <h3 className="text-lg font-medium text-white mb-4 relative z-10 uppercase tracking-tighter">Отчетный период</h3>
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-lg font-medium text-white uppercase tracking-tighter">Отчетный период</h3>
+              <p className="text-xs text-slate-500 mt-1">Обнуление чистит данные выбранной недели, поручения руководства остаются.</p>
+            </div>
+            <button type="button" onClick={handleResetReportPeriod} className="bg-red-950/50 hover:bg-red-900/70 border border-red-500/40 text-red-300 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg">
+              <Trash2 size={14} /> Обнулить период
+            </button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
             <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60">Год</label><select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-emerald-500">{availableYears.map(y=><option key={y} value={y}>{y}</option>)}</select></div>
             <div className="text-left"><label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider opacity-60">Месяц</label><select value={selectedMonth} onChange={e=>setSelectedMonth(parseInt(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-emerald-500">{monthNames.map((n,i)=><option key={i} value={i}>{n}</option>)}</select></div>
