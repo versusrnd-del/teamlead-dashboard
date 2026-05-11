@@ -4035,7 +4035,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const primaryAvgOverdue = getAvgOverdue(primarySlaBreaches);
       const resolutionAvgOverdue = getAvgOverdue(resolutionSlaBreaches);
       const slaHeat = primarySlaBreaches.length >= 50 || primaryEasyShare >= 50
-        ? { label: 'Критично', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', fill: 92 }
+        ? { label: 'Критично', color: '#dc2626', bg: '#fff7ed', border: '#fed7aa', fill: 92 }
         : (primarySlaBreaches.length >= 20 || primaryEasyShare >= 30
           ? { label: 'Риск', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', fill: 68 }
           : (primarySlaBreaches.length > 0
@@ -4055,6 +4055,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           slaDiagnosis = 'Просрочки смешанные: нужно смотреть домены и смены, без вывода только по одному человеку.';
         }
       }
+      const slaFocusAction = primarySlaBreaches.length === 0
+        ? 'Действий не требуется: нет деталей по первичной реакции.'
+        : (primaryEasyShare >= 35
+          ? 'Фокус руководителя: проверить очередь первой линии и правило взятия простых обращений в первые 15 минут. Основной риск не в сложности, а в реакции на типовые обращения.'
+          : (primaryComplexShare >= 40
+            ? 'Фокус руководителя: отделить массовые и сложные кейсы от обычной очереди, зафиксировать быстрый маршрут эскалации и шаблон первичного ответа пользователю.'
+            : 'Фокус руководителя: разобрать несколько показательных кейсов, подтвердить причину просрочки и проверить, не смешались ли дисциплина реакции и сложность.'));
       const slaAssigneeStats = Object.entries(primarySlaBreaches.reduce((acc, item) => {
         const assignee = getSlaAssigneeName(item.assignee || item.resolver || item.closedBy || item.owner);
         if (!acc[assignee]) acc[assignee] = { total: 0, easy: 0, complex: 0, overdue: [] };
@@ -4072,45 +4079,83 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const avg = stats.overdue.length > 0 ? Math.round(stats.overdue.reduce((sum, value) => sum + value, 0) / stats.overdue.length) : 0;
           return `<span style="display:inline-block; background:#fff; border:1px solid #e2e8f0; border-radius:999px; padding:4px 8px; font-size:11px; color:#334155; margin:3px 4px 0 0;"><b>${escapeHtml(assignee)}</b>: ${stats.total}, простые ${stats.easy}, ср. ${avg > 0 ? `+${avg}м` : '-'}</span>`;
         }).join('');
-      const renderSlaBreachItems = (items) => items.slice(0, 6).map(item => {
+      const getSlaOverdue = (item) => Number(item.overdueMin || item.overdueMinutes || item.overdue || 0);
+      const getSlaExampleReason = (item) => {
+        const reviewMeta = getSlaReviewMeta(getSlaReview(item.id || item.key || item.issueKey));
+        if (reviewMeta) return reviewMeta.label;
+        if (isLikelyEasySla(item)) return 'Типовой кейс';
+        if (isComplexSla(item)) return 'Сложный кейс';
+        return 'Показательный кейс';
+      };
+      const selectSlaExamples = (items) => {
+        const source = [...items];
+        const picked = [];
+        const add = (item) => {
+          if (!item) return;
+          const id = safeString(item.id || item.key || item.issueKey);
+          if (picked.some(existing => safeString(existing.id || existing.key || existing.issueKey) === id)) return;
+          picked.push(item);
+        };
+        add(source.filter(isLikelyEasySla).sort((a, b) => getSlaOverdue(b) - getSlaOverdue(a))[0]);
+        const topAssigneeItem = topPrimaryAssignee
+          ? source
+              .filter(item => getSlaAssigneeName(item.assignee || item.resolver || item.closedBy || item.owner) === topPrimaryAssignee)
+              .sort((a, b) => getSlaOverdue(b) - getSlaOverdue(a))[0]
+          : null;
+        add(topAssigneeItem);
+        add(source.filter(isComplexSla).sort((a, b) => getSlaOverdue(b) - getSlaOverdue(a))[0]);
+        source.sort((a, b) => getSlaOverdue(b) - getSlaOverdue(a)).forEach(add);
+        return picked.slice(0, 3);
+      };
+      const renderSlaBreachItems = (items) => {
+        const examples = selectSlaExamples(items);
+        const hiddenCount = Math.max(0, items.length - examples.length);
+        return `${examples.map(item => {
         const id = safeString(item.id || item.key || item.issueKey);
         const title = safeString(item.title || item.theme || item.summary || 'Без темы');
         const assignee = getSlaAssigneeName(item.assignee || item.resolver || item.closedBy || item.owner);
-        const overdue = Number(item.overdueMin || item.overdueMinutes || item.overdue || 0);
+        const overdue = getSlaOverdue(item);
         const domain = safeString(item.domain || item.category || 'Прочее');
         const reason = safeString(item.reason || item.analysis || item.comment || '').trim();
-        const easyBadge = isLikelyEasySla(item) ? ' / вероятно простое' : '';
+        const exampleReason = getSlaExampleReason(item);
         const reviewMeta = getSlaReviewMeta(getSlaReview(id));
         const reviewBadge = reviewMeta ? `<span style="display: inline-block; margin-left: 5px; background: ${reviewMeta.bg}; color: ${reviewMeta.color}; border: 1px solid ${reviewMeta.border}; border-radius: 999px; padding: 1px 6px; font-size: 10px; font-weight: 900;">${escapeHtml(reviewMeta.label)}</span>` : '';
         return `
-          <li>
-            <b style="color: #b91c1c;">${escapeHtml(id)}</b> ${escapeHtml(title)} ${reviewBadge}
-            <span style="color: #64748b;">/ ${escapeHtml(assignee)} / ${escapeHtml(domain)}${overdue > 0 ? ` / +${overdue} мин` : ''}${easyBadge}</span>
-            ${reason ? `<div style="color: #64748b; font-size: 11px; margin-top: 2px;">${escapeHtml(reason).slice(0, 180)}${reason.length > 180 ? '...' : ''}</div>` : ''}
+          <li style="margin-bottom: 7px;">
+            <div style="display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;">
+              <b style="color: #b91c1c;">${escapeHtml(id)}</b>
+              <span style="color:#0f172a;">${escapeHtml(title)}</span>
+              ${reviewBadge || `<span style="display:inline-block; background:#f8fafc; border:1px solid #e2e8f0; border-radius:999px; padding:1px 6px; font-size:10px; font-weight:800; color:#475569;">${escapeHtml(exampleReason)}</span>`}
+            </div>
+            <div style="color: #64748b; font-size: 11px; margin-top: 2px;">${escapeHtml(assignee)} · ${escapeHtml(domain)}${overdue > 0 ? ` · +${overdue} мин` : ''}${reason ? ` · ${escapeHtml(reason).slice(0, 110)}${reason.length > 110 ? '...' : ''}` : ''}</div>
             ${exportMode ? '' : renderSlaReviewControls(item)}
           </li>
         `;
-      }).join('');
+        }).join('')}${hiddenCount > 0 ? `<li style="list-style:none; color:#64748b; font-size:11px; margin-top:5px;">Еще ${hiddenCount} кейсов в разборе. Полный список остается в данных SLA и AI-памяти.</li>` : ''}`;
+      };
       const slaBreachHtml = slaBreachDetails.length > 0 ? `
         <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">SLA-температура первой реакции</h3>
         <div style="background: ${slaHeat.bg}; border: 1px solid ${slaHeat.border}; border-left: 5px solid ${slaHeat.color}; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;">
           <div style="display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;">
             <div style="min-width: 0; flex: 1;">
               <div style="font-size: 12px; color: ${slaHeat.color}; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em;">Температура SLA: ${slaHeat.label}</div>
-              <div style="height: 8px; background: #ffffff; border: 1px solid ${slaHeat.border}; border-radius: 999px; overflow: hidden; margin: 7px 0 8px 0;">
+              <div style="height: 7px; background: #ffffff; border: 1px solid ${slaHeat.border}; border-radius: 999px; overflow: hidden; margin: 7px 0 8px 0;">
                 <div style="height: 100%; width: ${slaHeat.fill}%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);"></div>
               </div>
               <div style="font-size: 12px; color: #334155; line-height: 1.45;">${escapeHtml(slaDiagnosis)}</div>
               ${slaReviewSummary ? `<div style="font-size: 11px; color: #64748b; margin-top: 5px;">Ручная память: ${slaReviewSummary}.</div>` : ''}
             </div>
-            <div style="display: grid; grid-template-columns: repeat(2, minmax(84px, 1fr)); gap: 7px; min-width: 260px;">
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;"><span style="display:block; color:#64748b; font-size:9px; font-weight:900; text-transform:uppercase;">Первичная</span><b style="font-size:18px; color:#0f172a;">${primarySlaBreaches.length}</b></div>
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;"><span style="display:block; color:#64748b; font-size:9px; font-weight:900; text-transform:uppercase;">До решения</span><b style="font-size:18px; color:#0f172a;">${resolutionSlaBreaches.length}</b></div>
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;"><span style="display:block; color:#64748b; font-size:9px; font-weight:900; text-transform:uppercase;">Простые</span><b style="font-size:18px; color:#0f172a;">${primaryEasyShare}%</b></div>
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;"><span style="display:block; color:#64748b; font-size:9px; font-weight:900; text-transform:uppercase;">Сложные</span><b style="font-size:18px; color:#0f172a;">${primaryComplexShare}%</b></div>
+            <div style="display: grid; grid-template-columns: repeat(4, minmax(64px, 1fr)); gap: 6px; min-width: 340px;">
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">Первичная</span><b style="font-size:17px; color:#0f172a;">${primarySlaBreaches.length}</b></div>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">До решения</span><b style="font-size:17px; color:#0f172a;">${resolutionSlaBreaches.length}</b></div>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">Простые</span><b style="font-size:17px; color:#0f172a;">${primaryEasyShare}%</b></div>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">Сложные</span><b style="font-size:17px; color:#0f172a;">${primaryComplexShare}%</b></div>
             </div>
           </div>
-          <div style="font-size: 11px; color: #475569; margin-top: 9px; line-height: 1.45;">
+          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; font-size: 12px; color:#334155; margin-top:9px; line-height:1.45;">
+            <b>Что делать:</b> ${escapeHtml(slaFocusAction)}
+          </div>
+          <div style="font-size: 11px; color: #475569; margin-top: 8px; line-height: 1.45;">
             <b>Где:</b> ${escapeHtml(topPrimaryDomain || 'нет данных')}${topPrimaryDomainCount ? ` (${topPrimaryDomainCount})` : ''} ·
             <b>Почему:</b> ${escapeHtml(topPrimaryReason || 'нет данных')}${topPrimaryReasonCount ? ` (${topPrimaryReasonCount})` : ''} ·
             <b>Кто закрывал чаще:</b> ${escapeHtml(topPrimaryAssignee || 'нет данных')}${topPrimaryAssigneeCount ? ` (${topPrimaryAssigneeCount})` : ''} ·
@@ -4118,7 +4163,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           </div>
           ${primarySlaBreaches.length > 0 ? `<div style="margin-top: 6px;">${renderSlaAssigneeChips()}</div>` : ''}
           <div style="border-top: 1px solid ${slaHeat.border}; margin-top: 9px; padding-top: 8px;">
-            <div style="font-size: 10px; color: #64748b; font-weight: 900; text-transform: uppercase; margin-bottom: 4px;">Примеры для разбора</div>
+            <div style="font-size: 10px; color: #64748b; font-weight: 900; text-transform: uppercase; margin-bottom: 4px;">3 показательных примера для разбора</div>
             <ul class="compact-list">
               ${renderSlaBreachItems(primarySlaBreaches.length ? primarySlaBreaches : slaBreachDetails)}
             </ul>
