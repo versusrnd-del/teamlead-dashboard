@@ -749,7 +749,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       note = `Доступность ${availability}%, пропущено ${missed}. Проверить смену, АТС и фактическое участие.`;
     } else if (footballRate >= 60 && answered >= 10) {
       label = 'Диспетчеризация';
-      note = `Много принятых звонков без личного закрытия: прокси Football Rate ${footballRate}%.`;
+      note = `Много принятых звонков без личного закрытия: прокси передачи дальше ${footballRate}%.`;
     } else if (closed >= 45 && avgResolveMin >= 15) {
       label = 'Решатель';
       note = `Закрытия выглядят содержательными: ${closed} инцидентов, среднее решение ${avgResolveMin} мин.`;
@@ -971,7 +971,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
                 <div>
                   <h2 className="text-lg font-medium text-white flex items-center gap-2"><PhoneCall size={20} className="text-sky-400" /> Пульс первой линии</h2>
-                  <p className="text-xs text-slate-500 mt-1">Телефония + Jira. FCR и диспетчеризация считаются как прокси, пока нет связки звонок {'->'} IS.</p>
+                  <p className="text-xs text-slate-500 mt-1">Телефония + Jira. Решение на 1Л и передачи дальше считаются как прокси, пока нет связки звонок {'->'} IS.</p>
                 </div>
                 <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">Средний разговор: {formatDurationShort(pulseAvgTalk)}</span>
               </div>
@@ -984,9 +984,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     </div>
                     <div className="grid grid-cols-2 gap-2 mb-3">
                       <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">Jira</div><div className="text-white font-black text-lg leading-tight">{item.closed}</div></div>
-                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">Звонки</div><div className="text-white font-black text-lg leading-tight">{item.answered}/{item.total}</div></div>
-                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">FCR</div><div className="text-sky-300 font-black text-lg leading-tight">{item.fcrProxy}%</div></div>
-                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">Football</div><div className={`${item.footballRate >= 60 ? 'text-red-300' : 'text-slate-200'} font-black text-lg leading-tight`}>{item.footballRate}%</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">Принято</div><div className="text-white font-black text-lg leading-tight">{item.answered}</div><div className="text-[10px] text-slate-500 mt-1">из {item.total} всего</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">Решено 1Л*</div><div className="text-sky-300 font-black text-lg leading-tight">{item.fcrProxy}%</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">Передано*</div><div className={`${item.footballRate >= 60 ? 'text-red-300' : 'text-slate-200'} font-black text-lg leading-tight`}>{item.footballRate}%</div></div>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       <span className="text-[10px] bg-slate-950/70 border border-slate-700 text-slate-300 px-2 py-0.5 rounded-full">доступность {item.availability}%</span>
@@ -3012,6 +3012,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
       const totalIncidents = Number(weekData.incidentsClosed) || 0;
       const managementIndex = Number(weekData.managementIndex) || 0;
+      const slaViolationsTotal = (weekData.slaMetrics || []).reduce((sum, item) => sum + (Number(item.violations) || 0), 0);
+      const flowSituationText = [
+        `Индекс SLA ${managementIndex}/100${slaViolationsTotal > 0 ? `, нарушений SLA: ${slaViolationsTotal}` : ''}.`,
+        totalIncidents > 0 ? `Закрыто инцидентов 1-й линии: ${totalIncidents}.` : '',
+        managementIndex < 70
+          ? 'Поток в зоне риска: нужен контроль просрочек SLA и причин повторяемых обращений.'
+          : 'Поток выглядит управляемо, но повторяемые драйверы инцидентов остаются на контроле.'
+      ].filter(Boolean).join(' ');
 
       const incColor = totalIncidents >= 300 ? '#ef4444' : '#10b981'; 
       const taskColor = totalClosedCount >= 50 ? '#ef4444' : '#3b82f6'; 
@@ -3219,7 +3227,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             workloadLabel = 'Диспетчеризация';
             workloadColor = '#b45309';
             workloadBg = '#fffbeb';
-            workloadText = `Прокси Football Rate ${footballRate}%: много принятых звонков без личного закрытия в Jira.`;
+            workloadText = `Прокси передачи дальше ${footballRate}%: много принятых звонков без личного закрытия в Jira.`;
           } else if (closedTickets < 35 && answeredCalls >= 25) {
             workloadLabel = 'Фокус на линии';
             workloadColor = '#475569';
@@ -3246,7 +3254,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </div>
               <div class="telephony-metrics">
                 <div><span>Инциденты</span><b>${closedTickets}</b></div>
-                <div><span>Звонки</span><b>${answeredCalls}/${totalCalls}</b></div>
+                <div><span>Принято</span><b>${answeredCalls}</b><em style="display: block; color: #64748b; font-size: 10px; font-style: normal; margin-top: 1px;">из ${totalCalls} всего</em></div>
                 <div><span>Пропущено</span><b style="color: ${missedCalls > 0 ? '#dc2626' : '#047857'};">${missedCalls}</b></div>
                 <div><span>Ср. разговор</span><b>${formatReportDurationShort(avgTalkSeconds)}</b></div>
               </div>
@@ -3254,8 +3262,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 <span style="background: ${workloadBg}; color: ${workloadColor}; border: 1px solid ${workloadColor}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${workloadLabel}</span>
                 <span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">доступность ${availability}%</span>
                 ${closedPerAnswered > 0 ? `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">${closedPerAnswered} Jira/звонок</span>` : ''}
-                ${answeredCalls > 0 ? `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">FCR* ${fcrProxy}%</span>` : ''}
-                ${answeredCalls > 0 ? `<span style="background: ${footballRate >= 60 ? '#fffbeb' : '#f8fafc'}; color: ${footballRate >= 60 ? '#b45309' : '#475569'}; border: 1px solid ${footballRate >= 60 ? '#f59e0b' : '#cbd5e1'}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">Football* ${footballRate}%</span>` : ''}
+                ${answeredCalls > 0 ? `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">Решено 1Л* ${fcrProxy}%</span>` : ''}
+                ${answeredCalls > 0 ? `<span style="background: ${footballRate >= 60 ? '#fffbeb' : '#f8fafc'}; color: ${footballRate >= 60 ? '#b45309' : '#475569'}; border: 1px solid ${footballRate >= 60 ? '#f59e0b' : '#cbd5e1'}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">Передано дальше* ${footballRate}%</span>` : ''}
               </div>
               <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-top: 8px;">${workloadText}</div>
               <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-top: 4px;">${talkText}</div>
@@ -4261,7 +4269,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <div class="section-title" style="--accent: #ef4444;">${sectionCounter++}. Риски, Инциденты и Улучшения</div>
             <ul class="custom-list" style="line-height: 1.6;">
               <li><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
-              <li><b>Ситуация в потоке:</b> ${safeString(weekData.mainRisk).replace(/\n/g, ' ')}</li>
+              <li><b>Ситуация в потоке:</b> ${escapeHtml(flowSituationText)}</li>
               <li><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
             </ul>
             ${routineTasksHtmlRendered}
