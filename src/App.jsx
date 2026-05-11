@@ -793,7 +793,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const assignee = getFullName(task.assignee);
     if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME) return acc;
     if (!acc[assignee]) {
-      acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, domains: {}, heavy: 0 };
+      acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, domains: {}, domainTasks: {}, heavy: 0, samples: [] };
     }
     const size = getTaskSize(task) || 'M';
     const category = safeString(task.valueCategory || task.category || 'standard') || 'standard';
@@ -802,6 +802,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     acc[assignee].sizes[size] = (acc[assignee].sizes[size] || 0) + 1;
     acc[assignee].categories[category] = (acc[assignee].categories[category] || 0) + 1;
     acc[assignee].domains[domain] = (acc[assignee].domains[domain] || 0) + 1;
+    acc[assignee].domainTasks[domain] = acc[assignee].domainTasks[domain] || [];
+    acc[assignee].domainTasks[domain].push(task);
+    if (acc[assignee].samples.length < 5) acc[assignee].samples.push(task);
     if (['L', 'XL'].includes(size)) acc[assignee].heavy += 1;
     return acc;
   }, {})).map(row => {
@@ -816,7 +819,13 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     else if (topCategory === 'optimization') profile = 'Оптимизация';
     else if (topCategory === 'business') profile = 'Бизнес-проекты';
     else if (topSize === 'S') profile = 'Быстрая рутина';
-    return { ...row, topCategory, topSize, topDomains, heavyShare, confidence, profile };
+    const keyTasks = [...row.samples]
+      .sort((a, b) => {
+        const sizeRank = { XL: 4, L: 3, M: 2, S: 1 };
+        return (sizeRank[getTaskSize(b)] || 0) - (sizeRank[getTaskSize(a)] || 0);
+      })
+      .slice(0, 3);
+    return { ...row, topCategory, topSize, topDomains, heavyShare, confidence, profile, keyTasks };
   }).sort((a, b) => b.total - a.total);
 
   return (
@@ -956,10 +965,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
       </div>
 
-      {(firstLineControlRows.length > 0 || incidentResolutionLinks.length > 0) && (
+      {firstLineControlRows.length > 0 && (
         <div className="space-y-4 mb-8">
-          {firstLineControlRows.length > 0 && (
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
                 <div>
                   <h2 className="text-lg font-medium text-white flex items-center gap-2"><PhoneCall size={20} className="text-sky-400" /> Пульс первой линии</h2>
@@ -989,83 +997,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {incidentResolutionLinks.length > 0 && (
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
-                <div>
-                  <h2 className="text-lg font-medium text-white flex items-center gap-2"><GitMerge size={20} className="text-emerald-400" /> Инциденты {'->'} устранение</h2>
-                  <p className="text-xs text-slate-500 mt-1">Показывает только возможные технические действия по топовой проблеме. Организационные поручения и слабые совпадения отсекаются.</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {incidentResolutionLinks.map((link, idx) => (
-                  <div key={`${link.incident.name}-${idx}`} className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-4">
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="text-sm font-bold text-slate-100 leading-snug">{idx + 1}. {safeString(link.incident.name)}</div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase shrink-0 ${link.status === 'covered' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : link.status === 'planned' ? 'bg-blue-500/10 text-blue-300 border-blue-500/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`}>
-                        {link.status === 'covered' ? 'есть задача устранения' : link.status === 'planned' ? 'есть поручение' : 'нет связки'}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500 mb-2">Инцидентов: {Number(link.incident.count) || 0} · домен: {link.incidentDomain}</div>
-                    {link.matchedTasks.length > 0 ? (
-                      <div className="space-y-1.5">
-                        <div className="text-[10px] text-emerald-300 uppercase font-bold">Задачи устранения этой недели</div>
-                        {link.matchedTasks.map(task => (
-                          <div key={task.id} className="text-xs text-slate-300 bg-slate-950/60 rounded border border-slate-700/50 px-2 py-1.5">
-                            <span className="text-emerald-300 font-bold">{task.id}</span> - {safeString(task.title)}
-                          </div>
-                        ))}
-                      </div>
-                    ) : link.matchedProjectTasks.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {link.matchedProjectTasks.map(task => (
-                          <div key={task.id} className="text-xs text-slate-300 bg-slate-950/60 rounded border border-slate-700/50 px-2 py-1.5">
-                            <span className="text-blue-300 font-bold">Поручение</span> - {safeString(task.title)}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-amber-300">Нужна задача устранения или явное решение: иначе топовая проблема повторится.</p>
-                    )}
-                    {link.solutionHints.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-slate-700/50">
-                        <div className="text-[10px] text-cyan-300 uppercase font-bold mb-2 flex items-center gap-1.5"><Sparkles size={12} /> Суфлер похожих решений из архива</div>
-                        <p className="text-[11px] text-slate-500 leading-snug mb-2">Это не инциденты, а старые закрытые задачи нашей команды в том же домене. `Подошло` - если задача реально похожа на причину и способ решения. `Мимо` - если совпали только слова.</p>
-                        <div className="space-y-1.5">
-                          {link.solutionHints.map(task => (
-                            <div key={`hint-${link.incident.name}-${task.id}`} className="text-xs text-slate-300 bg-cyan-500/5 rounded border border-cyan-500/20 px-2 py-1.5">
-                              <div className="flex items-start justify-between gap-2">
-                                <div><span className="text-cyan-300 font-bold">{task.id}</span> - {safeString(task.title)}</div>
-                                {getSolutionFeedback(task.id, link.incident.name) && (
-                                  <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 ${getSolutionFeedback(task.id, link.incident.name) === 'helpful' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-red-500/10 text-red-300 border-red-500/30'}`}>
-                                    {getSolutionFeedback(task.id, link.incident.name) === 'helpful' ? 'подошло' : 'мимо'}
-                                  </span>
-                                )}
-                              </div>
-                              {safeString(task.comments).trim().length > 20 && (
-                                <div className="text-[11px] text-slate-500 mt-1 leading-snug">{safeString(task.comments).slice(0, 130)}{safeString(task.comments).length > 130 ? '...' : ''}</div>
-                              )}
-                              <div className="flex gap-1.5 mt-2">
-                                <button type="button" onClick={() => handleSolutionFeedback(task, link.incident.name, 'helpful')} className="text-[10px] px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition-colors">
-                                  Подошло
-                                </button>
-                                <button type="button" onClick={() => handleSolutionFeedback(task, link.incident.name, 'miss')} className="text-[10px] px-2 py-1 rounded border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors">
-                                  Мимо
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -1271,11 +1203,11 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">На базе detailedTasks</span>
           </div>
           <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 mb-4 text-xs text-slate-400 leading-relaxed">
-            Считается только по закрытым задачам недели из `detailedTasks`. Размер S/M/L/XL берется из поля `size` или ручной AI-памяти. Домены берутся из поля `domain`, а если его нет - по ключевым словам в теме и комментарии. При 1-2 задачах вывод помечается как `мало данных`.
+            Считается по сохраненным закрытым задачам недели из `detailedTasks`; отдельная память компетенций не ведется. Размер S/M/L/XL берется из поля `size` или ручной AI-памяти задач, домены - из поля `domain` или темы/комментария. При 1-2 задачах вывод помечается как `мало данных`.
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {skillMatrixRows.slice(0, 9).map(row => (
-              <div key={row.assignee} className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-4">
+              <div key={row.assignee} className="group relative bg-slate-900/50 rounded-lg border border-slate-700/50 p-4 hover:border-cyan-500/40 transition-colors">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <div className="font-bold text-slate-100">{row.assignee}</div>
@@ -1300,12 +1232,53 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                 </div>
                 <div className="mt-3 pt-3 border-t border-slate-700/50">
                   <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Домены</div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="space-y-2">
                     {row.topDomains.map(([domain, count]) => (
-                      <span key={`${row.assignee}-${domain}`} className="text-[10px] bg-cyan-500/10 text-cyan-200 border border-cyan-500/20 px-2 py-0.5 rounded-full">
-                        {domain}: {count}
-                      </span>
+                      <div key={`${row.assignee}-${domain}`}>
+                        <div className="flex justify-between text-[10px] mb-1">
+                          <span className="text-cyan-200">{domain}</span>
+                          <span className="text-slate-400">{count}</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                          <div className="h-full bg-cyan-500/70" style={{ width: `${Math.max(10, Math.round((count / row.total) * 100))}%` }}></div>
+                        </div>
+                      </div>
                     ))}
+                  </div>
+                </div>
+                {row.keyTasks.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-700/50">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Опорные задачи</div>
+                    <div className="space-y-1.5">
+                      {row.keyTasks.slice(0, 2).map(task => (
+                        <div key={`${row.assignee}-${task.id}`} className="text-[11px] text-slate-300 bg-slate-950/50 border border-slate-700/50 rounded px-2 py-1.5 leading-snug">
+                          <span className="text-cyan-300 font-bold">{task.id}</span> · {safeString(task.title).slice(0, 90)}{safeString(task.title).length > 90 ? '...' : ''}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="absolute left-1/2 top-full -translate-x-1/2 pt-3 w-[420px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-4 text-left cursor-auto pointer-events-auto">
+                    <div className="text-sm font-bold text-white mb-2">{row.assignee}: расшифровка компетенций</div>
+                    <div className="text-xs text-slate-400 leading-relaxed mb-3">
+                      Профиль рассчитан по {row.total} закрытым задачам недели. Уверенность: <span className="text-cyan-300 font-bold">{row.confidence}</span>. Домены показывают, с какими типами работ сотрудник реально соприкасался в этой выборке.
+                    </div>
+                    <div className="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-1">
+                      {row.keyTasks.map(task => (
+                        <div key={`tooltip-${row.assignee}-${task.id}`} className="bg-slate-900/70 border border-slate-700 rounded-lg p-3">
+                          <div className="flex justify-between gap-2 mb-1">
+                            <span className="text-cyan-300 font-bold text-xs">{task.id}</span>
+                            <span className="text-[10px] text-slate-400">{getTaskSize(task) || 'M'} · {getTaskDomain(task)}</span>
+                          </div>
+                          <div className="text-xs text-slate-200 leading-snug">{safeString(task.title)}</div>
+                          {safeString(task.comments).trim().length > 20 && (
+                            <div className="text-[11px] text-slate-500 mt-1 leading-snug">{safeString(task.comments).slice(0, 160)}{safeString(task.comments).length > 160 ? '...' : ''}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-600"></div>
                   </div>
                 </div>
               </div>
@@ -3631,7 +3604,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const assignee = getFullName(task.assignee);
           if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME) return acc;
           if (!acc[assignee]) {
-            acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, domains: {}, heavy: 0 };
+            acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, domains: {}, heavy: 0, samples: [] };
           }
           const size = getTaskComplexity(task) || 'M';
           const category = getTaskValueCategory(task).label;
@@ -3640,6 +3613,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           acc[assignee].sizes[size] = (acc[assignee].sizes[size] || 0) + 1;
           acc[assignee].categories[category] = (acc[assignee].categories[category] || 0) + 1;
           acc[assignee].domains[domain] = (acc[assignee].domains[domain] || 0) + 1;
+          if (acc[assignee].samples.length < 5) acc[assignee].samples.push(task);
           if (['L', 'XL'].includes(size)) acc[assignee].heavy += 1;
           return acc;
         }, {})).map(row => {
@@ -3647,12 +3621,19 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const topDomains = Object.entries(row.domains).sort((a, b) => b[1] - a[1]).slice(0, 4);
           const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
           const confidence = row.total >= 5 ? 'устойчиво' : (row.total >= 3 ? 'средне' : 'мало данных');
+          const keyTasks = [...row.samples]
+            .sort((a, b) => {
+              const sizeRank = { XL: 4, L: 3, M: 2, S: 1 };
+              return (sizeRank[getTaskComplexity(b)] || 0) - (sizeRank[getTaskComplexity(a)] || 0);
+            })
+            .slice(0, 2);
           return {
             ...row,
             topCategory,
             topDomains,
             heavyShare,
             confidence,
+            keyTasks,
             profile: heavyShare >= 35 ? `Тяжелые задачи: ${topCategory}` : `Основной фокус: ${topCategory}`
           };
         }).sort((a, b) => b.heavy - a.heavy || b.total - a.total).slice(0, 9);
@@ -3661,7 +3642,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
         return `
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Матрица компетенций</h3>
-          <div style="font-size: 12px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;">Считается по закрытым задачам недели: размер из size/AI-памяти, домен из поля domain или темы задачи. При 1-2 задачах вывод предварительный.</div>
+          <div style="font-size: 12px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;">Считается по закрытым задачам недели: размер из size/AI-памяти, домен из поля domain или темы задачи. Это не отдельная память компетенций, а пересчет по сохраненным задачам. При 1-2 задачах вывод предварительный.</div>
           <div class="skill-matrix-grid">
             ${rows.map(row => `
               <div class="skill-card">
@@ -3682,6 +3663,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">
                   ${row.topDomains.map(([domain, count]) => `<span style="font-size: 10px; color: #0e7490; background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 999px; padding: 2px 6px;">${escapeHtml(domain)}: ${count}</span>`).join('')}
                 </div>
+                ${row.keyTasks.length > 0 ? `
+                  <div style="border-top: 1px solid #e2e8f0; margin-top: 9px; padding-top: 7px;">
+                    <div style="font-size: 10px; color: #64748b; font-weight: 900; text-transform: uppercase; margin-bottom: 4px;">Опорные задачи</div>
+                    ${row.keyTasks.map(task => `<div style="font-size: 11px; color: #334155; line-height: 1.35; margin-top: 3px;"><b style="color: #0e7490;">${escapeHtml(task.id)}</b> ${escapeHtml(safeString(task.title).slice(0, 80))}${safeString(task.title).length > 80 ? '...' : ''}</div>`).join('')}
+                  </div>
+                ` : ''}
               </div>
             `).join('')}
           </div>
@@ -4238,7 +4225,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
             ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
-            ${renderIncidentResolutionReport()}
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
             ${telephonyHtml}
