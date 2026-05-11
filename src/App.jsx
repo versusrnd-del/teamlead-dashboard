@@ -2535,14 +2535,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   };
 
   const slaReviewOptions = [
-    { value: 'reaction_discipline', label: 'Дисциплина реакции', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-    { value: 'complexity', label: 'Сложность', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
-    { value: 'shift_gap', label: 'Смена/дежурство', color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
+    { value: 'reaction_discipline', label: 'Не взяли в 15 мин', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+    { value: 'complexity', label: 'Сложный кейс', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
     { value: 'false_breach', label: 'Ложная просрочка', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' }
   ];
 
   const normalizeSlaReview = (value) => {
     const raw = safeString(value).trim();
+    if (raw === 'shift_gap') return '';
     return slaReviewOptions.some(option => option.value === raw) ? raw : '';
   };
 
@@ -4010,10 +4010,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         return values.length > 0 ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
       };
       const getTopEntry = (counts) => Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || ['', 0];
+      const getSlaAssigneeName = (value) => {
+        const raw = safeString(value).trim();
+        const fullName = getFullName(raw);
+        return fullName && fullName !== 'Неизвестно' ? fullName : (raw || 'Неизвестно');
+      };
       const primaryEasyCount = primarySlaBreaches.filter(isLikelyEasySla).length;
       const primaryComplexCount = primarySlaBreaches.filter(isComplexSla).length;
       const resolutionComplexCount = resolutionSlaBreaches.filter(isComplexSla).length;
       const primaryEasyShare = primarySlaBreaches.length > 0 ? Math.round((primaryEasyCount / primarySlaBreaches.length) * 100) : 0;
+      const primaryComplexShare = primarySlaBreaches.length > 0 ? Math.round((primaryComplexCount / primarySlaBreaches.length) * 100) : 0;
       const slaReviewCounts = primarySlaBreaches.reduce((acc, item) => {
         const review = getSlaReview(item.id || item.key || item.issueKey);
         if (review) acc[review] = (acc[review] || 0) + 1;
@@ -4023,15 +4029,22 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         .filter(option => slaReviewCounts[option.value])
         .map(option => `${escapeHtml(option.label)}: <b>${slaReviewCounts[option.value]}</b>`)
         .join(', ');
-      const [topPrimaryAssignee, topPrimaryAssigneeCount] = getTopEntry(countByField(primarySlaBreaches, item => item.assignee || item.resolver || item.closedBy || item.owner));
+      const [topPrimaryAssignee, topPrimaryAssigneeCount] = getTopEntry(countByField(primarySlaBreaches, item => getSlaAssigneeName(item.assignee || item.resolver || item.closedBy || item.owner)));
       const [topPrimaryDomain, topPrimaryDomainCount] = getTopEntry(countByField(primarySlaBreaches, item => item.domain || item.category));
       const [topPrimaryReason, topPrimaryReasonCount] = getTopEntry(countByField(primarySlaBreaches, item => item.reason || item.analysis || item.comment));
       const primaryAvgOverdue = getAvgOverdue(primarySlaBreaches);
       const resolutionAvgOverdue = getAvgOverdue(resolutionSlaBreaches);
+      const slaHeat = primarySlaBreaches.length >= 50 || primaryEasyShare >= 50
+        ? { label: 'Критично', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', fill: 92 }
+        : (primarySlaBreaches.length >= 20 || primaryEasyShare >= 30
+          ? { label: 'Риск', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', fill: 68 }
+          : (primarySlaBreaches.length > 0
+            ? { label: 'Контроль', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', fill: 38 }
+            : { label: 'Норма', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', fill: 8 }));
       let slaDiagnosis = 'Нет деталей по основному SLA для анализа.';
       if (primarySlaBreaches.length > 0) {
         if (slaReviewCounts.reaction_discipline >= 3) {
-          slaDiagnosis = `По ручной разметке основной паттерн - дисциплина первичной реакции (${slaReviewCounts.reaction_discipline}). Нужен разбор смены, очереди и статусов АТС/Jira.`;
+          slaDiagnosis = `По ручной разметке основной паттерн - обращения не брали в первые 15 минут (${slaReviewCounts.reaction_discipline}). Нужен контроль очереди, статусов АТС/Jira и дежурного окна.`;
         } else if (slaReviewCounts.complexity >= 3) {
           slaDiagnosis = `По ручной разметке заметна сложность кейсов (${slaReviewCounts.complexity}). Нужен быстрый маршрут эскалации и шаблон фиксации массовых/сложных обращений.`;
         } else if (primaryEasyShare >= 35) {
@@ -4042,8 +4055,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           slaDiagnosis = 'Просрочки смешанные: нужно смотреть домены и смены, без вывода только по одному человеку.';
         }
       }
-      const renderSlaAssigneeRows = () => Object.entries(primarySlaBreaches.reduce((acc, item) => {
-        const assignee = safeString(item.assignee || item.resolver || item.closedBy || item.owner).trim() || 'Неизвестно';
+      const slaAssigneeStats = Object.entries(primarySlaBreaches.reduce((acc, item) => {
+        const assignee = getSlaAssigneeName(item.assignee || item.resolver || item.closedBy || item.owner);
         if (!acc[assignee]) acc[assignee] = { total: 0, easy: 0, complex: 0, overdue: [] };
         acc[assignee].total += 1;
         if (isLikelyEasySla(item)) acc[assignee].easy += 1;
@@ -4053,15 +4066,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         return acc;
       }, {}))
         .sort((a, b) => b[1].total - a[1].total)
-        .slice(0, 5)
+        .slice(0, 4);
+      const renderSlaAssigneeChips = () => slaAssigneeStats
         .map(([assignee, stats]) => {
           const avg = stats.overdue.length > 0 ? Math.round(stats.overdue.reduce((sum, value) => sum + value, 0) / stats.overdue.length) : 0;
-          return `<tr><td>${escapeHtml(assignee)}</td><td style="text-align:center;"><b>${stats.total}</b></td><td style="text-align:center;">${stats.easy}</td><td style="text-align:center;">${stats.complex}</td><td style="text-align:center;">${avg > 0 ? `+${avg} мин` : '-'}</td></tr>`;
+          return `<span style="display:inline-block; background:#fff; border:1px solid #e2e8f0; border-radius:999px; padding:4px 8px; font-size:11px; color:#334155; margin:3px 4px 0 0;"><b>${escapeHtml(assignee)}</b>: ${stats.total}, простые ${stats.easy}, ср. ${avg > 0 ? `+${avg}м` : '-'}</span>`;
         }).join('');
       const renderSlaBreachItems = (items) => items.slice(0, 6).map(item => {
         const id = safeString(item.id || item.key || item.issueKey);
         const title = safeString(item.title || item.theme || item.summary || 'Без темы');
-        const assignee = safeString(item.assignee || item.resolver || item.closedBy || item.owner || 'Неизвестно');
+        const assignee = getSlaAssigneeName(item.assignee || item.resolver || item.closedBy || item.owner);
         const overdue = Number(item.overdueMin || item.overdueMinutes || item.overdue || 0);
         const domain = safeString(item.domain || item.category || 'Прочее');
         const reason = safeString(item.reason || item.analysis || item.comment || '').trim();
@@ -4078,39 +4092,37 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         `;
       }).join('');
       const slaBreachHtml = slaBreachDetails.length > 0 ? `
-        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Разбор SLA: первые 15 минут</h3>
-        <div style="background: #fef2f2; border: 1px solid #fecaca; border-left: 5px solid #ef4444; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;">
-          <div style="font-size: 12px; color: #7f1d1d; line-height: 1.45;">
-            <b>Основной контроль:</b> Инцидент от момента создания - это задержка первичного взятия обращения в работу. Здесь важно разбирать не только количество, но и кто потом закрыл инцидент, домен проблемы и была ли задача простой.
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px;">
-            <div style="background: #ffffff; border: 1px solid #fecaca; border-radius: 8px; padding: 9px;"><span style="display:block; color:#991b1b; font-size:10px; font-weight:900; text-transform:uppercase;">Первичная реакция</span><b style="font-size:18px; color:#0f172a;">${primarySlaBreaches.length}</b></div>
-            <div style="background: #ffffff; border: 1px solid #fed7aa; border-radius: 8px; padding: 9px;"><span style="display:block; color:#9a3412; font-size:10px; font-weight:900; text-transform:uppercase;">До решения</span><b style="font-size:18px; color:#0f172a;">${resolutionSlaBreaches.length}</b></div>
-            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px;"><span style="display:block; color:#64748b; font-size:10px; font-weight:900; text-transform:uppercase;">Основные домены</span><div style="font-size:11px; color:#334155; margin-top:3px;">${formatTopCounts(countByField(primarySlaBreaches.length ? primarySlaBreaches : slaBreachDetails, item => item.domain || item.category), 3) || 'Нет данных'}</div></div>
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px;">
-            <div style="background: #ffffff; border: 1px solid #fecaca; border-radius: 8px; padding: 10px;">
-              <div style="font-size: 11px; color: #991b1b; font-weight: 900; text-transform: uppercase;">Диагноз по основному SLA</div>
-              <div style="font-size: 12px; color: #334155; line-height: 1.45; margin-top: 5px;">${escapeHtml(slaDiagnosis)}</div>
-              <div style="font-size: 11px; color: #64748b; margin-top: 6px;">Простые: <b>${primaryEasyCount}</b> (${primaryEasyShare}%), сложные/массовые: <b>${primaryComplexCount}</b>, средняя просрочка: <b>${primaryAvgOverdue > 0 ? `+${primaryAvgOverdue} мин` : '-'}</b>.</div>
-              ${slaReviewSummary ? `<div style="font-size: 11px; color: #64748b; margin-top: 6px;">Ручная память разбора: ${slaReviewSummary}.</div>` : ''}
+        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">SLA-температура первой реакции</h3>
+        <div style="background: ${slaHeat.bg}; border: 1px solid ${slaHeat.border}; border-left: 5px solid ${slaHeat.color}; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;">
+            <div style="min-width: 0; flex: 1;">
+              <div style="font-size: 12px; color: ${slaHeat.color}; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em;">Температура SLA: ${slaHeat.label}</div>
+              <div style="height: 8px; background: #ffffff; border: 1px solid ${slaHeat.border}; border-radius: 999px; overflow: hidden; margin: 7px 0 8px 0;">
+                <div style="height: 100%; width: ${slaHeat.fill}%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);"></div>
+              </div>
+              <div style="font-size: 12px; color: #334155; line-height: 1.45;">${escapeHtml(slaDiagnosis)}</div>
+              ${slaReviewSummary ? `<div style="font-size: 11px; color: #64748b; margin-top: 5px;">Ручная память: ${slaReviewSummary}.</div>` : ''}
             </div>
-            <div style="background: #ffffff; border: 1px solid #fed7aa; border-radius: 8px; padding: 10px;">
-              <div style="font-size: 11px; color: #9a3412; font-weight: 900; text-transform: uppercase;">Что смотреть на разборе</div>
-              <div style="font-size: 12px; color: #334155; line-height: 1.45; margin-top: 5px;">Топ домен: <b>${escapeHtml(topPrimaryDomain || 'нет данных')}</b>${topPrimaryDomainCount ? ` (${topPrimaryDomainCount})` : ''}. Топ причина: <b>${escapeHtml(topPrimaryReason || 'нет данных')}</b>${topPrimaryReasonCount ? ` (${topPrimaryReasonCount})` : ''}. Больше всего закрывал: <b>${escapeHtml(topPrimaryAssignee || 'нет данных')}</b>${topPrimaryAssigneeCount ? ` (${topPrimaryAssigneeCount})` : ''}.</div>
-              <div style="font-size: 11px; color: #64748b; margin-top: 6px;">SLA до решения: <b>${resolutionSlaBreaches.length}</b>, сложных: <b>${resolutionComplexCount}</b>, средняя просрочка: <b>${resolutionAvgOverdue > 0 ? `+${resolutionAvgOverdue} мин` : '-'}</b>.</div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(84px, 1fr)); gap: 7px; min-width: 260px;">
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;"><span style="display:block; color:#64748b; font-size:9px; font-weight:900; text-transform:uppercase;">Первичная</span><b style="font-size:18px; color:#0f172a;">${primarySlaBreaches.length}</b></div>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;"><span style="display:block; color:#64748b; font-size:9px; font-weight:900; text-transform:uppercase;">До решения</span><b style="font-size:18px; color:#0f172a;">${resolutionSlaBreaches.length}</b></div>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;"><span style="display:block; color:#64748b; font-size:9px; font-weight:900; text-transform:uppercase;">Простые</span><b style="font-size:18px; color:#0f172a;">${primaryEasyShare}%</b></div>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;"><span style="display:block; color:#64748b; font-size:9px; font-weight:900; text-transform:uppercase;">Сложные</span><b style="font-size:18px; color:#0f172a;">${primaryComplexShare}%</b></div>
             </div>
           </div>
-          ${primarySlaBreaches.length > 0 ? `<div style="font-size: 11px; color: #475569; margin-top: 9px;"><b>Кто закрывал первично просроченные:</b> ${formatTopCounts(countByField(primarySlaBreaches, item => item.assignee || item.resolver || item.closedBy || item.owner), 4) || 'Нет данных'}</div>` : ''}
-          ${primarySlaBreaches.length > 0 ? `
-            <table class="data-table" style="margin-top: 10px; margin-bottom: 10px;">
-              <thead><tr><th>Кто закрыл</th><th>Всего</th><th>Простые</th><th>Сложные</th><th>Ср. просрочка</th></tr></thead>
-              <tbody>${renderSlaAssigneeRows()}</tbody>
-            </table>
-          ` : ''}
-          <ul class="compact-list" style="margin-top: 10px;">
-            ${renderSlaBreachItems(primarySlaBreaches.length ? primarySlaBreaches : slaBreachDetails)}
-          </ul>
+          <div style="font-size: 11px; color: #475569; margin-top: 9px; line-height: 1.45;">
+            <b>Где:</b> ${escapeHtml(topPrimaryDomain || 'нет данных')}${topPrimaryDomainCount ? ` (${topPrimaryDomainCount})` : ''} ·
+            <b>Почему:</b> ${escapeHtml(topPrimaryReason || 'нет данных')}${topPrimaryReasonCount ? ` (${topPrimaryReasonCount})` : ''} ·
+            <b>Кто закрывал чаще:</b> ${escapeHtml(topPrimaryAssignee || 'нет данных')}${topPrimaryAssigneeCount ? ` (${topPrimaryAssigneeCount})` : ''} ·
+            <b>Ср. первичная просрочка:</b> ${primaryAvgOverdue > 0 ? `+${primaryAvgOverdue} мин` : '-'}
+          </div>
+          ${primarySlaBreaches.length > 0 ? `<div style="margin-top: 6px;">${renderSlaAssigneeChips()}</div>` : ''}
+          <div style="border-top: 1px solid ${slaHeat.border}; margin-top: 9px; padding-top: 8px;">
+            <div style="font-size: 10px; color: #64748b; font-weight: 900; text-transform: uppercase; margin-bottom: 4px;">Примеры для разбора</div>
+            <ul class="compact-list">
+              ${renderSlaBreachItems(primarySlaBreaches.length ? primarySlaBreaches : slaBreachDetails)}
+            </ul>
+          </div>
         </div>
       ` : '';
       
