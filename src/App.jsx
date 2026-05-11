@@ -2661,24 +2661,29 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const avgTalkSeconds = parseReportDurationToSeconds(op.avgTalk);
           const talkDiffPct = avgLineTalk > 0 && avgTalkSeconds > 0 ? Math.round(((avgTalkSeconds - avgLineTalk) / avgLineTalk) * 100) : 0;
           const closedPerAnswered = answeredCalls > 0 ? Number((closedTickets / answeredCalls).toFixed(1)) : 0;
+          const hasKpiRisk = missedCalls >= 10 || availability < 75;
+          const hasKpiWarning = missedCalls > 0 || availability < 90;
+          const hasShortTalkRisk = avgLineTalk > 0 && avgTalkSeconds > 0 && talkDiffPct <= -30;
           let status = { label: 'Норма', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' };
           let recommendation = 'Держит линию в рабочем режиме.';
           let workloadLabel = 'Сбалансированная работа';
           let workloadColor = '#2563eb';
           let workloadBg = '#eff6ff';
           let workloadText = 'Закрытия и телефонная нагрузка выглядят ровно.';
-          if (missedCalls > 10 && closedTickets < 50) {
-            status = { label: 'Риск доступности', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' };
-            recommendation = 'Проверить доступность в АТС и фактическое присутствие на линии.';
-          } else if (missedCalls > 0 && closedTickets >= 40) {
-            status = { label: 'Контроль', color: '#b45309', bg: '#fffbeb', border: '#fde68a' };
-            recommendation = 'Нагрузка по Jira есть, но пропущенные звонки нужно держать на контроле.';
-          } else if (missedCalls > 0) {
-            status = { label: 'Контроль', color: '#b45309', bg: '#fffbeb', border: '#fde68a' };
-            recommendation = 'Есть пропущенные вызовы; проверить дисциплину линии и статусы АТС.';
+          if (hasKpiRisk) {
+            status = { label: 'Риск KPI линии', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' };
+            recommendation = 'Проверить график смены, статусы АТС и фактическое участие на линии; если сотрудник не был в смене, исключить из оценки дежурства.';
+          } else if (hasKpiWarning) {
+            status = { label: 'Контроль KPI', color: '#b45309', bg: '#fffbeb', border: '#fde68a' };
+            recommendation = 'Есть потери звонков; держать на контроле дисциплину линии и статусы АТС.';
           }
 
-          if (closedTickets >= 65 && avgResolveMin > 20) {
+          if (hasKpiRisk) {
+            workloadLabel = 'Просадка KPI линии';
+            workloadColor = '#b91c1c';
+            workloadBg = '#fef2f2';
+            workloadText = `Доступность ${availability}%, пропущено ${missedCalls} из ${totalCalls} вызовов. Закрыто ${closedTickets} инцидентов: это зона риска по KPI линии, а не сбалансированная работа.`;
+          } else if (closedTickets >= 65 && avgResolveMin > 20) {
             workloadLabel = 'Сложная нагрузка';
             workloadColor = '#c2410c';
             workloadBg = '#fff7ed';
@@ -2706,8 +2711,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           if (avgLineTalk > 0 && avgTalkSeconds > 0) {
             if (talkDiffPct >= 30) {
               talkText = `Разговоры длиннее среднего линии на ${talkDiffPct}%: вероятны консультации или сложные обращения.`;
-            } else if (talkDiffPct <= -30 && closedTickets >= 45) {
-              talkText = `Разговоры короче среднего линии на ${Math.abs(talkDiffPct)}% при высокой выработке: проверить долю простых закрытий.`;
+            } else if (hasShortTalkRisk) {
+              talkText = `Разговоры короче среднего линии на ${Math.abs(talkDiffPct)}%: проверить, были ли это короткие простые обращения или сотрудник фактически не держал смену.`;
             }
           }
 
