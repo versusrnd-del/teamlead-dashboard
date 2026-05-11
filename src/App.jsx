@@ -584,7 +584,11 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     .trim();
 
   const getMeaningfulTokens = (value) => {
-    const stopWords = new Set(['задача', 'задачи', 'работа', 'работы', 'через', 'после', 'перед', 'нужно', 'надо', 'если', 'или', 'для', 'при', 'это', 'как', 'что', 'систем', 'проблем', 'инцидент']);
+    const stopWords = new Set([
+      'задача', 'задачи', 'работа', 'работы', 'через', 'после', 'перед', 'нужно', 'надо', 'если', 'или', 'для', 'при', 'это', 'как', 'что',
+      'систем', 'проблем', 'инцидент', 'поручение', 'организовать', 'организация', 'обмен', 'информация', 'информацией', 'рабочими', 'местами',
+      'пользователь', 'пользователи', 'филиал', 'филиалы', 'сбор', 'собрать', 'обсудить', 'контроль', 'контролировать'
+    ]);
     return normalizeAnalysisText(value)
       .split(' ')
       .filter(token => token.length >= 4 && !stopWords.has(token))
@@ -635,6 +639,14 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     return (related[incidentDomain] || []).includes(taskDomain);
   };
 
+  const isActionableResolutionTask = (task) => {
+    const text = normalizeAnalysisText(`${task?.title || ''} ${task?.comments || ''} ${task?.comment || ''}`);
+    const weakProcessWords = ['организовать обмен', 'обмен информацией', 'сбор информации', 'собрать информацию', 'обсудить', 'совещание', 'контроль проблем', 'мониторинг проблем'];
+    if (weakProcessWords.some(pattern => text.includes(pattern))) return false;
+    const actionWords = ['настро', 'исправ', 'устран', 'обнов', 'перенастро', 'созда', 'выда', 'добав', 'удал', 'замен', 'перев', 'восстанов', 'продл', 'подключ', 'перезап', 'миграц'];
+    return actionWords.some(token => text.includes(token));
+  };
+
   const getTaskMatchScore = (task, tokens, incidentDomain, incidentName) => {
     const taskText = getTaskSearchText(task);
     const tokenScore = tokens.filter(token => taskText.includes(token)).length;
@@ -642,6 +654,15 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const feedback = getSolutionFeedback(task.id, incidentName);
     const feedbackScore = feedback === 'helpful' ? 5 : (feedback === 'miss' ? -5 : 0);
     return tokenScore + domainScore + feedbackScore;
+  };
+
+  const hasStrongTaskMatch = (task, tokens, incidentDomain, incidentName) => {
+    const taskText = getTaskSearchText(task);
+    const matchedTokenCount = tokens.filter(token => taskText.includes(token)).length;
+    const feedback = getSolutionFeedback(task.id, incidentName);
+    return isDomainMatch(incidentDomain, getTaskDomain(task))
+      && isActionableResolutionTask(task)
+      && (feedback === 'helpful' || matchedTokenCount >= 2 || getTaskMatchScore(task, tokens, incidentDomain, incidentName) >= 6);
   };
 
   const getSolutionFeedbackKey = (incidentName) => normalizeAnalysisText(incidentName).slice(0, 80) || 'general';
@@ -743,14 +764,12 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const tokens = getMeaningfulTokens(`${incident.name} ${incident.analysis || ''}`);
     const incidentDomain = getIncidentDomain(incident);
     const matchedTasks = closedDetailedTasks.filter(task => {
-      const taskText = getTaskSearchText(task);
       return isTeamOwnedTask(task)
-        && isDomainMatch(incidentDomain, getTaskDomain(task))
         && tokens.length > 0
-        && tokens.some(token => taskText.includes(token));
+        && hasStrongTaskMatch(task, tokens, incidentDomain, incident.name);
     }).sort((a, b) => getTaskMatchScore(b, tokens, incidentDomain, incident.name) - getTaskMatchScore(a, tokens, incidentDomain, incident.name)).slice(0, 4);
     const matchedProjectTasks = (projectTasks || [])
-      .filter(task => tokens.some(token => getTaskSearchText(task).includes(token)))
+      .filter(task => tokens.length > 0 && hasStrongTaskMatch(task, tokens, incidentDomain, incident.name))
       .slice(0, 3);
     const solutionHints = (tasksArchive || [])
       .filter(task => {
@@ -759,11 +778,10 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         const isCurrentMatch = matchedTasks.some(matched => safeString(matched.id) === taskId);
         const feedback = getSolutionFeedback(task.id, incident.name);
         return isTeamOwnedTask(task)
-          && isDomainMatch(incidentDomain, getTaskDomain(task))
           && tokens.length > 0
           && !isCurrentMatch
           && feedback !== 'miss'
-          && tokens.some(token => taskText.includes(token));
+          && hasStrongTaskMatch(task, tokens, incidentDomain, incident.name);
       })
       .sort((a, b) => getTaskMatchScore(b, tokens, incidentDomain, incident.name) - getTaskMatchScore(a, tokens, incidentDomain, incident.name))
       .slice(0, 3);
@@ -791,13 +809,14 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const topSize = Object.entries(row.sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 'M';
     const topDomains = Object.entries(row.domains).sort((a, b) => b[1] - a[1]).slice(0, 4);
     const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
+    const confidence = row.total >= 5 ? 'устойчиво' : (row.total >= 3 ? 'средне' : 'мало данных');
     let profile = 'Универсал';
     if (heavyShare >= 45) profile = 'Тяжелые задачи';
     else if (topCategory === 'stability') profile = 'Стабильность';
     else if (topCategory === 'optimization') profile = 'Оптимизация';
     else if (topCategory === 'business') profile = 'Бизнес-проекты';
     else if (topSize === 'S') profile = 'Быстрая рутина';
-    return { ...row, topCategory, topSize, topDomains, heavyShare, profile };
+    return { ...row, topCategory, topSize, topDomains, heavyShare, confidence, profile };
   }).sort((a, b) => b.total - a.total);
 
   return (
@@ -978,7 +997,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
                 <div>
                   <h2 className="text-lg font-medium text-white flex items-center gap-2"><GitMerge size={20} className="text-emerald-400" /> Инциденты {'->'} устранение</h2>
-                  <p className="text-xs text-slate-500 mt-1">Проверка, есть ли инфраструктурные задачи или поручения под топовые проблемы.</p>
+                  <p className="text-xs text-slate-500 mt-1">Показывает только возможные технические действия по топовой проблеме. Организационные поручения и слабые совпадения отсекаются.</p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -1251,6 +1270,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             </div>
             <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">На базе detailedTasks</span>
           </div>
+          <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 mb-4 text-xs text-slate-400 leading-relaxed">
+            Считается только по закрытым задачам недели из `detailedTasks`. Размер S/M/L/XL берется из поля `size` или ручной AI-памяти. Домены берутся из поля `domain`, а если его нет - по ключевым словам в теме и комментарии. При 1-2 задачах вывод помечается как `мало данных`.
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {skillMatrixRows.slice(0, 9).map(row => (
               <div key={row.assignee} className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-4">
@@ -1259,7 +1281,10 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     <div className="font-bold text-slate-100">{row.assignee}</div>
                     <div className="text-xs text-cyan-300 mt-1">{row.profile}</div>
                   </div>
-                  <span className="text-xs font-bold text-slate-300 bg-slate-950/70 border border-slate-700 rounded px-2 py-1">{row.total} задач</span>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-xs font-bold text-slate-300 bg-slate-950/70 border border-slate-700 rounded px-2 py-1">{row.total} задач</span>
+                    <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold ${row.confidence === 'устойчиво' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : row.confidence === 'средне' ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-slate-700/40 text-slate-400 border-slate-600'}`}>{row.confidence}</span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 gap-1.5 mb-3">
                   {['S', 'M', 'L', 'XL'].map(size => (
@@ -3466,7 +3491,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         .trim();
 
       const getReportMeaningfulTokens = (value) => {
-        const stopWords = ['проблем', 'инцидент', 'ошибка', 'заявка', 'работ', 'пользователь', 'доступ', 'после', 'через', 'есть', 'нет', 'для', 'или', 'при', 'это'];
+        const stopWords = [
+          'проблем', 'инцидент', 'ошибка', 'заявка', 'работ', 'пользователь', 'доступ', 'после', 'через', 'есть', 'нет', 'для', 'или', 'при', 'это',
+          'поручение', 'организовать', 'организация', 'обмен', 'информация', 'информацией', 'рабочими', 'местами', 'филиал', 'филиалы', 'собрать',
+          'сбор', 'обсудить', 'контроль', 'контролировать'
+        ];
         return [...new Set(normalizeReportAnalysisText(value)
           .split(' ')
           .filter(token => token.length >= 5 && !stopWords.includes(token))
@@ -3518,6 +3547,22 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         return (related[incidentDomain] || []).includes(taskDomain);
       };
 
+      const isReportActionableResolutionTask = (task) => {
+        const text = normalizeReportAnalysisText(`${task?.title || ''} ${task?.comments || ''} ${task?.comment || ''}`);
+        const weakProcessWords = ['организовать обмен', 'обмен информацией', 'сбор информации', 'собрать информацию', 'обсудить', 'совещание', 'контроль проблем', 'мониторинг проблем'];
+        if (weakProcessWords.some(pattern => text.includes(pattern))) return false;
+        const actionWords = ['настро', 'исправ', 'устран', 'обнов', 'перенастро', 'созда', 'выда', 'добав', 'удал', 'замен', 'перев', 'восстанов', 'продл', 'подключ', 'перезап', 'миграц'];
+        return actionWords.some(token => text.includes(token));
+      };
+
+      const hasReportStrongTaskMatch = (task, tokens, incidentDomain) => {
+        const taskText = getReportTaskSearchText(task);
+        const matchedTokenCount = tokens.filter(token => taskText.includes(token)).length;
+        return isReportDomainMatch(incidentDomain, getReportTaskDomain(task))
+          && isReportActionableResolutionTask(task)
+          && matchedTokenCount >= 2;
+      };
+
       const renderIncidentResolutionReport = () => {
         const links = sortedIncidents.slice(0, 5).map(incident => {
           const tokens = getReportMeaningfulTokens(`${incident.name || ''} ${incident.analysis || ''}`);
@@ -3525,11 +3570,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const matchedTasks = completedDetailedTasks
             .filter(task => tokens.length > 0
               && isReportTeamOwnedTask(task)
-              && isReportDomainMatch(incidentDomain, getReportTaskDomain(task))
-              && tokens.some(token => getReportTaskSearchText(task).includes(token)))
+              && hasReportStrongTaskMatch(task, tokens, incidentDomain))
             .slice(0, 4);
           const matchedProjectTasks = tasksForThisWeek
-            .filter(task => tokens.length > 0 && tokens.some(token => getReportTaskSearchText(task).includes(token)))
+            .filter(task => tokens.length > 0 && hasReportStrongTaskMatch(task, tokens, incidentDomain))
             .slice(0, 3);
           const solutionHints = (tasksArchive || [])
             .filter(task => {
@@ -3538,9 +3582,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               const isCurrentMatch = matchedTasks.some(matched => safeString(matched.id) === taskId);
               return tokens.length > 0
                 && isReportTeamOwnedTask(task)
-                && isReportDomainMatch(incidentDomain, getReportTaskDomain(task))
                 && !isCurrentMatch
-                && tokens.some(token => taskText.includes(token));
+                && hasReportStrongTaskMatch(task, tokens, incidentDomain);
             })
             .slice(0, 3);
           const status = matchedTasks.length > 0 ? 'covered' : (matchedProjectTasks.length > 0 ? 'planned' : 'gap');
@@ -3603,11 +3646,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const topCategory = Object.entries(row.categories).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Смешанный профиль';
           const topDomains = Object.entries(row.domains).sort((a, b) => b[1] - a[1]).slice(0, 4);
           const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
+          const confidence = row.total >= 5 ? 'устойчиво' : (row.total >= 3 ? 'средне' : 'мало данных');
           return {
             ...row,
             topCategory,
             topDomains,
             heavyShare,
+            confidence,
             profile: heavyShare >= 35 ? `Тяжелые задачи: ${topCategory}` : `Основной фокус: ${topCategory}`
           };
         }).sort((a, b) => b.heavy - a.heavy || b.total - a.total).slice(0, 9);
@@ -3616,6 +3661,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
         return `
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Матрица компетенций</h3>
+          <div style="font-size: 12px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;">Считается по закрытым задачам недели: размер из size/AI-памяти, домен из поля domain или темы задачи. При 1-2 задачах вывод предварительный.</div>
           <div class="skill-matrix-grid">
             ${rows.map(row => `
               <div class="skill-card">
@@ -3624,7 +3670,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                     <div style="font-size: 13px; color: #0f172a; font-weight: 900;">${escapeHtml(row.assignee)}</div>
                     <div style="font-size: 11px; color: #0891b2; font-weight: 800;">${escapeHtml(row.profile)}</div>
                   </div>
-                  <div style="font-size: 11px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 8px; white-space: nowrap;"><b>${row.total}</b> задач</div>
+                  <div style="text-align: right;">
+                    <div style="font-size: 11px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 8px; white-space: nowrap;"><b>${row.total}</b> задач</div>
+                    <div style="font-size: 9px; color: #64748b; margin-top: 3px; text-transform: uppercase;">${escapeHtml(row.confidence)}</div>
+                  </div>
                 </div>
                 <div class="mini-size-grid">
                   ${['S', 'M', 'L', 'XL'].map(size => `<div><span>${size}</span><b>${row.sizes[size] || 0}</b></div>`).join('')}
