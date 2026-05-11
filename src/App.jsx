@@ -311,7 +311,7 @@ const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData, weeksHis
 
 // --- ВКЛАДКА: ПУЛЬС КОМАНДЫ ---
 
-const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, csatReviews, aiTaskMemory }) => {
+const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, csatReviews, aiTaskMemory, projectTasks }) => {
   const sortedKeys = [...historyKeys].sort();
   const currentIndex = sortedKeys.indexOf(selectedWeekKey);
   const prevWeekKey = currentIndex > 0 ? sortedKeys[currentIndex - 1] : null;
@@ -576,6 +576,127 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
      return !isTeamLead && !isUnknown && !isLiterallyUnknown;
   });
 
+  const normalizeAnalysisText = (value) => safeString(value)
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^а-яa-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const getMeaningfulTokens = (value) => {
+    const stopWords = new Set(['задача', 'задачи', 'работа', 'работы', 'через', 'после', 'перед', 'нужно', 'надо', 'если', 'или', 'для', 'при', 'это', 'как', 'что', 'систем', 'проблем', 'инцидент']);
+    return normalizeAnalysisText(value)
+      .split(' ')
+      .filter(token => token.length >= 4 && !stopWords.has(token))
+      .map(token => token.slice(0, 6));
+  };
+
+  const getTaskSearchText = (task) => normalizeAnalysisText(`${task?.id || ''} ${task?.title || ''} ${task?.comments || ''} ${task?.comment || ''} ${task?.tags || ''} ${task?.valueCategory || ''}`);
+
+  const normalizePersonForMatch = (name) => normalizeAnalysisText(getFullName(name)).split(' ').filter(part => part.length > 1);
+  const isSamePersonForPulse = (leftName, rightName) => {
+    const leftTokens = normalizePersonForMatch(leftName);
+    const rightTokens = normalizePersonForMatch(rightName);
+    if (leftTokens.length === 0 || rightTokens.length === 0) return false;
+    return rightTokens.every(token => leftTokens.includes(token));
+  };
+
+  const parseDurationToSeconds = (value) => {
+    const parts = safeString(value).match(/\d+/g);
+    if (!parts || parts.length === 0) return 0;
+    const [hours = 0, minutes = 0, seconds = 0] = parts.map(Number);
+    if (parts.length === 1) return Number(parts[0]) || 0;
+    if (parts.length === 2) return ((Number(hours) || 0) * 60) + (Number(minutes) || 0);
+    return ((Number(hours) || 0) * 3600) + ((Number(minutes) || 0) * 60) + (Number(seconds) || 0);
+  };
+
+  const formatDurationShort = (seconds) => {
+    const value = Number(seconds) || 0;
+    if (value <= 0) return '-';
+    const minutes = Math.floor(value / 60);
+    const restSeconds = value % 60;
+    if (minutes <= 0) return `${restSeconds}с`;
+    return `${minutes}м ${String(restSeconds).padStart(2, '0')}с`;
+  };
+
+  const FIRST_LINE_PULSE_NAMES = ['Халеддинов Руслан', 'Руслан Халеддинов', 'Никита Лысов', 'Максим Отрошко', 'Максим Гуртов', 'Марк Соколов'];
+  const isFirstLinePulseOperator = (name) => FIRST_LINE_PULSE_NAMES.some(target => isSamePersonForPulse(name, target));
+  const visiblePulseTelephony = (weekData.telephonyData || []).filter(row => isFirstLinePulseOperator(row.name));
+  const pulseTalkDurations = visiblePulseTelephony.map(row => parseDurationToSeconds(row.avgTalk)).filter(Boolean);
+  const pulseAvgTalk = pulseTalkDurations.length > 0 ? Math.round(pulseTalkDurations.reduce((sum, value) => sum + value, 0) / pulseTalkDurations.length) : 0;
+  const findPulseIncidentPerformer = (operatorName) => filteredTopPerformers.find(p => isSamePersonForPulse(p.name, operatorName));
+  const firstLineControlRows = visiblePulseTelephony.map(row => {
+    const perf = findPulseIncidentPerformer(row.name);
+    const closed = perf ? (Number(perf.closed) || 0) : 0;
+    const answered = Number(row.answered) || 0;
+    const total = Number(row.total) || 0;
+    const missed = Number(row.missed) || 0;
+    const availability = total > 0 ? Math.round(((total - missed) / total) * 100) : 100;
+    const avgTalk = parseDurationToSeconds(row.avgTalk);
+    const talkDiffPct = pulseAvgTalk > 0 && avgTalk > 0 ? Math.round(((avgTalk - pulseAvgTalk) / pulseAvgTalk) * 100) : 0;
+    const jiraPerCall = answered > 0 ? Number((closed / answered).toFixed(1)) : 0;
+    const dispatchGap = Math.max(answered - closed, 0);
+    const footballRate = answered > 0 ? Math.round((dispatchGap / answered) * 100) : 0;
+    const fcrProxy = answered > 0 ? Math.round((Math.min(closed, answered) / answered) * 100) : 0;
+    const avgResolveMin = perf ? (Number(perf.avgTimeMin) || 0) : 0;
+    const riskLevel = (missed >= 10 || availability < 75) ? 'risk' : ((missed > 0 || availability < 90 || footballRate >= 60) ? 'watch' : 'ok');
+    let label = 'Норма';
+    let note = 'Линия и Jira выглядят сбалансированно.';
+    if (riskLevel === 'risk') {
+      label = 'Риск KPI линии';
+      note = `Доступность ${availability}%, пропущено ${missed}. Проверить смену, АТС и фактическое участие.`;
+    } else if (footballRate >= 60 && answered >= 10) {
+      label = 'Диспетчеризация';
+      note = `Много принятых звонков без личного закрытия: прокси Football Rate ${footballRate}%.`;
+    } else if (closed >= 45 && avgResolveMin >= 15) {
+      label = 'Решатель';
+      note = `Закрытия выглядят содержательными: ${closed} инцидентов, среднее решение ${avgResolveMin} мин.`;
+    } else if (talkDiffPct <= -30 && closed >= 40) {
+      label = 'Проверить простые';
+      note = `Разговоры короче среднего линии на ${Math.abs(talkDiffPct)}%, проверить долю легких закрытий.`;
+    }
+    return { row, perf, closed, answered, total, missed, availability, avgTalk, talkDiffPct, jiraPerCall, footballRate, fcrProxy, label, note, riskLevel };
+  });
+
+  const incidentResolutionLinks = sortedIncidents.slice(0, 5).map(incident => {
+    const tokens = getMeaningfulTokens(`${incident.name} ${incident.analysis || ''}`);
+    const matchedTasks = closedDetailedTasks.filter(task => {
+      const taskText = getTaskSearchText(task);
+      return tokens.length > 0 && tokens.some(token => taskText.includes(token));
+    }).slice(0, 4);
+    const matchedProjectTasks = (projectTasks || [])
+      .filter(task => tokens.some(token => getTaskSearchText(task).includes(token)))
+      .slice(0, 3);
+    const status = matchedTasks.length > 0 ? 'covered' : (matchedProjectTasks.length > 0 ? 'planned' : 'gap');
+    return { incident, tokens, matchedTasks, matchedProjectTasks, status };
+  });
+
+  const skillMatrixRows = Object.values(closedDetailedTasks.reduce((acc, task) => {
+    const assignee = getFullName(task.assignee);
+    if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME) return acc;
+    if (!acc[assignee]) {
+      acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, heavy: 0 };
+    }
+    const size = getTaskSize(task) || 'M';
+    const category = safeString(task.valueCategory || task.category || 'standard') || 'standard';
+    acc[assignee].total += 1;
+    acc[assignee].sizes[size] = (acc[assignee].sizes[size] || 0) + 1;
+    acc[assignee].categories[category] = (acc[assignee].categories[category] || 0) + 1;
+    if (['L', 'XL'].includes(size)) acc[assignee].heavy += 1;
+    return acc;
+  }, {})).map(row => {
+    const topCategory = Object.entries(row.categories).sort((a, b) => b[1] - a[1])[0]?.[0] || 'standard';
+    const topSize = Object.entries(row.sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 'M';
+    const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
+    let profile = 'Универсал';
+    if (heavyShare >= 45) profile = 'Тяжелые задачи';
+    else if (topCategory === 'stability') profile = 'Стабильность';
+    else if (topCategory === 'optimization') profile = 'Оптимизация';
+    else if (topCategory === 'business') profile = 'Бизнес-проекты';
+    else if (topSize === 'S') profile = 'Быстрая рутина';
+    return { ...row, topCategory, topSize, heavyShare, profile };
+  }).sort((a, b) => b.total - a.total);
+
   return (
     <div className="animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
@@ -712,6 +833,87 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           </div>
         </div>
       </div>
+
+      {(firstLineControlRows.length > 0 || incidentResolutionLinks.length > 0) && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-8">
+          {firstLineControlRows.length > 0 && (
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
+                <div>
+                  <h2 className="text-lg font-medium text-white flex items-center gap-2"><PhoneCall size={20} className="text-sky-400" /> Пульс первой линии</h2>
+                  <p className="text-xs text-slate-500 mt-1">Телефония + Jira. FCR и диспетчеризация считаются как прокси, пока нет связки звонок {'->'} IS.</p>
+                </div>
+                <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">Средний разговор: {formatDurationShort(pulseAvgTalk)}</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {firstLineControlRows.map(item => (
+                  <div key={item.row.name} className={`rounded-lg border p-4 ${item.riskLevel === 'risk' ? 'bg-red-500/5 border-red-500/25' : item.riskLevel === 'watch' ? 'bg-amber-500/5 border-amber-500/25' : 'bg-slate-900/50 border-slate-700/50'}`}>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="font-bold text-slate-100">{item.row.name}</div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase ${item.riskLevel === 'risk' ? 'bg-red-500/10 text-red-300 border-red-500/30' : item.riskLevel === 'watch' ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'}`}>{item.label}</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2"><div className="text-[9px] text-slate-500 uppercase font-bold">Jira</div><div className="text-white font-black">{item.closed}</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2"><div className="text-[9px] text-slate-500 uppercase font-bold">Звонки</div><div className="text-white font-black">{item.answered}/{item.total}</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2"><div className="text-[9px] text-slate-500 uppercase font-bold">FCR*</div><div className="text-sky-300 font-black">{item.fcrProxy}%</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2"><div className="text-[9px] text-slate-500 uppercase font-bold">Football*</div><div className={item.footballRate >= 60 ? 'text-red-300 font-black' : 'text-slate-200 font-black'}>{item.footballRate}%</div></div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      <span className="text-[10px] bg-slate-950/70 border border-slate-700 text-slate-300 px-2 py-0.5 rounded-full">доступность {item.availability}%</span>
+                      <span className="text-[10px] bg-slate-950/70 border border-slate-700 text-slate-300 px-2 py-0.5 rounded-full">разговор {formatDurationShort(item.avgTalk)}</span>
+                      <span className="text-[10px] bg-slate-950/70 border border-slate-700 text-slate-300 px-2 py-0.5 rounded-full">{item.jiraPerCall} Jira/звонок</span>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">{item.note}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {incidentResolutionLinks.length > 0 && (
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
+                <div>
+                  <h2 className="text-lg font-medium text-white flex items-center gap-2"><GitMerge size={20} className="text-emerald-400" /> Инциденты {'->'} устранение</h2>
+                  <p className="text-xs text-slate-500 mt-1">Проверка, есть ли инфраструктурные задачи или поручения под топовые проблемы.</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {incidentResolutionLinks.map((link, idx) => (
+                  <div key={`${link.incident.name}-${idx}`} className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-4">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="text-sm font-bold text-slate-100 leading-snug">{idx + 1}. {safeString(link.incident.name)}</div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase shrink-0 ${link.status === 'covered' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : link.status === 'planned' ? 'bg-blue-500/10 text-blue-300 border-blue-500/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`}>
+                        {link.status === 'covered' ? 'есть закрытия' : link.status === 'planned' ? 'есть поручение' : 'нет связки'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mb-2">Инцидентов: {Number(link.incident.count) || 0}</div>
+                    {link.matchedTasks.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {link.matchedTasks.map(task => (
+                          <div key={task.id} className="text-xs text-slate-300 bg-slate-950/60 rounded border border-slate-700/50 px-2 py-1.5">
+                            <span className="text-emerald-300 font-bold">{task.id}</span> - {safeString(task.title)}
+                          </div>
+                        ))}
+                      </div>
+                    ) : link.matchedProjectTasks.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {link.matchedProjectTasks.map(task => (
+                          <div key={task.id} className="text-xs text-slate-300 bg-slate-950/60 rounded border border-slate-700/50 px-2 py-1.5">
+                            <span className="text-blue-300 font-bold">Поручение</span> - {safeString(task.title)}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-amber-300">Нужна задача устранения или явное решение: иначе топовая проблема повторится.</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* БЛОК: КАЧЕСТВО И СКОРОСТЬ (FLOW METRICS) */}
       <h2 className="text-lg font-medium text-white mb-4 mt-8 flex items-center gap-2"><GitMerge size={20} className="text-indigo-400" />Качество и Скорость (Flow Metrics)</h2>
@@ -902,6 +1104,43 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                )}
             </div>
           )}
+        </div>
+      )}
+
+      {skillMatrixRows.length > 0 && (
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
+            <div>
+              <h2 className="text-lg font-medium text-white flex items-center gap-2"><Users size={20} className="text-cyan-400" /> Матрица компетенций</h2>
+              <p className="text-xs text-slate-500 mt-1">T-shape по закрытым задачам недели: категории ценности и доля L/XL.</p>
+            </div>
+            <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">На базе detailedTasks</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {skillMatrixRows.slice(0, 9).map(row => (
+              <div key={row.assignee} className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-4">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <div className="font-bold text-slate-100">{row.assignee}</div>
+                    <div className="text-xs text-cyan-300 mt-1">{row.profile}</div>
+                  </div>
+                  <span className="text-xs font-bold text-slate-300 bg-slate-950/70 border border-slate-700 rounded px-2 py-1">{row.total} задач</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5 mb-3">
+                  {['S', 'M', 'L', 'XL'].map(size => (
+                    <div key={size} className="bg-slate-950/60 rounded border border-slate-700/50 px-2 py-1 text-center">
+                      <div className="text-[9px] text-slate-500 font-bold">{size}</div>
+                      <div className="text-sm text-white font-black">{row.sizes[size] || 0}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">L/XL доля</span>
+                  <span className={row.heavyShare >= 45 ? 'text-orange-300 font-bold' : 'text-slate-300 font-bold'}>{row.heavyShare}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1285,7 +1524,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         <div className="flex flex-col gap-4">
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm h-56 flex flex-col">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-medium text-slate-300 flex items-center gap-2"><Activity size={16} className="text-blue-400"/> Выполнение плана vs Хаос</h3>
+              <h3 className="text-sm font-medium text-slate-300 flex items-center gap-2"><Activity size={16} className="text-blue-400"/> Расчетная модель недельного объема</h3>
               <span className="text-xs text-slate-500">Закрыто: {(Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0) + (Number(weekData.backlogCompleted) || 0)}</span>
             </div>
             <div className="flex-1 w-full mt-2">
@@ -1301,6 +1540,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <p className="text-[10px] text-slate-500 mt-2">Не дневная Jira-статистика: распределение расчетное, только для оценки баланса план/бэклог/срочная.</p>
           </div>
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 flex-1 flex flex-col justify-center shadow-sm">
              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-2"><BookOpen size={16}/> Обучение и корректировка процесса</span>
@@ -2774,8 +3014,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const avgTalkSeconds = parseReportDurationToSeconds(op.avgTalk);
           const talkDiffPct = avgLineTalk > 0 && avgTalkSeconds > 0 ? Math.round(((avgTalkSeconds - avgLineTalk) / avgLineTalk) * 100) : 0;
           const closedPerAnswered = answeredCalls > 0 ? Number((closedTickets / answeredCalls).toFixed(1)) : 0;
+          const dispatchGap = Math.max(answeredCalls - closedTickets, 0);
+          const fcrProxy = answeredCalls > 0 ? Math.round((Math.min(closedTickets, answeredCalls) / answeredCalls) * 100) : 0;
+          const footballRate = answeredCalls > 0 ? Math.round((dispatchGap / answeredCalls) * 100) : 0;
           const hasKpiRisk = missedCalls >= 10 || availability < 75;
-          const hasKpiWarning = missedCalls > 0 || availability < 90;
+          const hasKpiWarning = missedCalls > 0 || availability < 90 || footballRate >= 60;
           const hasShortTalkRisk = avgLineTalk > 0 && avgTalkSeconds > 0 && talkDiffPct <= -30;
           let status = { label: 'Норма', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' };
           let recommendation = 'Держит линию в рабочем режиме.';
@@ -2811,6 +3054,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             workloadColor = '#2563eb';
             workloadBg = '#eff6ff';
             workloadText = `Закрытий достаточно, среднее решение ${avgResolveMin} мин.: нагрузка выглядит не только количественной.`;
+          } else if (footballRate >= 60 && answeredCalls >= 10) {
+            workloadLabel = 'Диспетчеризация';
+            workloadColor = '#b45309';
+            workloadBg = '#fffbeb';
+            workloadText = `Прокси Football Rate ${footballRate}%: много принятых звонков без личного закрытия в Jira.`;
           } else if (closedTickets < 35 && answeredCalls >= 25) {
             workloadLabel = 'Фокус на линии';
             workloadColor = '#475569';
@@ -2845,6 +3093,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 <span style="background: ${workloadBg}; color: ${workloadColor}; border: 1px solid ${workloadColor}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${workloadLabel}</span>
                 <span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">доступность ${availability}%</span>
                 ${closedPerAnswered > 0 ? `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">${closedPerAnswered} Jira/звонок</span>` : ''}
+                ${answeredCalls > 0 ? `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">FCR* ${fcrProxy}%</span>` : ''}
+                ${answeredCalls > 0 ? `<span style="background: ${footballRate >= 60 ? '#fffbeb' : '#f8fafc'}; color: ${footballRate >= 60 ? '#b45309' : '#475569'}; border: 1px solid ${footballRate >= 60 ? '#f59e0b' : '#cbd5e1'}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900;">Football* ${footballRate}%</span>` : ''}
               </div>
               <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-top: 8px;">${workloadText}</div>
               <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-top: 4px;">${talkText}</div>
@@ -3026,6 +3276,115 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           </div>
           <div class="value-grid">
             ${cardsHtml}
+          </div>
+        `;
+      };
+
+      const normalizeReportAnalysisText = (value) => safeString(value)
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/[^а-яa-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const getReportMeaningfulTokens = (value) => {
+        const stopWords = ['проблем', 'инцидент', 'ошибка', 'заявка', 'работ', 'пользователь', 'доступ', 'после', 'через', 'есть', 'нет', 'для', 'или', 'при', 'это'];
+        return [...new Set(normalizeReportAnalysisText(value)
+          .split(' ')
+          .filter(token => token.length >= 5 && !stopWords.includes(token))
+          .map(token => token.slice(0, 8)))]
+          .slice(0, 8);
+      };
+
+      const getReportTaskSearchText = (task) => normalizeReportAnalysisText(`${task?.id || ''} ${task?.title || ''} ${task?.comments || ''} ${task?.comment || ''} ${task?.tags || ''} ${task?.valueCategory || ''}`);
+
+      const renderIncidentResolutionReport = () => {
+        const links = sortedIncidents.slice(0, 5).map(incident => {
+          const tokens = getReportMeaningfulTokens(`${incident.name || ''} ${incident.analysis || ''}`);
+          const matchedTasks = completedDetailedTasks
+            .filter(task => tokens.length > 0 && tokens.some(token => getReportTaskSearchText(task).includes(token)))
+            .slice(0, 4);
+          const matchedProjectTasks = tasksForThisWeek
+            .filter(task => tokens.length > 0 && tokens.some(token => getReportTaskSearchText(task).includes(token)))
+            .slice(0, 3);
+          const status = matchedTasks.length > 0 ? 'covered' : (matchedProjectTasks.length > 0 ? 'planned' : 'gap');
+          return { incident, matchedTasks, matchedProjectTasks, status };
+        }).filter(link => safeString(link.incident?.name));
+
+        if (links.length === 0) return '';
+
+        return `
+          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Инциденты -> устранение</h3>
+          <div class="correlation-panel">
+            ${links.map((link, idx) => {
+              const badgeColor = link.status === 'covered' ? '#059669' : (link.status === 'planned' ? '#2563eb' : '#d97706');
+              const badgeBg = link.status === 'covered' ? '#ecfdf5' : (link.status === 'planned' ? '#eff6ff' : '#fffbeb');
+              const badgeText = link.status === 'covered' ? 'есть закрытия' : (link.status === 'planned' ? 'есть поручение' : 'нет связки');
+              const taskLines = link.matchedTasks.length > 0
+                ? link.matchedTasks.map(task => `<li><b>${escapeHtml(task.id)}</b> ${escapeHtml(safeString(task.title).slice(0, 90))}${safeString(task.title).length > 90 ? '...' : ''}</li>`).join('')
+                : link.matchedProjectTasks.map(task => `<li>${escapeHtml(safeString(task.title).slice(0, 100))}${safeString(task.title).length > 100 ? '...' : ''}</li>`).join('');
+              return `
+                <div class="correlation-card" style="border-left-color: ${badgeColor};">
+                  <div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;">
+                    <div style="font-size: 13px; color: #0f172a; font-weight: 900;">${idx + 1}. ${escapeHtml(safeString(link.incident.name))}</div>
+                    <div style="white-space: nowrap; font-size: 10px; font-weight: 900; color: ${badgeColor}; background: ${badgeBg}; border: 1px solid ${badgeColor}33; border-radius: 999px; padding: 3px 8px; text-transform: uppercase;">${badgeText}</div>
+                  </div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 3px;">Инцидентов: <b>${Number(link.incident.count) || 0}</b></div>
+                  ${taskLines
+                    ? `<ul class="compact-list">${taskLines}</ul>`
+                    : '<div style="font-size: 12px; color: #92400e; margin-top: 7px;">Нужна задача или поручение на устранение повторяемой причины.</div>'}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      };
+
+      const renderSkillMatrixReport = () => {
+        const rows = Object.values(completedDetailedTasks.reduce((acc, task) => {
+          const assignee = getFullName(task.assignee);
+          if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME) return acc;
+          if (!acc[assignee]) {
+            acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, heavy: 0 };
+          }
+          const size = getTaskComplexity(task) || 'M';
+          const category = getTaskValueCategory(task).label;
+          acc[assignee].total += 1;
+          acc[assignee].sizes[size] = (acc[assignee].sizes[size] || 0) + 1;
+          acc[assignee].categories[category] = (acc[assignee].categories[category] || 0) + 1;
+          if (['L', 'XL'].includes(size)) acc[assignee].heavy += 1;
+          return acc;
+        }, {})).map(row => {
+          const topCategory = Object.entries(row.categories).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Смешанный профиль';
+          const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
+          return {
+            ...row,
+            topCategory,
+            heavyShare,
+            profile: heavyShare >= 35 ? `Тяжелые задачи: ${topCategory}` : `Основной фокус: ${topCategory}`
+          };
+        }).sort((a, b) => b.heavy - a.heavy || b.total - a.total).slice(0, 9);
+
+        if (rows.length === 0) return '';
+
+        return `
+          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Матрица компетенций</h3>
+          <div class="skill-matrix-grid">
+            ${rows.map(row => `
+              <div class="skill-card">
+                <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 8px;">
+                  <div>
+                    <div style="font-size: 13px; color: #0f172a; font-weight: 900;">${escapeHtml(row.assignee)}</div>
+                    <div style="font-size: 11px; color: #0891b2; font-weight: 800;">${escapeHtml(row.profile)}</div>
+                  </div>
+                  <div style="font-size: 11px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 8px; white-space: nowrap;"><b>${row.total}</b> задач</div>
+                </div>
+                <div class="mini-size-grid">
+                  ${['S', 'M', 'L', 'XL'].map(size => `<div><span>${size}</span><b>${row.sizes[size] || 0}</b></div>`).join('')}
+                </div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 7px;">Доля L/XL: <b style="color: #0f172a;">${row.heavyShare}%</b></div>
+              </div>
+            `).join('')}
           </div>
         `;
       };
@@ -3515,6 +3874,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .telephony-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
           .telephony-metrics div { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 7px; }
           .telephony-metrics b { display: block; color: #0f172a; font-size: 13px; margin-top: 2px; white-space: nowrap; }
+          .correlation-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+          .correlation-card { background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #d97706; border-radius: 8px; padding: 12px; }
+          .compact-list { padding-left: 16px; margin: 7px 0 0 0; color: #334155; font-size: 12px; line-height: 1.45; }
+          .compact-list li { margin-bottom: 4px; }
+          .skill-matrix-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+          .skill-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+          .mini-size-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+          .mini-size-grid div { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px; text-align: center; }
+          .mini-size-grid span { display: block; color: #64748b; font-size: 9px; font-weight: 900; }
+          .mini-size-grid b { display: block; color: #0f172a; font-size: 13px; }
           ul.custom-list { padding-left: 20px; margin-top: 5px; list-style-type: square; font-size: 13px; color: #334155; }
           ul.custom-list li { margin-bottom: 6px; }
         </style>
@@ -3565,6 +3934,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
             ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
+            ${renderIncidentResolutionReport()}
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
             ${telephonyHtml}
@@ -3582,6 +3952,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
             ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time', 'Профиль'], taskRows.slice(0, 7))}
             ${renderValueShowcase()}
+            ${renderSkillMatrixReport()}
 
             ${keyDetailedTasks.length > 0 ? `
               <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 10px;">Автоматическая сводка из Jira:</p>
@@ -4426,7 +4797,7 @@ const App = () => {
 
   const renderContent = () => {
     switch(activeTab) {
-      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} />;
+      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} projectTasks={projectTasks} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} />;
       case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
