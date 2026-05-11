@@ -2534,6 +2534,64 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     return { label: 'В отчете: основной блок', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' };
   };
 
+  const slaReviewOptions = [
+    { value: 'reaction_discipline', label: 'Дисциплина реакции', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+    { value: 'complexity', label: 'Сложность', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
+    { value: 'shift_gap', label: 'Смена/дежурство', color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
+    { value: 'false_breach', label: 'Ложная просрочка', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' }
+  ];
+
+  const normalizeSlaReview = (value) => {
+    const raw = safeString(value).trim();
+    return slaReviewOptions.some(option => option.value === raw) ? raw : '';
+  };
+
+  const getSlaMemoryKey = (incidentId) => {
+    const cleanId = safeString(incidentId).trim();
+    return cleanId ? `sla:${cleanId}` : '';
+  };
+
+  const getSlaReviewMeta = (value) => slaReviewOptions.find(option => option.value === normalizeSlaReview(value)) || null;
+
+  const getSlaReview = (incidentId) => {
+    const key = getSlaMemoryKey(incidentId);
+    return key ? normalizeSlaReview(aiTaskMemory?.[key]?.slaReview) : '';
+  };
+
+  const handleSetSlaReview = (incidentId, title, review) => {
+    const cleanId = safeString(incidentId).trim();
+    const cleanReview = normalizeSlaReview(review);
+    if (!cleanId || !cleanReview) return;
+    const memoryKey = getSlaMemoryKey(cleanId);
+    setAiTaskMemory(prev => {
+      const previous = (prev || {})[memoryKey] || {};
+      return {
+        ...(prev || {}),
+        [memoryKey]: {
+          ...previous,
+          id: memoryKey,
+          incidentId: cleanId,
+          title: safeString(title).trim() || previous.title || cleanId,
+          slaReview: cleanReview,
+          kind: 'sla',
+          updatedAt: new Date().toISOString()
+        }
+      };
+    });
+    setIsDirty(false);
+  };
+
+  const handleClearSlaReview = (incidentId) => {
+    const memoryKey = getSlaMemoryKey(incidentId);
+    if (!memoryKey) return;
+    setAiTaskMemory(prev => {
+      const next = { ...(prev || {}) };
+      delete next[memoryKey];
+      return next;
+    });
+    setIsDirty(false);
+  };
+
   const handleSetTaskPriority = (taskId, title, priority) => {
     const cleanId = safeString(taskId).trim();
     if (!cleanId) return;
@@ -2639,6 +2697,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         if (complexity) entry.complexity = complexity;
         if (safeString(item.workType).trim().toUpperCase() === 'IDM') entry.workType = 'IDM';
         if (item.solutionFeedback && typeof item.solutionFeedback === 'object') entry.solutionFeedback = item.solutionFeedback;
+        if (item.kind === 'sla' || item.slaReview) {
+          entry.kind = 'sla';
+          entry.incidentId = safeString(item.incidentId || item.id).replace(/^sla:/, '');
+          entry.slaReview = normalizeSlaReview(item.slaReview);
+        }
         if (item.updatedAt) entry.updatedAt = safeString(item.updatedAt);
         return entry;
       });
@@ -2674,6 +2737,38 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </button>
           `;
         }).join('')}
+      </div>
+    `;
+  };
+
+  const renderSlaReviewControls = (item) => {
+    const incidentId = safeString(item?.id || item?.key || item?.issueKey).trim();
+    if (!incidentId) return '';
+    const title = safeString(item?.title || item?.theme || item?.summary || incidentId);
+    const activeReview = getSlaReview(incidentId);
+    const buttons = slaReviewOptions.map(option => {
+      const active = activeReview === option.value;
+      return `
+        <button type="button"
+          data-sla-review="${option.value}"
+          data-sla-id="${escapeHtml(incidentId)}"
+          data-sla-title="${escapeHtml(title)}"
+          style="border: 1px solid ${active ? option.color : '#cbd5e1'}; background: ${active ? option.color : '#ffffff'}; color: ${active ? '#ffffff' : '#475569'}; border-radius: 999px; padding: 3px 7px; font-size: 10px; font-weight: 800; cursor: pointer;">
+          ${option.label}
+        </button>
+      `;
+    }).join('');
+    const clearButton = activeReview ? `
+      <button type="button"
+        data-sla-review-clear="true"
+        data-sla-id="${escapeHtml(incidentId)}"
+        style="border: 1px solid #cbd5e1; background: #f8fafc; color: #64748b; border-radius: 999px; padding: 3px 7px; font-size: 10px; font-weight: 800; cursor: pointer;">
+        Сбросить
+      </button>
+    ` : '';
+    return `
+      <div class="no-print sla-review-controls" contenteditable="false" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px;">
+        ${buttons}${clearButton}
       </div>
     `;
   };
@@ -3897,6 +3992,72 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         .slice(0, limit)
         .map(([name, count]) => `${escapeHtml(name)}: <b>${count}</b>`)
         .join(', ');
+      const isLikelyEasySla = (item) => {
+        if (item?.isLikelyEasy === true) return true;
+        const size = safeString(item?.complexity || item?.size).toUpperCase();
+        if (size === 'S') return true;
+        const text = `${safeString(item?.title)} ${safeString(item?.reason)} ${safeString(item?.domain)}`.toLowerCase();
+        return text.includes('парол') || text.includes('ярлык') || text.includes('типов') || text.includes('доступ') || text.includes('консультац');
+      };
+      const isComplexSla = (item) => {
+        const size = safeString(item?.complexity || item?.size).toUpperCase();
+        if (size === 'L' || size === 'XL') return true;
+        const text = `${safeString(item?.title)} ${safeString(item?.reason)} ${safeString(item?.domain)}`.toLowerCase();
+        return text.includes('слож') || text.includes('массов') || text.includes('диагност') || text.includes('передач') || text.includes('эскалац');
+      };
+      const getAvgOverdue = (items) => {
+        const values = items.map(item => Number(item.overdueMin || item.overdueMinutes || item.overdue || 0)).filter(value => value > 0);
+        return values.length > 0 ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+      };
+      const getTopEntry = (counts) => Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || ['', 0];
+      const primaryEasyCount = primarySlaBreaches.filter(isLikelyEasySla).length;
+      const primaryComplexCount = primarySlaBreaches.filter(isComplexSla).length;
+      const resolutionComplexCount = resolutionSlaBreaches.filter(isComplexSla).length;
+      const primaryEasyShare = primarySlaBreaches.length > 0 ? Math.round((primaryEasyCount / primarySlaBreaches.length) * 100) : 0;
+      const slaReviewCounts = primarySlaBreaches.reduce((acc, item) => {
+        const review = getSlaReview(item.id || item.key || item.issueKey);
+        if (review) acc[review] = (acc[review] || 0) + 1;
+        return acc;
+      }, {});
+      const slaReviewSummary = slaReviewOptions
+        .filter(option => slaReviewCounts[option.value])
+        .map(option => `${escapeHtml(option.label)}: <b>${slaReviewCounts[option.value]}</b>`)
+        .join(', ');
+      const [topPrimaryAssignee, topPrimaryAssigneeCount] = getTopEntry(countByField(primarySlaBreaches, item => item.assignee || item.resolver || item.closedBy || item.owner));
+      const [topPrimaryDomain, topPrimaryDomainCount] = getTopEntry(countByField(primarySlaBreaches, item => item.domain || item.category));
+      const [topPrimaryReason, topPrimaryReasonCount] = getTopEntry(countByField(primarySlaBreaches, item => item.reason || item.analysis || item.comment));
+      const primaryAvgOverdue = getAvgOverdue(primarySlaBreaches);
+      const resolutionAvgOverdue = getAvgOverdue(resolutionSlaBreaches);
+      let slaDiagnosis = 'Нет деталей по основному SLA для анализа.';
+      if (primarySlaBreaches.length > 0) {
+        if (slaReviewCounts.reaction_discipline >= 3) {
+          slaDiagnosis = `По ручной разметке основной паттерн - дисциплина первичной реакции (${slaReviewCounts.reaction_discipline}). Нужен разбор смены, очереди и статусов АТС/Jira.`;
+        } else if (slaReviewCounts.complexity >= 3) {
+          slaDiagnosis = `По ручной разметке заметна сложность кейсов (${slaReviewCounts.complexity}). Нужен быстрый маршрут эскалации и шаблон фиксации массовых/сложных обращений.`;
+        } else if (primaryEasyShare >= 35) {
+          slaDiagnosis = `Высокая доля простых первичных просрочек (${primaryEasyShare}%). Это похоже на проблему реакции линии: обращения лежали до взятия в работу, а не были сложными.`;
+        } else if (primaryComplexCount >= Math.ceil(primarySlaBreaches.length * 0.4)) {
+          slaDiagnosis = 'Просрочки первичной реакции заметно связаны со сложными или массовыми обращениями: нужен отдельный порядок быстрой регистрации и эскалации таких кейсов.';
+        } else {
+          slaDiagnosis = 'Просрочки смешанные: нужно смотреть домены и смены, без вывода только по одному человеку.';
+        }
+      }
+      const renderSlaAssigneeRows = () => Object.entries(primarySlaBreaches.reduce((acc, item) => {
+        const assignee = safeString(item.assignee || item.resolver || item.closedBy || item.owner).trim() || 'Неизвестно';
+        if (!acc[assignee]) acc[assignee] = { total: 0, easy: 0, complex: 0, overdue: [] };
+        acc[assignee].total += 1;
+        if (isLikelyEasySla(item)) acc[assignee].easy += 1;
+        if (isComplexSla(item)) acc[assignee].complex += 1;
+        const overdue = Number(item.overdueMin || item.overdueMinutes || item.overdue || 0);
+        if (overdue > 0) acc[assignee].overdue.push(overdue);
+        return acc;
+      }, {}))
+        .sort((a, b) => b[1].total - a[1].total)
+        .slice(0, 5)
+        .map(([assignee, stats]) => {
+          const avg = stats.overdue.length > 0 ? Math.round(stats.overdue.reduce((sum, value) => sum + value, 0) / stats.overdue.length) : 0;
+          return `<tr><td>${escapeHtml(assignee)}</td><td style="text-align:center;"><b>${stats.total}</b></td><td style="text-align:center;">${stats.easy}</td><td style="text-align:center;">${stats.complex}</td><td style="text-align:center;">${avg > 0 ? `+${avg} мин` : '-'}</td></tr>`;
+        }).join('');
       const renderSlaBreachItems = (items) => items.slice(0, 6).map(item => {
         const id = safeString(item.id || item.key || item.issueKey);
         const title = safeString(item.title || item.theme || item.summary || 'Без темы');
@@ -3904,11 +4065,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const overdue = Number(item.overdueMin || item.overdueMinutes || item.overdue || 0);
         const domain = safeString(item.domain || item.category || 'Прочее');
         const reason = safeString(item.reason || item.analysis || item.comment || '').trim();
+        const easyBadge = isLikelyEasySla(item) ? ' / вероятно простое' : '';
+        const reviewMeta = getSlaReviewMeta(getSlaReview(id));
+        const reviewBadge = reviewMeta ? `<span style="display: inline-block; margin-left: 5px; background: ${reviewMeta.bg}; color: ${reviewMeta.color}; border: 1px solid ${reviewMeta.border}; border-radius: 999px; padding: 1px 6px; font-size: 10px; font-weight: 900;">${escapeHtml(reviewMeta.label)}</span>` : '';
         return `
           <li>
-            <b style="color: #b91c1c;">${escapeHtml(id)}</b> ${escapeHtml(title)}
-            <span style="color: #64748b;">/ ${escapeHtml(assignee)} / ${escapeHtml(domain)}${overdue > 0 ? ` / +${overdue} мин` : ''}</span>
+            <b style="color: #b91c1c;">${escapeHtml(id)}</b> ${escapeHtml(title)} ${reviewBadge}
+            <span style="color: #64748b;">/ ${escapeHtml(assignee)} / ${escapeHtml(domain)}${overdue > 0 ? ` / +${overdue} мин` : ''}${easyBadge}</span>
             ${reason ? `<div style="color: #64748b; font-size: 11px; margin-top: 2px;">${escapeHtml(reason).slice(0, 180)}${reason.length > 180 ? '...' : ''}</div>` : ''}
+            ${exportMode ? '' : renderSlaReviewControls(item)}
           </li>
         `;
       }).join('');
@@ -3923,7 +4088,26 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <div style="background: #ffffff; border: 1px solid #fed7aa; border-radius: 8px; padding: 9px;"><span style="display:block; color:#9a3412; font-size:10px; font-weight:900; text-transform:uppercase;">До решения</span><b style="font-size:18px; color:#0f172a;">${resolutionSlaBreaches.length}</b></div>
             <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px;"><span style="display:block; color:#64748b; font-size:10px; font-weight:900; text-transform:uppercase;">Основные домены</span><div style="font-size:11px; color:#334155; margin-top:3px;">${formatTopCounts(countByField(primarySlaBreaches.length ? primarySlaBreaches : slaBreachDetails, item => item.domain || item.category), 3) || 'Нет данных'}</div></div>
           </div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px;">
+            <div style="background: #ffffff; border: 1px solid #fecaca; border-radius: 8px; padding: 10px;">
+              <div style="font-size: 11px; color: #991b1b; font-weight: 900; text-transform: uppercase;">Диагноз по основному SLA</div>
+              <div style="font-size: 12px; color: #334155; line-height: 1.45; margin-top: 5px;">${escapeHtml(slaDiagnosis)}</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 6px;">Простые: <b>${primaryEasyCount}</b> (${primaryEasyShare}%), сложные/массовые: <b>${primaryComplexCount}</b>, средняя просрочка: <b>${primaryAvgOverdue > 0 ? `+${primaryAvgOverdue} мин` : '-'}</b>.</div>
+              ${slaReviewSummary ? `<div style="font-size: 11px; color: #64748b; margin-top: 6px;">Ручная память разбора: ${slaReviewSummary}.</div>` : ''}
+            </div>
+            <div style="background: #ffffff; border: 1px solid #fed7aa; border-radius: 8px; padding: 10px;">
+              <div style="font-size: 11px; color: #9a3412; font-weight: 900; text-transform: uppercase;">Что смотреть на разборе</div>
+              <div style="font-size: 12px; color: #334155; line-height: 1.45; margin-top: 5px;">Топ домен: <b>${escapeHtml(topPrimaryDomain || 'нет данных')}</b>${topPrimaryDomainCount ? ` (${topPrimaryDomainCount})` : ''}. Топ причина: <b>${escapeHtml(topPrimaryReason || 'нет данных')}</b>${topPrimaryReasonCount ? ` (${topPrimaryReasonCount})` : ''}. Больше всего закрывал: <b>${escapeHtml(topPrimaryAssignee || 'нет данных')}</b>${topPrimaryAssigneeCount ? ` (${topPrimaryAssigneeCount})` : ''}.</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 6px;">SLA до решения: <b>${resolutionSlaBreaches.length}</b>, сложных: <b>${resolutionComplexCount}</b>, средняя просрочка: <b>${resolutionAvgOverdue > 0 ? `+${resolutionAvgOverdue} мин` : '-'}</b>.</div>
+            </div>
+          </div>
           ${primarySlaBreaches.length > 0 ? `<div style="font-size: 11px; color: #475569; margin-top: 9px;"><b>Кто закрывал первично просроченные:</b> ${formatTopCounts(countByField(primarySlaBreaches, item => item.assignee || item.resolver || item.closedBy || item.owner), 4) || 'Нет данных'}</div>` : ''}
+          ${primarySlaBreaches.length > 0 ? `
+            <table class="data-table" style="margin-top: 10px; margin-bottom: 10px;">
+              <thead><tr><th>Кто закрыл</th><th>Всего</th><th>Простые</th><th>Сложные</th><th>Ср. просрочка</th></tr></thead>
+              <tbody>${renderSlaAssigneeRows()}</tbody>
+            </table>
+          ` : ''}
           <ul class="compact-list" style="margin-top: 10px;">
             ${renderSlaBreachItems(primarySlaBreaches.length ? primarySlaBreaches : slaBreachDetails)}
           </ul>
@@ -4363,7 +4547,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const workTypeButton = event.target.closest('[data-task-work-type]');
       const workTypeClearButton = event.target.closest('[data-task-work-type-clear]');
       const clearButton = event.target.closest('[data-task-memory-clear]');
-      const button = priorityButton || complexityButton || workTypeButton || workTypeClearButton || clearButton;
+      const slaReviewButton = event.target.closest('[data-sla-review]');
+      const slaReviewClearButton = event.target.closest('[data-sla-review-clear]');
+      const button = priorityButton || complexityButton || workTypeButton || workTypeClearButton || clearButton || slaReviewButton || slaReviewClearButton;
       if (!button || !reportEl.contains(button)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -4375,6 +4561,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         handleSetTaskWorkType(button.dataset.taskId, button.dataset.taskTitle, button.dataset.taskWorkType);
       } else if (workTypeClearButton) {
         handleClearTaskWorkType(button.dataset.taskId);
+      } else if (slaReviewButton) {
+        handleSetSlaReview(button.dataset.slaId, button.dataset.slaTitle, button.dataset.slaReview);
+      } else if (slaReviewClearButton) {
+        handleClearSlaReview(button.dataset.slaId);
       } else {
         handleClearTaskMemory(button.dataset.taskId);
       }
