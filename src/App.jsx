@@ -892,7 +892,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       </div>
 
       {(firstLineControlRows.length > 0 || incidentResolutionLinks.length > 0) && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(360px,0.85fr)_minmax(620px,1.25fr)] gap-4 mb-8 items-start">
           {firstLineControlRows.length > 0 && (
             <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
@@ -902,7 +902,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                 </div>
                 <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">Средний разговор: {formatDurationShort(pulseAvgTalk)}</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
                 {firstLineControlRows.map(item => (
                   <div key={item.row.name} className={`rounded-lg border p-4 ${item.riskLevel === 'risk' ? 'bg-red-500/5 border-red-500/25' : item.riskLevel === 'watch' ? 'bg-amber-500/5 border-amber-500/25' : 'bg-slate-900/50 border-slate-700/50'}`}>
                     <div className="flex items-start justify-between gap-3 mb-3">
@@ -967,6 +967,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     {link.solutionHints.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-slate-700/50">
                         <div className="text-[10px] text-cyan-300 uppercase font-bold mb-2 flex items-center gap-1.5"><Sparkles size={12} /> Суфлер похожих решений</div>
+                        <p className="text-[11px] text-slate-500 leading-snug mb-2">Жми `Подошло`, если задача действительно похожа на причину и способ решения этой проблемы. `Мимо` - если совпали только слова, но решение не применимо.</p>
                         <div className="space-y-1.5">
                           {link.solutionHints.map(task => (
                             <div key={`hint-${link.incident.name}-${task.id}`} className="text-xs text-slate-300 bg-cyan-500/5 rounded border border-cyan-500/20 px-2 py-1.5">
