@@ -311,7 +311,7 @@ const WeekSelector = ({ historyKeys, selectedKey, onSelect, activeData, weeksHis
 
 // --- ВКЛАДКА: ПУЛЬС КОМАНДЫ ---
 
-const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, csatReviews, aiTaskMemory, projectTasks }) => {
+const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, csatReviews, aiTaskMemory, setAiTaskMemory, projectTasks, tasksArchive }) => {
   const sortedKeys = [...historyKeys].sort();
   const currentIndex = sortedKeys.indexOf(selectedWeekKey);
   const prevWeekKey = currentIndex > 0 ? sortedKeys[currentIndex - 1] : null;
@@ -593,6 +593,49 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
   const getTaskSearchText = (task) => normalizeAnalysisText(`${task?.id || ''} ${task?.title || ''} ${task?.comments || ''} ${task?.comment || ''} ${task?.tags || ''} ${task?.valueCategory || ''}`);
 
+  const getTaskDomain = (task) => {
+    const explicitDomain = safeString(task?.domain || task?.competenceDomain || task?.serviceDomain).trim();
+    if (explicitDomain) return explicitDomain;
+    const text = normalizeAnalysisText(`${task?.title || ''} ${task?.comments || ''} ${task?.tags || ''} ${task?.workType || ''}`);
+    if (text.includes('idm') || text.includes('роль') || text.includes('роли') || text.includes('доступ')) return 'IDM / доступы';
+    if (text.includes('lotus') || text.includes('лотус') || text.includes('notes')) return 'Lotus';
+    if (text.includes('печать') || text.includes('принтер') || text.includes('скан')) return 'Печать';
+    if (text.includes('сеть') || text.includes('сетев') || text.includes('vpn') || text.includes('wi fi') || text.includes('wifi')) return 'Сеть';
+    if (text.includes('сервер') || text.includes('host') || text.includes('vm') || text.includes('виртуал')) return 'Серверы / VM';
+    if (text.includes('терминал') || text.includes('rds') || text.includes('remote')) return 'Терминалы / RDS';
+    if (text.includes('почт') || text.includes('email') || text.includes('mail') || text.includes('рассылк')) return 'Почта';
+    if (text.includes('миграц') || text.includes('проект') || text.includes('внедр')) return 'Проекты';
+    if (text.includes('ос ') || text.includes('windows') || text.includes('обновлен')) return 'ОС / рабочие места';
+    return 'Прочее';
+  };
+
+  const getSolutionFeedbackKey = (incidentName) => normalizeAnalysisText(incidentName).slice(0, 80) || 'general';
+  const getSolutionFeedback = (taskId, incidentName) => {
+    const entry = taskId ? aiTaskMemory?.[taskId] : null;
+    return entry?.solutionFeedback?.[getSolutionFeedbackKey(incidentName)] || '';
+  };
+  const handleSolutionFeedback = (task, incidentName, verdict) => {
+    const taskId = safeString(task?.id).trim();
+    if (!taskId || !setAiTaskMemory) return;
+    const feedbackKey = getSolutionFeedbackKey(incidentName);
+    setAiTaskMemory(prev => {
+      const previous = (prev || {})[taskId] || {};
+      return {
+        ...(prev || {}),
+        [taskId]: {
+          ...previous,
+          id: taskId,
+          title: previous.title || safeString(task?.title),
+          solutionFeedback: {
+            ...(previous.solutionFeedback || {}),
+            [feedbackKey]: verdict
+          },
+          updatedAt: new Date().toISOString()
+        }
+      };
+    });
+  };
+
   const normalizePersonForMatch = (name) => normalizeAnalysisText(getFullName(name)).split(' ').filter(part => part.length > 1);
   const isSamePersonForPulse = (leftName, rightName) => {
     const leftTokens = normalizePersonForMatch(leftName);
@@ -635,9 +678,12 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const avgTalk = parseDurationToSeconds(row.avgTalk);
     const talkDiffPct = pulseAvgTalk > 0 && avgTalk > 0 ? Math.round(((avgTalk - pulseAvgTalk) / pulseAvgTalk) * 100) : 0;
     const jiraPerCall = answered > 0 ? Number((closed / answered).toFixed(1)) : 0;
-    const dispatchGap = Math.max(answered - closed, 0);
+    const explicitFirstLineSolved = perf && perf.firstLineSolved !== undefined ? Number(perf.firstLineSolved) || 0 : null;
+    const explicitHandoff = perf && perf.handoffCount !== undefined ? Number(perf.handoffCount) || 0 : null;
+    const dispatchGap = explicitHandoff !== null ? explicitHandoff : Math.max(answered - closed, 0);
     const footballRate = answered > 0 ? Math.round((dispatchGap / answered) * 100) : 0;
-    const fcrProxy = answered > 0 ? Math.round((Math.min(closed, answered) / answered) * 100) : 0;
+    const fcrBase = explicitFirstLineSolved !== null ? explicitFirstLineSolved : Math.min(closed, answered);
+    const fcrProxy = answered > 0 ? Math.round((fcrBase / answered) * 100) : 0;
     const avgResolveMin = perf ? (Number(perf.avgTimeMin) || 0) : 0;
     const riskLevel = (missed >= 10 || availability < 75) ? 'risk' : ((missed > 0 || availability < 90 || footballRate >= 60) ? 'watch' : 'ok');
     let label = 'Норма';
@@ -667,26 +713,37 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const matchedProjectTasks = (projectTasks || [])
       .filter(task => tokens.some(token => getTaskSearchText(task).includes(token)))
       .slice(0, 3);
+    const solutionHints = (tasksArchive || [])
+      .filter(task => {
+        const taskText = getTaskSearchText(task);
+        const taskId = safeString(task.id);
+        const isCurrentMatch = matchedTasks.some(matched => safeString(matched.id) === taskId);
+        return tokens.length > 0 && !isCurrentMatch && tokens.some(token => taskText.includes(token));
+      })
+      .slice(0, 3);
     const status = matchedTasks.length > 0 ? 'covered' : (matchedProjectTasks.length > 0 ? 'planned' : 'gap');
-    return { incident, tokens, matchedTasks, matchedProjectTasks, status };
+    return { incident, tokens, matchedTasks, matchedProjectTasks, solutionHints, status };
   });
 
   const skillMatrixRows = Object.values(closedDetailedTasks.reduce((acc, task) => {
     const assignee = getFullName(task.assignee);
     if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME) return acc;
     if (!acc[assignee]) {
-      acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, heavy: 0 };
+      acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, domains: {}, heavy: 0 };
     }
     const size = getTaskSize(task) || 'M';
     const category = safeString(task.valueCategory || task.category || 'standard') || 'standard';
+    const domain = getTaskDomain(task);
     acc[assignee].total += 1;
     acc[assignee].sizes[size] = (acc[assignee].sizes[size] || 0) + 1;
     acc[assignee].categories[category] = (acc[assignee].categories[category] || 0) + 1;
+    acc[assignee].domains[domain] = (acc[assignee].domains[domain] || 0) + 1;
     if (['L', 'XL'].includes(size)) acc[assignee].heavy += 1;
     return acc;
   }, {})).map(row => {
     const topCategory = Object.entries(row.categories).sort((a, b) => b[1] - a[1])[0]?.[0] || 'standard';
     const topSize = Object.entries(row.sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 'M';
+    const topDomains = Object.entries(row.domains).sort((a, b) => b[1] - a[1]).slice(0, 4);
     const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
     let profile = 'Универсал';
     if (heavyShare >= 45) profile = 'Тяжелые задачи';
@@ -694,7 +751,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     else if (topCategory === 'optimization') profile = 'Оптимизация';
     else if (topCategory === 'business') profile = 'Бизнес-проекты';
     else if (topSize === 'S') profile = 'Быстрая рутина';
-    return { ...row, topCategory, topSize, heavyShare, profile };
+    return { ...row, topCategory, topSize, topDomains, heavyShare, profile };
   }).sort((a, b) => b.total - a.total);
 
   return (
@@ -852,11 +909,11 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       <div className="font-bold text-slate-100">{item.row.name}</div>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase ${item.riskLevel === 'risk' ? 'bg-red-500/10 text-red-300 border-red-500/30' : item.riskLevel === 'watch' ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'}`}>{item.label}</span>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 mb-3">
-                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2"><div className="text-[9px] text-slate-500 uppercase font-bold">Jira</div><div className="text-white font-black">{item.closed}</div></div>
-                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2"><div className="text-[9px] text-slate-500 uppercase font-bold">Звонки</div><div className="text-white font-black">{item.answered}/{item.total}</div></div>
-                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2"><div className="text-[9px] text-slate-500 uppercase font-bold">FCR*</div><div className="text-sky-300 font-black">{item.fcrProxy}%</div></div>
-                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2"><div className="text-[9px] text-slate-500 uppercase font-bold">Football*</div><div className={item.footballRate >= 60 ? 'text-red-300 font-black' : 'text-slate-200 font-black'}>{item.footballRate}%</div></div>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">Jira</div><div className="text-white font-black text-lg leading-tight">{item.closed}</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">Звонки</div><div className="text-white font-black text-lg leading-tight">{item.answered}/{item.total}</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">FCR</div><div className="text-sky-300 font-black text-lg leading-tight">{item.fcrProxy}%</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700/50 p-2.5 min-h-[58px]"><div className="text-[10px] text-slate-500 uppercase font-bold leading-none mb-1">Football</div><div className={`${item.footballRate >= 60 ? 'text-red-300' : 'text-slate-200'} font-black text-lg leading-tight`}>{item.footballRate}%</div></div>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       <span className="text-[10px] bg-slate-950/70 border border-slate-700 text-slate-300 px-2 py-0.5 rounded-full">доступность {item.availability}%</span>
@@ -906,6 +963,36 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       </div>
                     ) : (
                       <p className="text-xs text-amber-300">Нужна задача устранения или явное решение: иначе топовая проблема повторится.</p>
+                    )}
+                    {link.solutionHints.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-slate-700/50">
+                        <div className="text-[10px] text-cyan-300 uppercase font-bold mb-2 flex items-center gap-1.5"><Sparkles size={12} /> Суфлер похожих решений</div>
+                        <div className="space-y-1.5">
+                          {link.solutionHints.map(task => (
+                            <div key={`hint-${link.incident.name}-${task.id}`} className="text-xs text-slate-300 bg-cyan-500/5 rounded border border-cyan-500/20 px-2 py-1.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div><span className="text-cyan-300 font-bold">{task.id}</span> - {safeString(task.title)}</div>
+                                {getSolutionFeedback(task.id, link.incident.name) && (
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 ${getSolutionFeedback(task.id, link.incident.name) === 'helpful' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-red-500/10 text-red-300 border-red-500/30'}`}>
+                                    {getSolutionFeedback(task.id, link.incident.name) === 'helpful' ? 'подошло' : 'мимо'}
+                                  </span>
+                                )}
+                              </div>
+                              {safeString(task.comments).trim().length > 20 && (
+                                <div className="text-[11px] text-slate-500 mt-1 leading-snug">{safeString(task.comments).slice(0, 130)}{safeString(task.comments).length > 130 ? '...' : ''}</div>
+                              )}
+                              <div className="flex gap-1.5 mt-2">
+                                <button type="button" onClick={() => handleSolutionFeedback(task, link.incident.name, 'helpful')} className="text-[10px] px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition-colors">
+                                  Подошло
+                                </button>
+                                <button type="button" onClick={() => handleSolutionFeedback(task, link.incident.name, 'miss')} className="text-[10px] px-2 py-1 rounded border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors">
+                                  Мимо
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -1137,6 +1224,16 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400">L/XL доля</span>
                   <span className={row.heavyShare >= 45 ? 'text-orange-300 font-bold' : 'text-slate-300 font-bold'}>{row.heavyShare}%</span>
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-700/50">
+                  <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Домены</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {row.topDomains.map(([domain, count]) => (
+                      <span key={`${row.assignee}-${domain}`} className="text-[10px] bg-cyan-500/10 text-cyan-200 border border-cyan-500/20 px-2 py-0.5 rounded-full">
+                        {domain}: {count}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}
@@ -2332,7 +2429,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
 
 // --- ВКЛАДКА: НОВЫЙ СТАТУС-ОТЧЕТ (ELITE REPORT) ---
 
-const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek, projectTasks, setProjectTasks, csatReviews, aiTaskMemory, setAiTaskMemory }) => {
+const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek, projectTasks, setProjectTasks, csatReviews, aiTaskMemory, setAiTaskMemory, tasksArchive }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
   
@@ -2494,6 +2591,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const complexity = normalizeTaskSize(item.complexity);
         if (complexity) entry.complexity = complexity;
         if (safeString(item.workType).trim().toUpperCase() === 'IDM') entry.workType = 'IDM';
+        if (item.solutionFeedback && typeof item.solutionFeedback === 'object') entry.solutionFeedback = item.solutionFeedback;
         if (item.updatedAt) entry.updatedAt = safeString(item.updatedAt);
         return entry;
       });
@@ -2998,6 +3096,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const avgLineTalk = talkDurations.length > 0
           ? Math.round(talkDurations.reduce((sum, value) => sum + value, 0) / talkDurations.length)
           : 0;
+        const corporateAchievements = [];
 
         const operatorCards = visibleTelephony.map(op => {
           total += Number(op.total) || 0;
@@ -3014,12 +3113,28 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const avgTalkSeconds = parseReportDurationToSeconds(op.avgTalk);
           const talkDiffPct = avgLineTalk > 0 && avgTalkSeconds > 0 ? Math.round(((avgTalkSeconds - avgLineTalk) / avgLineTalk) * 100) : 0;
           const closedPerAnswered = answeredCalls > 0 ? Number((closedTickets / answeredCalls).toFixed(1)) : 0;
-          const dispatchGap = Math.max(answeredCalls - closedTickets, 0);
-          const fcrProxy = answeredCalls > 0 ? Math.round((Math.min(closedTickets, answeredCalls) / answeredCalls) * 100) : 0;
+          const explicitFirstLineSolved = perf && perf.firstLineSolved !== undefined ? Number(perf.firstLineSolved) || 0 : null;
+          const explicitHandoff = perf && perf.handoffCount !== undefined ? Number(perf.handoffCount) || 0 : null;
+          const dispatchGap = explicitHandoff !== null ? explicitHandoff : Math.max(answeredCalls - closedTickets, 0);
+          const fcrBase = explicitFirstLineSolved !== null ? explicitFirstLineSolved : Math.min(closedTickets, answeredCalls);
+          const fcrProxy = answeredCalls > 0 ? Math.round((fcrBase / answeredCalls) * 100) : 0;
           const footballRate = answeredCalls > 0 ? Math.round((dispatchGap / answeredCalls) * 100) : 0;
           const hasKpiRisk = missedCalls >= 10 || availability < 75;
           const hasKpiWarning = missedCalls > 0 || availability < 90 || footballRate >= 60;
           const hasShortTalkRisk = avgLineTalk > 0 && avgTalkSeconds > 0 && talkDiffPct <= -30;
+          if (totalCalls >= 15 && missedCalls === 0) {
+            corporateAchievements.push({
+              name: op.name,
+              title: 'Идеальная доступность линии',
+              text: `${answeredCalls} принятых из ${totalCalls}, без пропущенных звонков.`
+            });
+          } else if (totalCalls >= 30 && missRate <= 3) {
+            corporateAchievements.push({
+              name: op.name,
+              title: 'Стабильная линия',
+              text: `Потери всего ${missRate}% при ${totalCalls} входящих вызовах.`
+            });
+          }
           let status = { label: 'Норма', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' };
           let recommendation = 'Держит линию в рабочем режиме.';
           let workloadLabel = 'Сбалансированная работа';
@@ -3107,6 +3222,20 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const summaryStatus = missed > 0
           ? { label: 'Есть потери звонков', color: '#b45309', bg: '#fffbeb', border: '#fde68a' }
           : { label: 'Без потерь', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' };
+        const achievementsHtml = corporateAchievements.length > 0 ? `
+            <div class="corporate-achievements">
+              <div class="corporate-achievements-title">Корпоративные ачивки недели</div>
+              <div class="corporate-achievements-grid">
+                ${corporateAchievements.slice(0, 4).map(item => `
+                  <div class="corporate-achievement-card">
+                    <div style="font-size: 11px; color: #92400e; font-weight: 900; text-transform: uppercase;">${escapeHtml(item.title)}</div>
+                    <div style="font-size: 13px; color: #0f172a; font-weight: 900; margin-top: 2px;">${escapeHtml(item.name)}</div>
+                    <div style="font-size: 12px; color: #475569; line-height: 1.4; margin-top: 4px;">${escapeHtml(item.text)}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : '';
 
         return `
           <div class="telephony-panel">
@@ -3123,6 +3252,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <div><span>Потери</span><b>${missRateTotal}%</b></div>
               <div><span>Ср. разговор</span><b>${formatReportDurationShort(avgLineTalk)}</b></div>
             </div>
+            ${achievementsHtml}
             <div class="telephony-operators-grid">
               ${operatorCards}
             </div>
@@ -3298,6 +3428,22 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
       const getReportTaskSearchText = (task) => normalizeReportAnalysisText(`${task?.id || ''} ${task?.title || ''} ${task?.comments || ''} ${task?.comment || ''} ${task?.tags || ''} ${task?.valueCategory || ''}`);
 
+      const getReportTaskDomain = (task) => {
+        const explicitDomain = safeString(task?.domain || task?.competenceDomain || task?.serviceDomain).trim();
+        if (explicitDomain) return explicitDomain;
+        const text = normalizeReportAnalysisText(`${task?.title || ''} ${task?.comments || ''} ${task?.tags || ''} ${task?.workType || ''}`);
+        if (text.includes('idm') || text.includes('роль') || text.includes('роли') || text.includes('доступ')) return 'IDM / доступы';
+        if (text.includes('lotus') || text.includes('лотус') || text.includes('notes')) return 'Lotus';
+        if (text.includes('печать') || text.includes('принтер') || text.includes('скан')) return 'Печать';
+        if (text.includes('сеть') || text.includes('сетев') || text.includes('vpn') || text.includes('wi fi') || text.includes('wifi')) return 'Сеть';
+        if (text.includes('сервер') || text.includes('host') || text.includes('vm') || text.includes('виртуал')) return 'Серверы / VM';
+        if (text.includes('терминал') || text.includes('rds') || text.includes('remote')) return 'Терминалы / RDS';
+        if (text.includes('почт') || text.includes('email') || text.includes('mail') || text.includes('рассылк')) return 'Почта';
+        if (text.includes('миграц') || text.includes('проект') || text.includes('внедр')) return 'Проекты';
+        if (text.includes('ос ') || text.includes('windows') || text.includes('обновлен')) return 'ОС / рабочие места';
+        return 'Прочее';
+      };
+
       const renderIncidentResolutionReport = () => {
         const links = sortedIncidents.slice(0, 5).map(incident => {
           const tokens = getReportMeaningfulTokens(`${incident.name || ''} ${incident.analysis || ''}`);
@@ -3307,8 +3453,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const matchedProjectTasks = tasksForThisWeek
             .filter(task => tokens.length > 0 && tokens.some(token => getReportTaskSearchText(task).includes(token)))
             .slice(0, 3);
+          const solutionHints = (tasksArchive || [])
+            .filter(task => {
+              const taskText = getReportTaskSearchText(task);
+              const taskId = safeString(task.id);
+              const isCurrentMatch = matchedTasks.some(matched => safeString(matched.id) === taskId);
+              return tokens.length > 0 && !isCurrentMatch && tokens.some(token => taskText.includes(token));
+            })
+            .slice(0, 3);
           const status = matchedTasks.length > 0 ? 'covered' : (matchedProjectTasks.length > 0 ? 'planned' : 'gap');
-          return { incident, matchedTasks, matchedProjectTasks, status };
+          return { incident, matchedTasks, matchedProjectTasks, solutionHints, status };
         }).filter(link => safeString(link.incident?.name));
 
         if (links.length === 0) return '';
@@ -3323,6 +3477,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               const taskLines = link.matchedTasks.length > 0
                 ? link.matchedTasks.map(task => `<li><b>${escapeHtml(task.id)}</b> ${escapeHtml(safeString(task.title).slice(0, 90))}${safeString(task.title).length > 90 ? '...' : ''}</li>`).join('')
                 : link.matchedProjectTasks.map(task => `<li>${escapeHtml(safeString(task.title).slice(0, 100))}${safeString(task.title).length > 100 ? '...' : ''}</li>`).join('');
+              const hintLines = link.solutionHints.map(task => `<li><b>${escapeHtml(task.id)}</b> ${escapeHtml(safeString(task.title).slice(0, 90))}${safeString(task.title).length > 90 ? '...' : ''}</li>`).join('');
               return `
                 <div class="correlation-card" style="border-left-color: ${badgeColor};">
                   <div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;">
@@ -3333,6 +3488,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                   ${taskLines
                     ? `<ul class="compact-list">${taskLines}</ul>`
                     : '<div style="font-size: 12px; color: #92400e; margin-top: 7px;">Нужна задача или поручение на устранение повторяемой причины.</div>'}
+                  ${hintLines ? `
+                    <div class="solution-hints">
+                      <div style="font-size: 10px; color: #0e7490; font-weight: 900; text-transform: uppercase; margin-bottom: 4px;">Суфлер похожих решений</div>
+                      <ul class="compact-list" style="margin-top: 0;">${hintLines}</ul>
+                    </div>
+                  ` : ''}
                 </div>
               `;
             }).join('')}
@@ -3345,21 +3506,25 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const assignee = getFullName(task.assignee);
           if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME) return acc;
           if (!acc[assignee]) {
-            acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, heavy: 0 };
+            acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, domains: {}, heavy: 0 };
           }
           const size = getTaskComplexity(task) || 'M';
           const category = getTaskValueCategory(task).label;
+          const domain = getReportTaskDomain(task);
           acc[assignee].total += 1;
           acc[assignee].sizes[size] = (acc[assignee].sizes[size] || 0) + 1;
           acc[assignee].categories[category] = (acc[assignee].categories[category] || 0) + 1;
+          acc[assignee].domains[domain] = (acc[assignee].domains[domain] || 0) + 1;
           if (['L', 'XL'].includes(size)) acc[assignee].heavy += 1;
           return acc;
         }, {})).map(row => {
           const topCategory = Object.entries(row.categories).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Смешанный профиль';
+          const topDomains = Object.entries(row.domains).sort((a, b) => b[1] - a[1]).slice(0, 4);
           const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
           return {
             ...row,
             topCategory,
+            topDomains,
             heavyShare,
             profile: heavyShare >= 35 ? `Тяжелые задачи: ${topCategory}` : `Основной фокус: ${topCategory}`
           };
@@ -3383,6 +3548,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                   ${['S', 'M', 'L', 'XL'].map(size => `<div><span>${size}</span><b>${row.sizes[size] || 0}</b></div>`).join('')}
                 </div>
                 <div style="font-size: 11px; color: #64748b; margin-top: 7px;">Доля L/XL: <b style="color: #0f172a;">${row.heavyShare}%</b></div>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">
+                  ${row.topDomains.map(([domain, count]) => `<span style="font-size: 10px; color: #0e7490; background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 999px; padding: 2px 6px;">${escapeHtml(domain)}: ${count}</span>`).join('')}
+                </div>
               </div>
             `).join('')}
           </div>
@@ -3868,6 +4036,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .telephony-summary-grid div { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 10px; }
           .telephony-summary-grid span, .telephony-metrics span { display: block; color: #64748b; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
           .telephony-summary-grid b { display: block; color: #0f172a; font-size: 18px; margin-top: 2px; }
+          .corporate-achievements { background: #fffbeb; border: 1px solid #fde68a; border-left: 5px solid #f59e0b; border-radius: 10px; padding: 12px; margin: 0 0 14px 0; }
+          .corporate-achievements-title { color: #92400e; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+          .corporate-achievements-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+          .corporate-achievement-card { background: #ffffff; border: 1px solid #fde68a; border-radius: 8px; padding: 10px; }
           .telephony-operators-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
           .telephony-operator-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
           .telephony-operator-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 9px; }
@@ -3878,6 +4050,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .correlation-card { background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #d97706; border-radius: 8px; padding: 12px; }
           .compact-list { padding-left: 16px; margin: 7px 0 0 0; color: #334155; font-size: 12px; line-height: 1.45; }
           .compact-list li { margin-bottom: 4px; }
+          .solution-hints { background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 8px; padding: 9px; margin-top: 9px; }
           .skill-matrix-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
           .skill-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
           .mini-size-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
@@ -4797,9 +4970,9 @@ const App = () => {
 
   const renderContent = () => {
     switch(activeTab) {
-      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} projectTasks={projectTasks} />;
+      case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} projectTasks={projectTasks} tasksArchive={tasksArchive} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} />;
-      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} />;
+      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} tasksArchive={tasksArchive} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
       case 'achievements': return <AchievementsBoard achievements={achievements} />;
