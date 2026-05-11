@@ -209,7 +209,7 @@ const defaultWeekData = {
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных аналитики...",
-  topIncidents: [], slaMetrics: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: [], telephonyData: [], telephonyInsight: ""
+  topIncidents: [], slaMetrics: [], slaBreachDetails: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: [], telephonyData: [], telephonyInsight: ""
 };
 
 const defaultProcesses = [
@@ -2087,6 +2087,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     shieldHero: '',
     topIncidents: [],
     slaMetrics: [],
+    slaBreachDetails: [],
     topPerformers: [],
     taskPerformers: [],
     taskComplexity: [],
@@ -3875,6 +3876,59 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           </div>
         `;
       }).join('');
+
+      const slaBreachDetails = Array.isArray(weekData.slaBreachDetails) ? weekData.slaBreachDetails : [];
+      const getBreachType = (item) => safeString(item.slaType || item.type || item.name || item.metric);
+      const primarySlaBreaches = slaBreachDetails.filter(item => {
+        const type = getBreachType(item).toLowerCase();
+        return type.includes('момент') || type.includes('создан') || type.includes('first') || type.includes('reaction');
+      });
+      const resolutionSlaBreaches = slaBreachDetails.filter(item => {
+        const type = getBreachType(item).toLowerCase();
+        return type.includes('решен') || type.includes('решени') || type.includes('resolution');
+      });
+      const countByField = (items, getter) => items.reduce((acc, item) => {
+        const key = safeString(getter(item)).trim() || 'Неизвестно';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      const formatTopCounts = (counts, limit = 3) => Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([name, count]) => `${escapeHtml(name)}: <b>${count}</b>`)
+        .join(', ');
+      const renderSlaBreachItems = (items) => items.slice(0, 6).map(item => {
+        const id = safeString(item.id || item.key || item.issueKey);
+        const title = safeString(item.title || item.theme || item.summary || 'Без темы');
+        const assignee = safeString(item.assignee || item.resolver || item.closedBy || item.owner || 'Неизвестно');
+        const overdue = Number(item.overdueMin || item.overdueMinutes || item.overdue || 0);
+        const domain = safeString(item.domain || item.category || 'Прочее');
+        const reason = safeString(item.reason || item.analysis || item.comment || '').trim();
+        return `
+          <li>
+            <b style="color: #b91c1c;">${escapeHtml(id)}</b> ${escapeHtml(title)}
+            <span style="color: #64748b;">/ ${escapeHtml(assignee)} / ${escapeHtml(domain)}${overdue > 0 ? ` / +${overdue} мин` : ''}</span>
+            ${reason ? `<div style="color: #64748b; font-size: 11px; margin-top: 2px;">${escapeHtml(reason).slice(0, 180)}${reason.length > 180 ? '...' : ''}</div>` : ''}
+          </li>
+        `;
+      }).join('');
+      const slaBreachHtml = slaBreachDetails.length > 0 ? `
+        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Разбор SLA: первые 15 минут</h3>
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-left: 5px solid #ef4444; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;">
+          <div style="font-size: 12px; color: #7f1d1d; line-height: 1.45;">
+            <b>Основной контроль:</b> Инцидент от момента создания - это задержка первичного взятия обращения в работу. Здесь важно разбирать не только количество, но и кто потом закрыл инцидент, домен проблемы и была ли задача простой.
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px;">
+            <div style="background: #ffffff; border: 1px solid #fecaca; border-radius: 8px; padding: 9px;"><span style="display:block; color:#991b1b; font-size:10px; font-weight:900; text-transform:uppercase;">Первичная реакция</span><b style="font-size:18px; color:#0f172a;">${primarySlaBreaches.length}</b></div>
+            <div style="background: #ffffff; border: 1px solid #fed7aa; border-radius: 8px; padding: 9px;"><span style="display:block; color:#9a3412; font-size:10px; font-weight:900; text-transform:uppercase;">До решения</span><b style="font-size:18px; color:#0f172a;">${resolutionSlaBreaches.length}</b></div>
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px;"><span style="display:block; color:#64748b; font-size:10px; font-weight:900; text-transform:uppercase;">Основные домены</span><div style="font-size:11px; color:#334155; margin-top:3px;">${formatTopCounts(countByField(primarySlaBreaches.length ? primarySlaBreaches : slaBreachDetails, item => item.domain || item.category), 3) || 'Нет данных'}</div></div>
+          </div>
+          ${primarySlaBreaches.length > 0 ? `<div style="font-size: 11px; color: #475569; margin-top: 9px;"><b>Кто закрывал первично просроченные:</b> ${formatTopCounts(countByField(primarySlaBreaches, item => item.assignee || item.resolver || item.closedBy || item.owner), 4) || 'Нет данных'}</div>` : ''}
+          <ul class="compact-list" style="margin-top: 10px;">
+            ${renderSlaBreachItems(primarySlaBreaches.length ? primarySlaBreaches : slaBreachDetails)}
+          </ul>
+        </div>
+      ` : '';
       
       const telephonyHtml = visibleTelephony && visibleTelephony.length > 0 ? '' : `
         <div class="editable-box" style="background-color: #f1f5f9; border-color: #cbd5e1; color: #64748b; font-style: italic; text-align: center; margin-bottom: 30px;">
@@ -4127,7 +4181,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .data-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
           .data-table th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #e2e8f0; }
           .data-table td { padding: 10px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
-          .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--accent); padding-left: 10px; margin: 40px 0 15px 0; text-transform: uppercase; color: #0f172a; }
+          .section-title { font-size: 16px; font-weight: 800; border-left: 5px solid var(--accent); padding: 11px 12px; margin: 42px 0 18px 0; text-transform: uppercase; color: #0f172a; background: #f8fafc; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; border-radius: 8px; letter-spacing: 0.02em; }
           .editable-box { background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; padding: 15px; font-size: 13px; color: #92400e; margin-bottom: 30px; font-style: italic; text-align: center; }
           .incident-card { background: #f8fafc; border-left: 3px solid #f59e0b; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
           .csat-hover-wrap { display: inline-block; position: relative; margin: 8px 0 18px 0; }
@@ -4210,7 +4264,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <div class="kpi-card" style="border-top: 4px solid ${taskColor};">
                 <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Задачи (Инфра)</div>
                 <div style="font-size: 24px; font-weight: bold; color: ${taskColor}; margin-bottom: 5px;">${totalClosedCount} <span style="font-size: 14px; font-weight: normal; color: #64748b;">закрыто</span></div>
-                <div style="font-size: 12px; color: #64748b;">Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
+                <div style="font-size: 12px; color: #64748b;">Приток: ${Number(weekData.inflowThisWeek) || 0} новых | Бэклог: ${weekData.backlog || 0} (>30д: ${weekData.backlogOld30 || 0})</div>
                 ${renderProgressBar(totalClosedCount, 100, taskColor)}
                 <div class="kpi-hint">Сумма закрытых плановых, срочных и бэклог-задач. Бэклог и задачи старше 30 дней показывают технический долг.</div>
               </div>
@@ -4233,6 +4287,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
             ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
+            ${slaBreachHtml}
 
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
             ${telephonyHtml}
