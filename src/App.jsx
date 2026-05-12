@@ -23,6 +23,7 @@ const USER_DICTIONARY = {
   "u0287": "Марк Соколов",
   "u0608": "Максим Гуртов",
   "u0607": "Максим Отрошко",
+  "u0627": "Руслан Халеддинов",
   "mvol": "Михаил Волков",
   "tea1": "Евгений Тихонов",
   "dbog": "Дмитрий Богатырев"
@@ -1920,7 +1921,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     // ----------------------------------------------
     
     // Ключевые слова для определения 1-й линии
-    const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Лысов", "Нестеров", "стажер", "младший"];
+    const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Лысов", "Халеддинов", "стажер", "младший"];
     
     teleData.forEach(op => {
         const isFirstLine = FIRST_LINE_KEYWORDS.some(k => op.name.toLowerCase().includes(k.toLowerCase()));
