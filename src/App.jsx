@@ -23,6 +23,8 @@ const USER_DICTIONARY = {
   "u0287": "Марк Соколов",
   "u0608": "Максим Гуртов",
   "u0607": "Максим Отрошко",
+  "ruslan_khaleddinov": "Руслан Халеддинов",
+  "khaleddinov": "Руслан Халеддинов",
   "mvol": "Михаил Волков",
   "tea1": "Евгений Тихонов",
   "dbog": "Дмитрий Богатырев"
@@ -32,6 +34,7 @@ const BASE_CAPACITY = 50;
 const TEAM_LEAD_ID = "u01002"; // ID тимлида для исключения из таблиц отчета
 const TEAM_LEAD_NAME = "Виктор С.";
 const THIRD_LINE_ADMINS = ["Антон Лысов", "Петр Скляренко", "Максим Нестеров", "Роман Нор", "e0197"];
+const EXCLUDED_USER_IDS = ["u0557", "u0549"];
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const availableYears = Array.from({ length: 31 }, (_, i) => 2020 + i);
@@ -102,9 +105,17 @@ const getFullName = (login) => {
   return foundKey ? USER_DICTIONARY[foundKey] : login;
 };
 
+const isExcludedUser = (value) => {
+  const raw = safeString(value).trim().toLowerCase();
+  if (!raw) return false;
+  const fullName = safeString(getFullName(raw)).trim().toLowerCase();
+  return EXCLUDED_USER_IDS.includes(raw) || EXCLUDED_USER_IDS.includes(fullName);
+};
+
 const isKnownTeamMember = (value) => {
   const raw = safeString(value).trim();
   if (!raw) return false;
+  if (isExcludedUser(raw)) return false;
   const normalized = raw.toLowerCase();
   const knownLogin = Object.keys(USER_DICTIONARY).some(k => k.toLowerCase() === normalized);
   const knownName = Object.values(USER_DICTIONARY).some(name => name.toLowerCase() === normalized);
@@ -199,7 +210,7 @@ const mergeTasksIntoTeamMetrics = (memory = {}, tasks = []) => {
     const rawAssignee = safeString(task.assignee || task.executor || task.owner || task.responsible || task['Исполнитель'] || task['Ответственный']).trim();
     if (!rawAssignee) { skipped += 1; return; }
     const fullName = getFullName(rawAssignee);
-    if (!fullName || fullName === 'Неизвестно' || fullName === TEAM_LEAD_NAME) { skipped += 1; return; }
+    if (!fullName || fullName === 'Неизвестно' || fullName === TEAM_LEAD_NAME || isExcludedUser(rawAssignee)) { skipped += 1; return; }
     const taskId = getMetricTaskId(task, index);
     if (!next[fullName]) next[fullName] = createMetricRow(fullName);
     if (next[fullName].taskIds?.[taskId]) { skipped += 1; return; }
@@ -224,7 +235,7 @@ const mergeTasksIntoTeamMetrics = (memory = {}, tasks = []) => {
   return { memory: next, stats: { added, skipped, employees: updatedEmployees.size } };
 };
 
-const buildTeamMetricRows = (memory = {}) => Object.values(memory || {}).map(row => {
+const buildTeamMetricRows = (memory = {}) => Object.values(memory || {}).filter(row => !isExcludedUser(row.name)).map(row => {
   const totalTasks = Number(row.totalTasks) || 0;
   const totalWeight = Number(row.totalWeight) || 0;
   const impactTasks = Number(row.impactTasks) || 0;
@@ -232,7 +243,9 @@ const buildTeamMetricRows = (memory = {}) => Object.values(memory || {}).map(row
   const sizes = { S: 0, M: 0, L: 0, XL: 0, ...(row.sizes || {}) };
   const heavyWeight = (Number(sizes.L) || 0) * TEAM_METRIC_SIZE_WEIGHTS.L + (Number(sizes.XL) || 0) * TEAM_METRIC_SIZE_WEIGHTS.XL;
   const heavyWeightShare = totalWeight > 0 ? Math.round((heavyWeight / totalWeight) * 100) : 0;
-  const topDomains = Object.entries(row.domainScores || {}).sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0));
+  const topDomains = Object.entries(row.domainScores || {})
+    .filter(([domain]) => safeString(domain) !== 'Прочее')
+    .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0));
   return {
     ...row,
     name: row.name || 'Неизвестно',
@@ -243,14 +256,28 @@ const buildTeamMetricRows = (memory = {}) => Object.values(memory || {}).map(row
     heavyWeightShare,
     sizes,
     topDomains,
-    isGrowth: impactShare > 30 && heavyWeightShare >= 40
+    isGrowth: impactShare > 30 && heavyWeightShare >= 40 && totalWeight >= 120
   };
 }).sort((a, b) => b.totalWeight - a.totalWeight || b.impactShare - a.impactShare);
 
-const getExpertiseBadge = (score) => {
+const buildDomainRankMap = (rows = []) => rows.reduce((acc, row) => {
+  (row.topDomains || []).forEach(([domain, score]) => {
+    if (!acc[domain]) acc[domain] = [];
+    acc[domain].push({ name: row.name, score: Number(score) || 0 });
+  });
+  return acc;
+}, {});
+
+const getDomainRank = (domainRankMap, domain, name) => {
+  const ranked = [...(domainRankMap?.[domain] || [])].sort((a, b) => b.score - a.score);
+  const idx = ranked.findIndex(item => item.name === name);
+  return idx >= 0 ? idx + 1 : 999;
+};
+
+const getExpertiseBadge = (score, rank = 999, share = 0) => {
   const value = Number(score) || 0;
-  if (value > 50) return { label: 'Главный эксперт', icon: '👑', color: '#a16207', bg: '#fef3c7', border: '#facc15' };
-  if (value >= 15) return { label: 'Профильный специалист', icon: '', color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' };
+  if (value > 50 && rank === 1 && share >= 20) return { label: 'Главный эксперт', icon: '👑', color: '#a16207', bg: '#fef3c7', border: '#facc15' };
+  if (value >= 15 || rank <= 3) return { label: 'Профильная зона', icon: '', color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' };
   return { label: 'Базовый уровень', icon: '', color: '#475569', bg: '#f8fafc', border: '#cbd5e1' };
 };
 
@@ -727,7 +754,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
      const isThirdLine = THIRD_LINE_ADMINS.includes(fName) || THIRD_LINE_ADMINS.includes(p.name);
      const isUnknown = fName === p.name && !Object.keys(USER_DICTIONARY).includes(p.name.toLowerCase());
      const isLiterallyUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
-     return !isTeamLead && !isThirdLine && !isUnknown && !isLiterallyUnknown;
+     return !isTeamLead && !isThirdLine && !isUnknown && !isLiterallyUnknown && !isExcludedUser(p.name);
   });
 
   let filteredTaskPerformers = (weekData.taskPerformers || []).filter(p => {
@@ -735,7 +762,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
      const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
      const isUnknown = fName === p.name && !Object.keys(USER_DICTIONARY).includes(p.name.toLowerCase());
      const isLiterallyUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
-     return !isTeamLead && !isUnknown && !isLiterallyUnknown;
+     return !isTeamLead && !isUnknown && !isLiterallyUnknown && !isExcludedUser(p.name);
   });
 
   const normalizeAnalysisText = (value) => safeString(value)
@@ -779,7 +806,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const assignee = safeString(task?.assignee).trim();
     if (!assignee) return false;
     const fullName = getFullName(assignee);
-    return isKnownTeamMember(assignee) && fullName !== TEAM_LEAD_NAME;
+    return isKnownTeamMember(assignee) && fullName !== TEAM_LEAD_NAME && !isExcludedUser(assignee);
   };
 
   const getIncidentDomain = (incident) => getTaskDomain({
@@ -953,7 +980,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
   const skillMatrixRows = Object.values(closedDetailedTasks.reduce((acc, task) => {
     const assignee = getFullName(task.assignee);
-    if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME) return acc;
+    if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME || isExcludedUser(task.assignee)) return acc;
     if (!acc[assignee]) {
       acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, domains: {}, domainTasks: {}, heavy: 0, samples: [] };
     }
@@ -2082,7 +2109,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     // ----------------------------------------------
     
     // Ключевые слова для определения 1-й линии
-    const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Лысов", "Нестеров", "стажер", "младший"];
+    const FIRST_LINE_KEYWORDS = ["Халеддинов", "Руслан", "Отрошко", "Гуртов", "Соколов", "Лысов", "Нестеров", "стажер", "младший"];
     
     teleData.forEach(op => {
         const isFirstLine = FIRST_LINE_KEYWORDS.some(k => op.name.toLowerCase().includes(k.toLowerCase()));
@@ -3296,7 +3323,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
            const fName = getFullName(p.name);
            const isUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
            // Убираем Тимлида из Инфраструктуры
-           return p.name !== TEAM_LEAD_ID && fName !== TEAM_LEAD_NAME && !String(p.name).includes('Виктор') && !isUnknown;
+           return p.name !== TEAM_LEAD_ID && fName !== TEAM_LEAD_NAME && !String(p.name).includes('Виктор') && !isUnknown && !isExcludedUser(p.name);
         })
         .sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
         
@@ -3307,7 +3334,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
            const isThirdLine = THIRD_LINE_ADMINS.includes(fName) || THIRD_LINE_ADMINS.includes(p.name);
            const isUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
            // Убираем Тимлида И 3-ю линию из Инцидентов
-           return !isTeamLead && !isThirdLine && !isUnknown;
+           return !isTeamLead && !isThirdLine && !isUnknown && !isExcludedUser(p.name);
         })
         .sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
 
@@ -3317,7 +3344,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
            // В автоматическую сводку попадают только администраторы из USER_DICTIONARY; чужие исполнители отсекаются.
            const fName = getFullName(t.assignee);
            const isTeamLead = fName === TEAM_LEAD_NAME || t.assignee === TEAM_LEAD_ID || String(t.assignee).includes('Виктор');
-           return !isTeamLead && isKnownTeamMember(t.assignee);
+           return !isTeamLead && isKnownTeamMember(t.assignee) && !isExcludedUser(t.assignee);
         })
         .sort((a, b) => {
             const idA = parseInt(String(a.id).replace(/\D/g, '')) || 0;
@@ -3374,7 +3401,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       // В отчете по телефонии показываем только целевую 1-ю линию; 2-3 линия может помогать, но не попадает в управленческий контроль.
       const visibleTelephony = (weekData.telephonyData || []).filter(row => {
          const fName = getFullName(row.name);
-         return fName !== TEAM_LEAD_NAME && row.name !== TEAM_LEAD_ID && !String(row.name).includes('Виктор') && isReportFirstLineOperator(row.name);
+         return fName !== TEAM_LEAD_NAME && row.name !== TEAM_LEAD_ID && !String(row.name).includes('Виктор') && !isExcludedUser(row.name) && isReportFirstLineOperator(row.name);
       });
 
       const buildReportTelephonyInsight = () => {
@@ -3764,7 +3791,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const assignee = safeString(task?.assignee).trim();
         if (!assignee) return false;
         const fullName = getFullName(assignee);
-        return isKnownTeamMember(assignee) && fullName !== TEAM_LEAD_NAME;
+        return isKnownTeamMember(assignee) && fullName !== TEAM_LEAD_NAME && !isExcludedUser(assignee);
       };
 
       const getReportIncidentDomain = (incident) => getReportTaskDomain({
@@ -3868,7 +3895,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const renderSkillMatrixReport = () => {
         const rows = Object.values(completedDetailedTasks.reduce((acc, task) => {
           const assignee = getFullName(task.assignee);
-          if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME) return acc;
+          if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME || isExcludedUser(task.assignee)) return acc;
           if (!acc[assignee]) {
             acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, domains: {}, heavy: 0, samples: [] };
           }
@@ -3944,6 +3971,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const renderResourceAuditReport = () => {
         const mergedMetrics = mergeTasksIntoTeamMetrics(teamMetricsMemory || {}, completedDetailedTasks).memory;
         const rows = buildTeamMetricRows(mergedMetrics).slice(0, 10);
+        const domainRankMap = buildDomainRankMap(rows);
         const auditText = safeString(weekData.resourceAudit).trim() || 'Выводы появятся после импорта аналитики.';
         return `
           <div class="section-title" style="--accent: #0e7490;">${sectionCounter++}. Аудит ресурсов и компетенций</div>
@@ -3974,8 +4002,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                     <td><b style="font-size:15px; color:${row.impactShare > 30 ? '#d97706' : '#0e7490'};">${row.impactShare}%</b></td>
                     <td>
                       <div style="display:flex; flex-wrap:wrap; gap:5px;">
-                        ${row.topDomains.slice(0, 3).map(([domain, score]) => {
-                          const badge = getExpertiseBadge(score);
+                        ${row.topDomains.slice(0, 2).map(([domain, score]) => {
+                          const share = row.totalWeight > 0 ? Math.round(((Number(score) || 0) / row.totalWeight) * 100) : 0;
+                          const rank = getDomainRank(domainRankMap, domain, row.name);
+                          const badge = getExpertiseBadge(score, rank, share);
                           return `<span style="display:inline-block; background:${badge.bg}; color:${badge.color}; border:1px solid ${badge.border}; border-radius:999px; padding:3px 7px; font-size:10px; font-weight:800;">${badge.icon ? `${badge.icon} ` : ''}${escapeHtml(domain)}: ${score} · ${badge.label}</span>`;
                         }).join('') || '<span style="color:#94a3b8;">Нет данных</span>'}
                       </div>
@@ -4755,7 +4785,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
             ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time', 'Профиль'], taskRows.slice(0, 7))}
             ${renderValueShowcase()}
-            ${renderSkillMatrixReport()}
 
             ${keyDetailedTasks.length > 0 ? `
               <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 10px;">Автоматическая сводка из Jira:</p>
@@ -5219,6 +5248,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
   const rows = buildTeamMetricRows(teamMetricsMemory);
+  const domainRankMap = buildDomainRankMap(rows);
   const totalWeight = rows.reduce((sum, row) => sum + row.totalWeight, 0);
   const totalTasks = rows.reduce((sum, row) => sum + row.totalTasks, 0);
   const avgImpact = rows.length > 0 ? Math.round(rows.reduce((sum, row) => sum + row.impactShare, 0) / rows.length) : 0;
@@ -5282,6 +5312,13 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
         </div>
       </div>
 
+      <div className="bg-slate-800/70 border border-slate-700/50 rounded-xl p-4 mb-6 text-sm text-slate-300 leading-relaxed">
+        <div className="font-bold text-white mb-1">Как читать этот экран</div>
+        <div className="text-slate-400">
+          Смотрите не на одинаковые бейджи, а на различия: индекс значимости показывает долю важных задач, L/XL вес показывает сложность, а `Главный эксперт` выдается только лидеру конкретного домена. Остальные сильные зоны помечаются как профильные, чтобы не превращать всех в одинаковых экспертов.
+        </div>
+      </div>
+
       {rows.length === 0 ? (
         <div className="bg-slate-800/60 border border-dashed border-slate-700 rounded-xl p-10 text-center">
           <Users size={44} className="text-slate-600 mx-auto mb-4" />
@@ -5333,7 +5370,9 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                   <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Ключевая экспертиза</div>
                   <div className="flex flex-wrap gap-2">
                     {row.topDomains.slice(0, 2).map(([domain, score]) => {
-                      const badge = getExpertiseBadge(score);
+                      const share = row.totalWeight > 0 ? Math.round(((Number(score) || 0) / row.totalWeight) * 100) : 0;
+                      const rank = getDomainRank(domainRankMap, domain, row.name);
+                      const badge = getExpertiseBadge(score, rank, share);
                       return (
                         <span key={`${row.name}-${domain}`} className="px-3 py-1.5 rounded-full text-xs font-bold border" style={{ background: badge.bg, color: badge.color, borderColor: badge.border }}>
                           {badge.icon} {domain}: {score} · {badge.label}
