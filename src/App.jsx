@@ -159,20 +159,36 @@ const normalizeMetricText = (value) => safeString(value)
   .replace(/\s+/g, ' ')
   .trim();
 
+const normalizeMetricDomain = (explicitDomain, text) => {
+  const domain = normalizeMetricText(explicitDomain);
+  const source = normalizeMetricText(`${explicitDomain || ''} ${text || ''}`);
+  if (source.includes('2fa') || source.includes('otp') || source.includes('двухфактор') || source.includes('аутентификац')) return '2FA';
+  if (source.includes('lotus') || source.includes('лотус') || source.includes('notes')) return 'Работы по Лотус';
+  if (source.includes('idm') || source.includes('роль') || source.includes('роли') || source.includes('доступ') || source.includes('учетн') || source.includes('парол')) return 'IDM';
+  if (source.includes('принтер') || source.includes('печать') || source.includes('скан')) return 'Принтера';
+  if (source.includes('почт') || source.includes('email') || source.includes('mail') || source.includes('рассылк') || source.includes('мессендж') || source.includes('messenger')) return 'Почта / Мессенджеры';
+  if (source.includes('сертификат') || source.includes('крипт') || source.includes('безопасност') || source.includes('иб ')) return 'ИБ / сертификаты';
+  if (source.includes('папк') || source.includes('файл') || source.includes('шар') || source.includes('каталог')) return 'Файлы / каталоги';
+  if (source.includes('терминал') || source.includes('rds') || source.includes('remote') || source.includes('цб ')) return 'Терминалы / Серверы';
+  if (source.includes('binkd') || source.includes('бинк') || source.includes('vpn') || source.includes('сеть') || source.includes('сетев') || source.includes('маршрут') || source.includes('wi fi') || source.includes('wifi')) return 'Сеть / BinkD';
+  if (source.includes('фин') || source.includes('финист') || source.includes('кредит') || source.includes('юл ') || source.includes('фл ')) return 'Бизнес-системы';
+  if (source.includes('бд ') || source.includes('база') || source.includes('oracle') || source.includes('sql')) return 'Базы данных';
+  if (source.includes('сервер') || source.includes('host') || source.includes('vm') || source.includes('виртуал')) return 'Виртуализация / серверы';
+  if (source.includes('ос ') || source.includes('windows') || source.includes('рабоч') || source.includes('арм') || source.includes('по ')) return 'Рабочие места / ПО';
+  if (source.includes('миграц') || source.includes('проект') || source.includes('внедр') || source.includes('регламент') || source.includes('процесс')) return 'Проекты / процессы';
+  if (domain.includes('сеть') || domain.includes('vpn')) return 'Сеть / BinkD';
+  if (domain.includes('терминал') || domain.includes('rds')) return 'Терминалы / Серверы';
+  if (domain.includes('lotus') || domain.includes('лотус')) return 'Работы по Лотус';
+  if (domain.includes('idm') || domain.includes('доступ')) return 'IDM';
+  if (domain.includes('печать') || domain.includes('принтер')) return 'Принтера';
+  if (domain.includes('почт') || domain.includes('мессендж')) return 'Почта / Мессенджеры';
+  return safeString(explicitDomain).trim() || (domain ? safeString(explicitDomain).trim() : 'Прочее');
+};
+
 const inferTaskDomain = (task = {}) => {
-  const explicitDomain = safeString(task.domain || task.competenceDomain || task.serviceDomain || task.system || task.application).trim();
-  if (explicitDomain) return explicitDomain;
   const text = normalizeMetricText(`${task.title || ''} ${task.summary || ''} ${task.comments || ''} ${task.comment || ''} ${task.tags || ''} ${task.workType || ''}`);
-  if (text.includes('печать') || text.includes('принтер') || text.includes('скан')) return 'Печать';
-  if (text.includes('lotus') || text.includes('лотус') || text.includes('notes')) return 'Lotus';
-  if (text.includes('idm') || text.includes('роль') || text.includes('роли') || text.includes('доступ')) return 'IDM / доступы';
-  if (text.includes('сеть') || text.includes('сетев') || text.includes('vpn') || text.includes('wi fi') || text.includes('wifi')) return 'Сеть';
-  if (text.includes('сервер') || text.includes('host') || text.includes('vm') || text.includes('виртуал')) return 'Серверы / VM';
-  if (text.includes('терминал') || text.includes('rds') || text.includes('remote')) return 'Терминалы / RDS';
-  if (text.includes('почт') || text.includes('email') || text.includes('mail') || text.includes('рассылк')) return 'Почта';
-  if (text.includes('миграц') || text.includes('проект') || text.includes('внедр')) return 'Проекты';
-  if (text.includes('ос ') || text.includes('windows') || text.includes('обновлен')) return 'ОС / рабочие места';
-  return 'Прочее';
+  const explicitDomain = safeString(task.domain || task.competenceDomain || task.serviceDomain || task.system || task.application).trim();
+  return normalizeMetricDomain(explicitDomain, text);
 };
 
 const getMetricTaskSize = (task = {}) => normalizeTaskSize(task.size || task.complexity || task.name || task.tshirt || task.tShirt) || 'M';
@@ -197,8 +213,24 @@ const createMetricRow = (name) => ({
   sizes: { S: 0, M: 0, L: 0, XL: 0 },
   domainScores: {},
   taskIds: {},
+  taskDetails: {},
   updatedAt: new Date().toISOString()
 });
+
+const createMetricTaskDetail = (task = {}, index = 0) => {
+  const size = getMetricTaskSize(task);
+  const id = getMetricTaskId(task, index);
+  return {
+    id,
+    title: safeString(task.title || task.summary || task.name || id).trim(),
+    assignee: getFullName(task.assignee || task.executor || task.owner || task.responsible || task['Исполнитель'] || task['Ответственный']),
+    domain: inferTaskDomain(task),
+    size,
+    weight: TEAM_METRIC_SIZE_WEIGHTS[size] || TEAM_METRIC_SIZE_WEIGHTS.M,
+    impact: isMetricImpactTask(task),
+    updatedAt: new Date().toISOString()
+  };
+};
 
 const mergeTasksIntoTeamMetrics = (memory = {}, tasks = []) => {
   const next = JSON.parse(JSON.stringify(memory || {}));
@@ -213,7 +245,15 @@ const mergeTasksIntoTeamMetrics = (memory = {}, tasks = []) => {
     if (!fullName || fullName === 'Неизвестно' || fullName === TEAM_LEAD_NAME || isExcludedUser(rawAssignee)) { skipped += 1; return; }
     const taskId = getMetricTaskId(task, index);
     if (!next[fullName]) next[fullName] = createMetricRow(fullName);
-    if (next[fullName].taskIds?.[taskId]) { skipped += 1; return; }
+    next[fullName].taskDetails = { ...(next[fullName].taskDetails || {}) };
+    if (next[fullName].taskIds?.[taskId]) {
+      if (!next[fullName].taskDetails[taskId]) {
+        next[fullName].taskDetails[taskId] = createMetricTaskDetail(task, index);
+        next[fullName].updatedAt = new Date().toISOString();
+      }
+      skipped += 1;
+      return;
+    }
 
     const size = getMetricTaskSize(task);
     const weight = getMetricTaskWeight(task);
@@ -227,6 +267,7 @@ const mergeTasksIntoTeamMetrics = (memory = {}, tasks = []) => {
     next[fullName].domainScores = { ...(next[fullName].domainScores || {}) };
     next[fullName].domainScores[domain] = (Number(next[fullName].domainScores[domain]) || 0) + weight;
     next[fullName].taskIds = { ...(next[fullName].taskIds || {}), [taskId]: true };
+    next[fullName].taskDetails[taskId] = createMetricTaskDetail(task, index);
     next[fullName].updatedAt = new Date().toISOString();
     updatedEmployees.add(fullName);
     added += 1;
@@ -237,14 +278,37 @@ const mergeTasksIntoTeamMetrics = (memory = {}, tasks = []) => {
 
 const buildTeamMetricRows = (memory = {}) => {
   const baseRows = Object.values(memory || {}).filter(row => !isExcludedUser(row.name)).map(row => {
-  const totalTasks = Number(row.totalTasks) || 0;
-  const totalWeight = Number(row.totalWeight) || 0;
-  const impactTasks = Number(row.impactTasks) || 0;
+  const taskDetails = Object.values(row.taskDetails || {}).filter(task => task && task.id);
+  const aggregateTasks = Number(row.totalTasks) || 0;
+  const canUseDetails = taskDetails.length > 0 && taskDetails.length >= aggregateTasks;
+  const sizes = canUseDetails
+    ? taskDetails.reduce((acc, task) => {
+        const size = normalizeTaskSize(task.size) || 'M';
+        acc[size] = (Number(acc[size]) || 0) + 1;
+        return acc;
+      }, { S: 0, M: 0, L: 0, XL: 0 })
+    : { S: 0, M: 0, L: 0, XL: 0, ...(row.sizes || {}) };
+  const totalTasks = canUseDetails ? taskDetails.length : aggregateTasks;
+  const totalWeight = canUseDetails
+    ? taskDetails.reduce((sum, task) => sum + (TEAM_METRIC_SIZE_WEIGHTS[normalizeTaskSize(task.size) || 'M'] || TEAM_METRIC_SIZE_WEIGHTS.M), 0)
+    : (Number(row.totalWeight) || 0);
+  const impactTasks = canUseDetails ? taskDetails.filter(task => task.impact).length : (Number(row.impactTasks) || 0);
   const impactShare = totalTasks > 0 ? Math.round((impactTasks / totalTasks) * 100) : 0;
-  const sizes = { S: 0, M: 0, L: 0, XL: 0, ...(row.sizes || {}) };
   const heavyWeight = (Number(sizes.L) || 0) * TEAM_METRIC_SIZE_WEIGHTS.L + (Number(sizes.XL) || 0) * TEAM_METRIC_SIZE_WEIGHTS.XL;
   const heavyWeightShare = totalWeight > 0 ? Math.round((heavyWeight / totalWeight) * 100) : 0;
-  const topDomains = Object.entries(row.domainScores || {})
+  const domainScores = canUseDetails
+    ? taskDetails.reduce((acc, task) => {
+        const domain = normalizeMetricDomain(task.domain || 'Прочее', task.title || '') || 'Прочее';
+        const size = normalizeTaskSize(task.size) || 'M';
+        acc[domain] = (Number(acc[domain]) || 0) + (TEAM_METRIC_SIZE_WEIGHTS[size] || TEAM_METRIC_SIZE_WEIGHTS.M);
+        return acc;
+      }, {})
+    : Object.entries(row.domainScores || {}).reduce((acc, [domain, score]) => {
+        const normalizedDomain = normalizeMetricDomain(domain, '') || 'Прочее';
+        acc[normalizedDomain] = (Number(acc[normalizedDomain]) || 0) + (Number(score) || 0);
+        return acc;
+      }, {});
+  const topDomains = Object.entries(domainScores)
     .filter(([domain]) => safeString(domain) !== 'Прочее')
     .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0));
   return {
@@ -257,6 +321,8 @@ const buildTeamMetricRows = (memory = {}) => {
     heavyWeightShare,
     sizes,
     topDomains,
+    taskDetails,
+    taskDetailsReady: canUseDetails,
     isGrowth: false
   };
   });
@@ -264,12 +330,13 @@ const buildTeamMetricRows = (memory = {}) => {
   const maxWeight = Math.max(1, ...baseRows.map(row => row.totalWeight));
   return baseRows.map(row => {
     const volumeShare = Math.round((row.totalWeight / maxWeight) * 100);
-    const contributionIndex = Math.round((row.impactShare * 0.45) + (row.heavyWeightShare * 0.35) + (volumeShare * 0.20));
+    const rawIndex = Math.round((volumeShare * 0.45) + (row.heavyWeightShare * 0.30) + (row.impactShare * 0.25));
+    const contributionIndex = row.totalTasks < 15 ? Math.min(rawIndex, 55) : row.totalTasks < 40 ? Math.min(rawIndex, 68) : rawIndex;
     return {
       ...row,
       volumeShare,
       contributionIndex,
-      isGrowth: contributionIndex >= 75 && row.impactShare >= 30 && row.heavyWeightShare >= 40 && row.totalWeight >= 120
+      isGrowth: contributionIndex >= 80 && row.impactShare >= 30 && row.heavyWeightShare >= 40 && row.totalWeight >= 250
     };
   }).sort((a, b) => b.contributionIndex - a.contributionIndex || b.totalWeight - a.totalWeight);
 };
@@ -802,18 +869,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
   const getTaskDomain = (task) => {
     const explicitDomain = safeString(task?.domain || task?.competenceDomain || task?.serviceDomain).trim();
-    if (explicitDomain) return explicitDomain;
     const text = normalizeAnalysisText(`${task?.title || ''} ${task?.comments || ''} ${task?.tags || ''} ${task?.workType || ''}`);
-    if (text.includes('печать') || text.includes('принтер') || text.includes('скан')) return 'Печать';
-    if (text.includes('lotus') || text.includes('лотус') || text.includes('notes')) return 'Lotus';
-    if (text.includes('idm') || text.includes('роль') || text.includes('роли') || text.includes('доступ')) return 'IDM / доступы';
-    if (text.includes('сеть') || text.includes('сетев') || text.includes('vpn') || text.includes('wi fi') || text.includes('wifi')) return 'Сеть';
-    if (text.includes('сервер') || text.includes('host') || text.includes('vm') || text.includes('виртуал')) return 'Серверы / VM';
-    if (text.includes('терминал') || text.includes('rds') || text.includes('remote')) return 'Терминалы / RDS';
-    if (text.includes('почт') || text.includes('email') || text.includes('mail') || text.includes('рассылк')) return 'Почта';
-    if (text.includes('миграц') || text.includes('проект') || text.includes('внедр')) return 'Проекты';
-    if (text.includes('ос ') || text.includes('windows') || text.includes('обновлен')) return 'ОС / рабочие места';
-    return 'Прочее';
+    return normalizeMetricDomain(explicitDomain, text);
   };
 
   const isTeamOwnedTask = (task) => {
@@ -833,11 +890,12 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     if (!incidentDomain || incidentDomain === 'Прочее') return true;
     if (incidentDomain === taskDomain) return true;
     const related = {
-      'Сеть': ['Терминалы / RDS', 'Серверы / VM'],
-      'Терминалы / RDS': ['Сеть', 'Серверы / VM'],
-      'Серверы / VM': ['Сеть', 'Терминалы / RDS'],
-      'IDM / доступы': ['Проекты'],
-      'Проекты': ['IDM / доступы']
+      'Сеть / BinkD': ['Терминалы / Серверы', 'Виртуализация / серверы'],
+      'Терминалы / Серверы': ['Сеть / BinkD', 'Виртуализация / серверы'],
+      'Виртуализация / серверы': ['Сеть / BinkD', 'Терминалы / Серверы'],
+      'IDM': ['Проекты / процессы', '2FA'],
+      '2FA': ['IDM'],
+      'Проекты / процессы': ['IDM']
     };
     return (related[incidentDomain] || []).includes(taskDomain);
   };
@@ -3790,18 +3848,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
       const getReportTaskDomain = (task) => {
         const explicitDomain = safeString(task?.domain || task?.competenceDomain || task?.serviceDomain).trim();
-        if (explicitDomain) return explicitDomain;
         const text = normalizeReportAnalysisText(`${task?.title || ''} ${task?.comments || ''} ${task?.tags || ''} ${task?.workType || ''}`);
-        if (text.includes('печать') || text.includes('принтер') || text.includes('скан')) return 'Печать';
-        if (text.includes('lotus') || text.includes('лотус') || text.includes('notes')) return 'Lotus';
-        if (text.includes('idm') || text.includes('роль') || text.includes('роли') || text.includes('доступ')) return 'IDM / доступы';
-        if (text.includes('сеть') || text.includes('сетев') || text.includes('vpn') || text.includes('wi fi') || text.includes('wifi')) return 'Сеть';
-        if (text.includes('сервер') || text.includes('host') || text.includes('vm') || text.includes('виртуал')) return 'Серверы / VM';
-        if (text.includes('терминал') || text.includes('rds') || text.includes('remote')) return 'Терминалы / RDS';
-        if (text.includes('почт') || text.includes('email') || text.includes('mail') || text.includes('рассылк')) return 'Почта';
-        if (text.includes('миграц') || text.includes('проект') || text.includes('внедр')) return 'Проекты';
-        if (text.includes('ос ') || text.includes('windows') || text.includes('обновлен')) return 'ОС / рабочие места';
-        return 'Прочее';
+        return normalizeMetricDomain(explicitDomain, text);
       };
 
       const isReportTeamOwnedTask = (task) => {
@@ -3821,11 +3869,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         if (!incidentDomain || incidentDomain === 'Прочее') return true;
         if (incidentDomain === taskDomain) return true;
         const related = {
-          'Сеть': ['Терминалы / RDS', 'Серверы / VM'],
-          'Терминалы / RDS': ['Сеть', 'Серверы / VM'],
-          'Серверы / VM': ['Сеть', 'Терминалы / RDS'],
-          'IDM / доступы': ['Проекты'],
-          'Проекты': ['IDM / доступы']
+          'Сеть / BinkD': ['Терминалы / Серверы', 'Виртуализация / серверы'],
+          'Терминалы / Серверы': ['Сеть / BinkD', 'Виртуализация / серверы'],
+          'Виртуализация / серверы': ['Сеть / BinkD', 'Терминалы / Серверы'],
+          'IDM': ['Проекты / процессы', '2FA'],
+          '2FA': ['IDM'],
+          'Проекты / процессы': ['IDM']
         };
         return (related[incidentDomain] || []).includes(taskDomain);
       };
@@ -3999,7 +4048,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">7.2 Матрица грейдов и компетенций</h3>
           ${rows.length > 0 ? `
             <div style="font-size: 12px; color: #64748b; line-height: 1.45; margin-bottom: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 11px;">
-              Индекс вклада считается накопительно: 45% важность задач, 35% сложность L/XL, 20% объем относительно лидера. Главный эксперт показывается только лидеру конкретного направления.
+              Индекс вклада считается накопительно: 45% объем относительно лидера, 30% сложность L/XL, 25% важность. Для малой выборки действует потолок рейтинга, чтобы 10-15 задач не обгоняли устойчивый вклад за полгода.
             </div>
             <table class="data-table resource-audit-table">
               <thead>
@@ -5266,6 +5315,7 @@ const AchievementsBoard = ({ achievements }) => {
 const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
+  const [taskSearch, setTaskSearch] = useState('');
   const rows = buildTeamMetricRows(teamMetricsMemory);
   const domainRankMap = buildDomainRankMap(rows);
   const totalWeight = rows.reduce((sum, row) => sum + row.totalWeight, 0);
@@ -5273,6 +5323,15 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
   const avgContribution = rows.length > 0 ? Math.round(rows.reduce((sum, row) => sum + row.contributionIndex, 0) / rows.length) : 0;
   const podiumRows = rows.slice(0, 3);
   const tableRows = rows;
+  const editableTasks = rows
+    .flatMap(row => (row.taskDetails || []).map(task => ({ ...task, assignee: row.name })))
+    .filter(task => {
+      const query = normalizeMetricText(taskSearch);
+      if (!query) return true;
+      return normalizeMetricText(`${task.id} ${task.title} ${task.assignee} ${task.domain}`).includes(query);
+    })
+    .slice(0, 80);
+  const tasksWithDetails = rows.reduce((sum, row) => sum + (row.taskDetails?.length || 0), 0);
 
   const handleHistoryFile = async (event) => {
     const file = event.target.files?.[0];
@@ -5290,6 +5349,21 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       event.target.value = '';
       setTimeout(() => setImportResult(null), 6000);
     }
+  };
+
+  const handleStoredTaskSize = (assignee, taskId, size) => {
+    const cleanSize = normalizeTaskSize(size);
+    if (!cleanSize || !assignee || !taskId) return;
+    setTeamMetricsMemory(prev => {
+      const next = JSON.parse(JSON.stringify(prev || {}));
+      const row = next[assignee];
+      if (!row?.taskDetails?.[taskId]) return prev || {};
+      row.taskDetails[taskId].size = cleanSize;
+      row.taskDetails[taskId].weight = TEAM_METRIC_SIZE_WEIGHTS[cleanSize] || TEAM_METRIC_SIZE_WEIGHTS.M;
+      row.taskDetails[taskId].updatedAt = new Date().toISOString();
+      row.updatedAt = new Date().toISOString();
+      return next;
+    });
   };
 
   return (
@@ -5324,7 +5398,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50">
           <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Средний индекс вклада</div>
           <div className="text-3xl font-black text-cyan-300 mt-2">{avgContribution}</div>
-          <div className="text-xs text-slate-400 mt-1">важность + сложность + объем</div>
+          <div className="text-xs text-slate-400 mt-1">объем + сложность + важность</div>
         </div>
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50">
           <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Покрытие команды</div>
@@ -5336,7 +5410,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       <div className="bg-slate-800/70 border border-slate-700/50 rounded-xl p-4 mb-6 text-sm text-slate-300 leading-relaxed">
         <div className="font-bold text-white mb-1">Как читать этот экран</div>
         <div className="text-slate-400">
-          Индекс вклада = 45% важные задачи, 35% сложность L/XL, 20% общий объем. Для оклада и грейда сначала смотрите топ-3 рейтинга, затем проверяйте домены: Главный эксперт выдается только лидеру конкретного направления, а не всем с большим объемом.
+          Индекс вклада = 45% общий объем, 30% сложность L/XL, 25% важные задачи. Для малой выборки действует потолок рейтинга, поэтому 10-15 задач не должны обгонять устойчивый вклад за полгода. Для оклада и грейда сначала смотрите топ-3 рейтинга, затем проверяйте домены.
         </div>
       </div>
 
@@ -5352,14 +5426,18 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Award size={20} className="text-amber-400" /> Лидеры вклада</h2>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {podiumRows.map((row, index) => {
-                const rankColors = ['border-amber-400 bg-amber-500/10', 'border-cyan-400 bg-cyan-500/10', 'border-slate-500 bg-slate-700/30'];
-                const rankLabels = ['1 место', '2 место', '3 место'];
+                const rankColors = [
+                  'border-amber-300 bg-amber-500/10 shadow-[0_0_34px_rgba(245,158,11,0.22)]',
+                  'border-cyan-300 bg-cyan-500/10 shadow-[0_0_30px_rgba(34,211,238,0.18)]',
+                  'border-slate-500 bg-slate-700/30'
+                ];
+                const rankLabels = ['1 место · лидер вклада', '2 место · сильный вклад', '3 место · стабильный вклад'];
                 return (
                   <div key={`podium-${row.name}`} className={`rounded-xl border p-5 ${rankColors[index] || 'border-slate-700 bg-slate-800'}`}>
                     <div className="flex justify-between items-start gap-3 mb-4">
                       <div>
                         <div className="text-xs uppercase font-black tracking-wider text-slate-400">{rankLabels[index]}</div>
-                        <div className="text-lg font-black text-white mt-1">{row.name}</div>
+                        <div className="text-lg font-black text-white mt-1">{index === 0 ? '🏆 ' : index === 1 ? '✦ ' : ''}{row.name}</div>
                       </div>
                       <div className="text-right">
                         <div className="text-4xl font-black text-cyan-300">{row.contributionIndex}</div>
@@ -5411,6 +5489,50 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                 </div>
               ))}
               {tableRows.length === 0 && <div className="px-5 py-4 text-slate-500 text-sm">Сотрудников пока нет в исторической памяти.</div>}
+            </div>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl border border-slate-700/50 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-700/50 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-white">Ручная разметка сложности</h2>
+                <p className="text-xs text-slate-500 mt-1">S/M/L/XL сохраняется в историческую память и пересчитывает рейтинг. Для старой истории без детализации перезагрузите годовой JSON/CSV тем же файлом.</p>
+              </div>
+              <input
+                value={taskSearch}
+                onChange={(event) => setTaskSearch(event.target.value)}
+                placeholder="Поиск по IS, ФИО, домену..."
+                className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-cyan-500 w-full lg:w-72"
+              />
+            </div>
+            <div className="px-5 py-3 bg-slate-900/40 text-xs text-slate-500 border-b border-slate-700/50">
+              Доступно для разметки: {tasksWithDetails}. Показано: {editableTasks.length}. Если список пустой, импортируйте историю заново, чтобы память получила детализацию задач.
+            </div>
+            <div className="divide-y divide-slate-700/50 max-h-[520px] overflow-y-auto custom-scrollbar">
+              {editableTasks.map(task => (
+                <div key={`task-edit-${task.assignee}-${task.id}`} className="grid grid-cols-12 gap-3 px-5 py-3 items-center">
+                  <div className="col-span-12 lg:col-span-6">
+                    <div className="text-sm font-bold text-white"><span className="text-cyan-300">{task.id}</span> {safeString(task.title).slice(0, 120)}</div>
+                    <div className="text-xs text-slate-500 mt-1">{task.assignee} · {task.domain || 'Прочее'} · {task.impact ? 'важная' : 'обычная'}</div>
+                  </div>
+                  <div className="col-span-12 lg:col-span-6 flex flex-wrap justify-start lg:justify-end gap-2">
+                    {['S', 'M', 'L', 'XL'].map(size => (
+                      <button
+                        key={`task-size-${task.id}-${size}`}
+                        type="button"
+                        onClick={() => handleStoredTaskSize(task.assignee, task.id, size)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black border transition-colors ${normalizeTaskSize(task.size) === size ? 'bg-cyan-500 text-slate-950 border-cyan-300' : 'bg-slate-950 text-slate-400 border-slate-700 hover:border-cyan-500 hover:text-cyan-200'}`}
+                        title={`${size}: ${TEAM_METRIC_SIZE_WEIGHTS[size]} балл.`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {editableTasks.length === 0 && (
+                <div className="px-5 py-8 text-center text-slate-500 text-sm">Нет задач для выбранного фильтра или история загружена старым агрегированным форматом.</div>
+              )}
             </div>
           </div>
         </div>
