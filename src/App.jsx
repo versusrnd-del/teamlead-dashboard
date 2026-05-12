@@ -1379,7 +1379,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
       )}
 
-      {/* ТРУДОЕМКОСТЬ СПРИНТА (T-Shirt Sizing) И ТИПЫ РАБОТ */}
+      {/* ТРУДОЕМКОСТЬ СПРИНТА И ТИПЫ РАБОТ */}
       {(weekData.taskComplexity?.length > 0 || hasDetailedSizingForPulse || weekData.sprintWin || weekData.sprintRisk || weekData.shieldHero || weekData.taskTypesDistribution?.length > 0) && (
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
           
@@ -1387,7 +1387,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
             <div className="xl:col-span-2">
               {(weekData.taskComplexity?.length > 0 || hasDetailedSizingForPulse) && (
                 <>
-                  <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><Layers size={20} className="text-indigo-400" /> Трудоемкость выполненных задач (T-Shirt Sizing)</h2>
+                  <h2 className="text-lg font-medium text-white mb-5 flex items-center gap-2"><Layers size={20} className="text-indigo-400" /> Трудоемкость выполненных задач</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {['S', 'M', 'L', 'XL'].map((size) => {
                       // ЗАЩИТА ОТ ГАЛЛЮЦИНАЦИЙ ИИ: проверяем оба ключа (size и name)
@@ -3880,7 +3880,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </div>
             <div class="value-summary-stats">
               <span><b>${valueTasksCount}</b> ценных</span>
-              <span><b>${heavyValueTasksCount}</b> L/XL</span>
+              <span><b>${heavyValueTasksCount}</b> сложных</span>
             </div>
           </div>
           <div class="value-grid">
@@ -4082,9 +4082,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                   </div>
                 </div>
                 <div class="mini-size-grid">
-                  ${['S', 'M', 'L', 'XL'].map(size => `<div><span>${size}</span><b>${row.sizes[size] || 0}</b></div>`).join('')}
+                  ${['S', 'M', 'L', 'XL'].map(size => `<div><span>${getTaskSizeLabel(size)}</span><b>${row.sizes[size] || 0}</b></div>`).join('')}
                 </div>
-                <div style="font-size: 11px; color: #64748b; margin-top: 7px;">Доля L/XL: <b style="color: #0f172a;">${row.heavyShare}%</b></div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 7px;">Сложные задачи: <b style="color: #0f172a;">${row.heavyShare}%</b></div>
                 <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">
                   ${row.topDomains.map(([domain, count]) => `<span style="font-size: 10px; color: #0e7490; background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 999px; padding: 2px 6px;">${escapeHtml(domain)}: ${count}</span>`).join('')}
                 </div>
@@ -4114,7 +4114,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">7.2 Матрица админского вклада и компетенций</h3>
           ${rows.length > 0 ? `
             <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-bottom: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
-              Методика адаптирована под системных админов: учитываются устойчивый объем работ, ручная сложность S/M/L/XL, инфраструктурный эффект и подтвержденные домены. Это не автоматическое кадровое решение; перед выводами нужна ручная калибровка задач и проверка контекста.
+              Методика адаптирована под системных админов: учитываются устойчивый объем работ, ручная сложность, инфраструктурный эффект и подтвержденные домены. Это не автоматическое кадровое решение; перед выводами нужна ручная калибровка задач и проверка контекста.
             </div>
             <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; margin-bottom:14px;">
               ${rows.slice(0, 3).map((row, idx) => {
@@ -4133,7 +4133,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                     </div>
                     <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; margin-top:10px;">
                       <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">Важные<br><b style="color:#0f172a; font-size:13px;">${row.impactShare}%</b></div>
-                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">L/XL<br><b style="color:#0f172a; font-size:13px;">${row.heavyWeightShare}%</b></div>
+                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">Сложные<br><b style="color:#0f172a; font-size:13px;">${row.heavyWeightShare}%</b></div>
                       <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">Объем<br><b style="color:#0f172a; font-size:13px;">${row.totalWeight}</b></div>
                     </div>
                   </div>
@@ -4154,7 +4154,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                   <tr>
                     <td>
                       <b>${idx < 3 ? `${idx + 1}. ` : ''}${escapeHtml(row.name)}</b>
-                      <div style="font-size:11px; color:#64748b;">Задач: ${row.totalTasks} · важные: ${row.impactShare}% · L/XL вес: ${row.heavyWeightShare}%</div>
+                      <div style="font-size:11px; color:#64748b;">Задач: ${row.totalTasks} · важные: ${row.impactShare}% · сложные: ${row.heavyWeightShare}%</div>
                     </td>
                     <td><b style="font-size:15px; color:#0f172a;">${row.totalWeight}</b></td>
                     <td><b style="font-size:15px; color:${row.contributionIndex >= 75 ? '#d97706' : '#0e7490'};">${row.contributionIndex}</b></td>
@@ -4645,11 +4645,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             ? { label: 'Рутина', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' }
             : { label: 'Обычное', color: '#475569', bg: '#f8fafc', border: '#cbd5e1' });
         const complexityMeta = {
-          S: { label: 'S легкая', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' },
-          M: { label: 'M средняя', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
-          L: { label: 'L сложная', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
-          XL: { label: 'XL тяжелая', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }
-        }[complexity] || { label: 'M средняя', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' };
+          S: { label: 'Легко', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' },
+          M: { label: 'Средне', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+          L: { label: 'Сложно', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
+          XL: { label: 'Очень сложно', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }
+        }[complexity] || { label: 'Средне', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' };
         const exportBadges = exportMode && !isIdmTask ? `
           <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px 0;">
             <span style="display: inline-block; background: ${priorityMeta.bg}; color: ${priorityMeta.color}; border: 1px solid ${priorityMeta.border}; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${priorityMeta.label}</span>
@@ -4724,29 +4724,29 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
         return [
           renderTaskGroup({
-            title: 'Важные тяжелые',
-            subtitle: 'Impact + L/XL: высокий эффект и высокая трудоемкость',
+            title: 'Важные сложные',
+            subtitle: 'Высокий эффект и высокая трудоемкость',
             accent: '#f59e0b',
             background: '#fffbeb',
             tasks: importantHeavyTasks
           }),
           renderTaskGroup({
             title: 'Важные средние',
-            subtitle: 'Impact + M: заметные задачи без перегруза основного отчета',
+            subtitle: 'Заметные задачи без перегруза основного отчета',
             accent: '#3b82f6',
             background: '#eff6ff',
             tasks: importantMediumTasks
           }),
           renderTaskGroup({
             title: 'Важные быстрые',
-            subtitle: 'Impact + S: важные, но небольшие изменения',
+            subtitle: 'Важные, но небольшие изменения',
             accent: '#10b981',
             background: '#ecfdf5',
             tasks: importantLightTasks
           }),
           renderTaskGroup({
             title: 'Трудоемкие без флага важности',
-            subtitle: 'L/XL задачи, которые стоит показать из-за сложности, даже если они не отмечены как важные',
+            subtitle: 'Сложные задачи, которые стоит показать даже без флага важности',
             accent: '#f97316',
             background: '#fff7ed',
             tasks: heavyTasks
@@ -4794,7 +4794,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 <li style="margin-bottom: 7px;">
                   <span style="font-weight: 800; color: #475569;">${escapeHtml(t.id)}</span>
                   <span style="display: inline-block; margin-left: 5px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">Рутина</span>
-                  <span style="display: inline-block; margin-left: 3px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">${escapeHtml(complexity)}</span>
+                  <span style="display: inline-block; margin-left: 3px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">${escapeHtml(getTaskSizeLabel(complexity))}</span>
                   <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
                   <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
                   ${exportMode ? '' : renderPriorityControls(t)}
@@ -5539,7 +5539,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       <div className="bg-slate-800/70 border border-slate-700/50 rounded-xl p-4 mb-6 text-sm text-slate-300 leading-relaxed">
         <div className="font-bold text-white mb-1">Как читать этот экран</div>
         <div className="text-slate-400">
-          Это не автоматическое кадровое решение, а калиброванный срез работы системных админов: объем показывает устойчивый вклад, L/XL - сложные инфраструктурные работы, важные задачи - эффект для сервиса, безопасности или снижения ручного труда. Для решений по окладу сначала проверьте ручную разметку задач и домены, затем используйте рейтинг как доказательную базу.
+          Это не автоматическое кадровое решение, а калиброванный срез работы системных админов: объем показывает устойчивый вклад, сложность - инфраструктурные работы повышенной трудоемкости, важные задачи - эффект для сервиса, безопасности или снижения ручного труда. Для решений по окладу сначала проверьте ручную разметку задач и домены, затем используйте рейтинг как доказательную базу.
         </div>
       </div>
 
@@ -5575,7 +5575,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center mb-4">
                       <div className="bg-slate-950/60 rounded border border-slate-700 p-2"><div className="text-[10px] text-slate-500 uppercase font-bold">Важные</div><div className="text-white font-black">{row.impactShare}%</div></div>
-                      <div className="bg-slate-950/60 rounded border border-slate-700 p-2"><div className="text-[10px] text-slate-500 uppercase font-bold">L/XL</div><div className="text-white font-black">{row.heavyWeightShare}%</div></div>
+                      <div className="bg-slate-950/60 rounded border border-slate-700 p-2"><div className="text-[10px] text-slate-500 uppercase font-bold">Сложные</div><div className="text-white font-black">{row.heavyWeightShare}%</div></div>
                       <div className="bg-slate-950/60 rounded border border-slate-700 p-2"><div className="text-[10px] text-slate-500 uppercase font-bold">Баллы</div><div className="text-white font-black">{row.totalWeight}</div></div>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -5606,7 +5606,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                     <div className="text-xs text-slate-500">{row.totalTasks} задач · {row.totalWeight} баллов</div>
                   </div>
                   <div className="col-span-2 text-cyan-300 font-black text-xl">{row.contributionIndex}</div>
-                  <div className="col-span-2 text-sm text-slate-300">Важные {row.impactShare}%<br/><span className="text-slate-500">L/XL {row.heavyWeightShare}%</span></div>
+                  <div className="col-span-2 text-sm text-slate-300">Важные {row.impactShare}%<br/><span className="text-slate-500">Сложные {row.heavyWeightShare}%</span></div>
                   <div className="col-span-4 flex flex-wrap gap-2">
                     {row.topDomains.slice(0, 2).map(([domain, score]) => {
                       const share = row.totalWeight > 0 ? Math.round(((Number(score) || 0) / row.totalWeight) * 100) : 0;
@@ -5669,9 +5669,9 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                         type="button"
                         onClick={() => handleStoredTaskSize(task.assignee, task.id, size)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-black border transition-colors ${normalizeTaskSize(task.size) === size ? 'bg-cyan-500 text-slate-950 border-cyan-300' : 'bg-slate-950 text-slate-400 border-slate-700 hover:border-cyan-500 hover:text-cyan-200'}`}
-                        title={`${size}: ${TEAM_METRIC_SIZE_WEIGHTS[size]} балл.`}
+                        title={`${getTaskSizeLabel(size)}: ${TEAM_METRIC_SIZE_WEIGHTS[size]} балл.`}
                       >
-                        {size}
+                        {getTaskSizeLabel(size)}
                       </button>
                     ))}
                   </div>
