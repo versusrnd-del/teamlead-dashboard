@@ -151,6 +151,26 @@ const normalizeTaskSize = (value) => {
 };
 
 const TEAM_METRIC_SIZE_WEIGHTS = { S: 1, M: 3, L: 8, XL: 15 };
+const TEAM_DOMAIN_OPTIONS = [
+  'Citrix / фермы',
+  'Скрипты / автоматизация',
+  'Виртуализация / серверы',
+  'Терминалы / Серверы',
+  'Сеть / BinkD',
+  'Работы по Лотус',
+  'IDM',
+  '2FA',
+  'Zabbix / мониторинг',
+  'Принтера',
+  'Почта / Мессенджеры',
+  'ИБ / сертификаты',
+  'Файлы / каталоги',
+  'Бизнес-системы',
+  'Базы данных',
+  'Рабочие места / ПО',
+  'Проекты / процессы',
+  'Прочее'
+];
 
 const normalizeMetricText = (value) => safeString(value)
   .toLowerCase()
@@ -162,7 +182,10 @@ const normalizeMetricText = (value) => safeString(value)
 const normalizeMetricDomain = (explicitDomain, text) => {
   const domain = normalizeMetricText(explicitDomain);
   const source = normalizeMetricText(`${explicitDomain || ''} ${text || ''}`);
+  if (source.includes('citrix') || source.includes('цитрикс') || source.includes('ферм')) return 'Citrix / фермы';
+  if (source.includes('скрипт') || source.includes('powershell') || source.includes('ps ') || source.includes('автоматизац') || source.includes('шаблон')) return 'Скрипты / автоматизация';
   if (source.includes('2fa') || source.includes('otp') || source.includes('двухфактор') || source.includes('аутентификац')) return '2FA';
+  if (source.includes('zabbix') || source.includes('заббикс') || source.includes('мониторинг') || source.includes('триггер') || source.includes('trigger')) return 'Zabbix / мониторинг';
   if (source.includes('lotus') || source.includes('лотус') || source.includes('notes')) return 'Работы по Лотус';
   if (source.includes('idm') || source.includes('роль') || source.includes('роли') || source.includes('доступ') || source.includes('учетн') || source.includes('парол')) return 'IDM';
   if (source.includes('принтер') || source.includes('печать') || source.includes('скан')) return 'Принтера';
@@ -177,6 +200,10 @@ const normalizeMetricDomain = (explicitDomain, text) => {
   if (source.includes('ос ') || source.includes('windows') || source.includes('рабоч') || source.includes('арм') || source.includes('по ')) return 'Рабочие места / ПО';
   if (source.includes('миграц') || source.includes('проект') || source.includes('внедр') || source.includes('регламент') || source.includes('процесс')) return 'Проекты / процессы';
   if (domain.includes('сеть') || domain.includes('vpn')) return 'Сеть / BinkD';
+  if (domain.includes('citrix') || domain.includes('цитрикс') || domain.includes('ферм')) return 'Citrix / фермы';
+  if (domain.includes('скрипт') || domain.includes('автоматизац')) return 'Скрипты / автоматизация';
+  if (domain.includes('zabbix') || domain.includes('заббикс') || domain.includes('мониторинг')) return 'Zabbix / мониторинг';
+  if (domain.includes('2fa') || domain.includes('otp') || domain.includes('аутентификац')) return '2FA';
   if (domain.includes('терминал') || domain.includes('rds')) return 'Терминалы / Серверы';
   if (domain.includes('lotus') || domain.includes('лотус')) return 'Работы по Лотус';
   if (domain.includes('idm') || domain.includes('доступ')) return 'IDM';
@@ -220,14 +247,19 @@ const createMetricRow = (name) => ({
 const createMetricTaskDetail = (task = {}, index = 0) => {
   const size = getMetricTaskSize(task);
   const id = getMetricTaskId(task, index);
+  const domain = inferTaskDomain(task);
   return {
     id,
     title: safeString(task.title || task.summary || task.name || id).trim(),
     assignee: getFullName(task.assignee || task.executor || task.owner || task.responsible || task['Исполнитель'] || task['Ответственный']),
-    domain: inferTaskDomain(task),
+    domain,
+    originalDomain: domain,
     size,
+    originalSize: size,
     weight: TEAM_METRIC_SIZE_WEIGHTS[size] || TEAM_METRIC_SIZE_WEIGHTS.M,
     impact: isMetricImpactTask(task),
+    manualSize: false,
+    manualDomain: false,
     updatedAt: new Date().toISOString()
   };
 };
@@ -893,8 +925,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
       'Сеть / BinkD': ['Терминалы / Серверы', 'Виртуализация / серверы'],
       'Терминалы / Серверы': ['Сеть / BinkD', 'Виртуализация / серверы'],
       'Виртуализация / серверы': ['Сеть / BinkD', 'Терминалы / Серверы'],
-      'IDM': ['Проекты / процессы', '2FA'],
-      '2FA': ['IDM'],
+      'IDM': ['Проекты / процессы'],
+      '2FA': ['Проекты / процессы'],
+      'Zabbix / мониторинг': ['Виртуализация / серверы', 'Сеть / BinkD'],
       'Проекты / процессы': ['IDM']
     };
     return (related[incidentDomain] || []).includes(taskDomain);
@@ -3872,8 +3905,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           'Сеть / BinkD': ['Терминалы / Серверы', 'Виртуализация / серверы'],
           'Терминалы / Серверы': ['Сеть / BinkD', 'Виртуализация / серверы'],
           'Виртуализация / серверы': ['Сеть / BinkD', 'Терминалы / Серверы'],
-          'IDM': ['Проекты / процессы', '2FA'],
-          '2FA': ['IDM'],
+          'IDM': ['Проекты / процессы'],
+          '2FA': ['Проекты / процессы'],
+          'Zabbix / мониторинг': ['Виртуализация / серверы', 'Сеть / BinkD'],
           'Проекты / процессы': ['IDM']
         };
         return (related[incidentDomain] || []).includes(taskDomain);
@@ -4040,22 +4074,46 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const domainRankMap = buildDomainRankMap(rows);
         const auditText = safeString(weekData.resourceAudit).trim() || 'Выводы появятся после импорта аналитики.';
         return `
-          <div class="section-title" style="--accent: #0e7490;">${sectionCounter++}. Аудит ресурсов и компетенций</div>
+          <div class="section-title" style="--accent: #0e7490;">${sectionCounter++}. Аудит админов и компетенций</div>
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">7.1 Выводы ИИ</h3>
           <div style="background:#ecfeff; border:1px solid #a5f3fc; border-left:5px solid #06b6d4; border-radius:10px; padding:12px 14px; color:#155e75; font-size:13px; line-height:1.55; margin-bottom:18px;">
             ${escapeHtml(auditText).replace(/\n/g, '<br/>')}
           </div>
-          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">7.2 Матрица грейдов и компетенций</h3>
+          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">7.2 Матрица админского вклада и компетенций</h3>
           ${rows.length > 0 ? `
-            <div style="font-size: 12px; color: #64748b; line-height: 1.45; margin-bottom: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 11px;">
-              Индекс вклада считается накопительно: 45% объем относительно лидера, 30% сложность L/XL, 25% важность. Для малой выборки действует потолок рейтинга, чтобы 10-15 задач не обгоняли устойчивый вклад за полгода.
+            <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-bottom: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
+              Методика адаптирована под системных админов: учитываются устойчивый объем работ, ручная сложность S/M/L/XL, инфраструктурный эффект и подтвержденные домены. Это не автоматическое кадровое решение; перед выводами нужна ручная калибровка задач и проверка контекста.
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; margin-bottom:14px;">
+              ${rows.slice(0, 3).map((row, idx) => {
+                const accents = ['#f59e0b', '#06b6d4', '#64748b'];
+                const bg = ['#fffbeb', '#ecfeff', '#f8fafc'];
+                const label = ['Лидер вклада', 'Сильный вклад', 'Стабильный вклад'][idx] || 'Вклад';
+                return `
+                  <div style="border:1px solid ${accents[idx]}; border-radius:12px; padding:12px; background:${bg[idx]};">
+                    <div style="font-size:10px; color:#64748b; font-weight:900; text-transform:uppercase;">${idx + 1} место · ${label}</div>
+                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-top:5px;">
+                      <div>
+                        <div style="font-size:14px; color:#0f172a; font-weight:900;">${escapeHtml(row.name)}</div>
+                        <div style="font-size:10px; color:#64748b;">${row.totalTasks} задач · ${row.totalWeight} баллов</div>
+                      </div>
+                      <div style="font-size:26px; color:${accents[idx]}; font-weight:900; line-height:1;">${row.contributionIndex}</div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; margin-top:10px;">
+                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">Важные<br><b style="color:#0f172a; font-size:13px;">${row.impactShare}%</b></div>
+                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">L/XL<br><b style="color:#0f172a; font-size:13px;">${row.heavyWeightShare}%</b></div>
+                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">Объем<br><b style="color:#0f172a; font-size:13px;">${row.totalWeight}</b></div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
             </div>
             <table class="data-table resource-audit-table">
               <thead>
                 <tr>
                   <th>Сотрудник</th>
                   <th>Объем работы (баллы)</th>
-                  <th>Индекс вклада</th>
+                  <th>Админский вклад</th>
                   <th>Ключевые направления</th>
                 </tr>
               </thead>
@@ -5316,6 +5374,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
   const [taskSearch, setTaskSearch] = useState('');
+  const [showCalibratedTasks, setShowCalibratedTasks] = useState(false);
   const rows = buildTeamMetricRows(teamMetricsMemory);
   const domainRankMap = buildDomainRankMap(rows);
   const totalWeight = rows.reduce((sum, row) => sum + row.totalWeight, 0);
@@ -5327,11 +5386,13 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
     .flatMap(row => (row.taskDetails || []).map(task => ({ ...task, assignee: row.name })))
     .filter(task => {
       const query = normalizeMetricText(taskSearch);
-      if (!query) return true;
-      return normalizeMetricText(`${task.id} ${task.title} ${task.assignee} ${task.domain}`).includes(query);
+      const matchesQuery = !query || normalizeMetricText(`${task.id} ${task.title} ${task.assignee} ${task.domain}`).includes(query);
+      const calibrated = Boolean(task.manualSize && task.manualDomain);
+      return matchesQuery && (showCalibratedTasks || !calibrated);
     })
-    .slice(0, 80);
+    .slice(0, 10);
   const tasksWithDetails = rows.reduce((sum, row) => sum + (row.taskDetails?.length || 0), 0);
+  const calibratedTasksCount = rows.reduce((sum, row) => sum + (row.taskDetails || []).filter(task => task.manualSize && task.manualDomain).length, 0);
 
   const handleHistoryFile = async (event) => {
     const file = event.target.files?.[0];
@@ -5360,7 +5421,43 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       if (!row?.taskDetails?.[taskId]) return prev || {};
       row.taskDetails[taskId].size = cleanSize;
       row.taskDetails[taskId].weight = TEAM_METRIC_SIZE_WEIGHTS[cleanSize] || TEAM_METRIC_SIZE_WEIGHTS.M;
+      row.taskDetails[taskId].manualSize = true;
       row.taskDetails[taskId].updatedAt = new Date().toISOString();
+      row.updatedAt = new Date().toISOString();
+      return next;
+    });
+  };
+
+  const handleStoredTaskDomain = (assignee, taskId, domain) => {
+    const cleanDomain = TEAM_DOMAIN_OPTIONS.includes(domain) ? domain : normalizeMetricDomain(domain, '');
+    if (!cleanDomain || !assignee || !taskId) return;
+    setTeamMetricsMemory(prev => {
+      const next = JSON.parse(JSON.stringify(prev || {}));
+      const row = next[assignee];
+      if (!row?.taskDetails?.[taskId]) return prev || {};
+      row.taskDetails[taskId].domain = cleanDomain;
+      row.taskDetails[taskId].manualDomain = true;
+      row.taskDetails[taskId].updatedAt = new Date().toISOString();
+      row.updatedAt = new Date().toISOString();
+      return next;
+    });
+  };
+
+  const handleResetTaskCalibration = (assignee, taskId) => {
+    if (!assignee || !taskId) return;
+    setTeamMetricsMemory(prev => {
+      const next = JSON.parse(JSON.stringify(prev || {}));
+      const row = next[assignee];
+      const task = row?.taskDetails?.[taskId];
+      if (!task) return prev || {};
+      const fallbackSize = normalizeTaskSize(task.originalSize) || normalizeTaskSize(task.size) || 'M';
+      const fallbackDomain = normalizeMetricDomain(task.originalDomain || '', task.title || '') || normalizeMetricDomain('', task.title || '') || 'Прочее';
+      task.size = fallbackSize;
+      task.weight = TEAM_METRIC_SIZE_WEIGHTS[fallbackSize] || TEAM_METRIC_SIZE_WEIGHTS.M;
+      task.domain = fallbackDomain;
+      task.manualSize = false;
+      task.manualDomain = false;
+      task.updatedAt = new Date().toISOString();
       row.updatedAt = new Date().toISOString();
       return next;
     });
@@ -5371,7 +5468,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Команда</h1>
-          <p className="text-slate-400 text-sm">Аудит ресурсов, грейдирование и историческая матрица компетенций</p>
+          <p className="text-slate-400 text-sm">Аудит админов, грейдирование и историческая матрица компетенций</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <input ref={fileInputRef} type="file" accept=".json,.csv,.txt" onChange={handleHistoryFile} className="hidden" />
@@ -5396,9 +5493,9 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
           <div className="text-xs text-slate-400 mt-1">баллов по {totalTasks} задачам</div>
         </div>
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50">
-          <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Средний индекс вклада</div>
+          <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Средний админский вклад</div>
           <div className="text-3xl font-black text-cyan-300 mt-2">{avgContribution}</div>
-          <div className="text-xs text-slate-400 mt-1">объем + сложность + важность</div>
+          <div className="text-xs text-slate-400 mt-1">объем + сложность + эффект</div>
         </div>
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50">
           <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Покрытие команды</div>
@@ -5410,7 +5507,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       <div className="bg-slate-800/70 border border-slate-700/50 rounded-xl p-4 mb-6 text-sm text-slate-300 leading-relaxed">
         <div className="font-bold text-white mb-1">Как читать этот экран</div>
         <div className="text-slate-400">
-          Индекс вклада = 45% общий объем, 30% сложность L/XL, 25% важные задачи. Для малой выборки действует потолок рейтинга, поэтому 10-15 задач не должны обгонять устойчивый вклад за полгода. Для оклада и грейда сначала смотрите топ-3 рейтинга, затем проверяйте домены.
+          Это не автоматическое кадровое решение, а калиброванный срез работы системных админов: объем показывает устойчивый вклад, L/XL - сложные инфраструктурные работы, важные задачи - эффект для сервиса, безопасности или снижения ручного труда. Для решений по окладу сначала проверьте ручную разметку задач и домены, затем используйте рейтинг как доказательную базу.
         </div>
       </div>
 
@@ -5423,7 +5520,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       ) : (
         <div className="space-y-6">
           <div>
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Award size={20} className="text-amber-400" /> Лидеры вклада</h2>
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Award size={20} className="text-amber-400" /> Лидеры админского вклада</h2>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {podiumRows.map((row, index) => {
                 const rankColors = [
@@ -5431,7 +5528,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                   'border-cyan-300 bg-cyan-500/10 shadow-[0_0_30px_rgba(34,211,238,0.18)]',
                   'border-slate-500 bg-slate-700/30'
                 ];
-                const rankLabels = ['1 место · лидер вклада', '2 место · сильный вклад', '3 место · стабильный вклад'];
+                const rankLabels = ['1 место · лидер админского вклада', '2 место · сильный вклад', '3 место · стабильный вклад'];
                 return (
                   <div key={`podium-${row.name}`} className={`rounded-xl border p-5 ${rankColors[index] || 'border-slate-700 bg-slate-800'}`}>
                     <div className="flex justify-between items-start gap-3 mb-4">
@@ -5441,7 +5538,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                       </div>
                       <div className="text-right">
                         <div className="text-4xl font-black text-cyan-300">{row.contributionIndex}</div>
-                        <div className="text-[10px] text-slate-500 uppercase font-bold">Индекс вклада</div>
+                        <div className="text-[10px] text-slate-500 uppercase font-bold">Админский вклад</div>
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center mb-4">
@@ -5495,27 +5592,45 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
           <div className="bg-slate-800 rounded-xl border border-slate-700/50 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-700/50 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-white">Ручная разметка сложности</h2>
-                <p className="text-xs text-slate-500 mt-1">S/M/L/XL сохраняется в историческую память и пересчитывает рейтинг. Для старой истории без детализации перезагрузите годовой JSON/CSV тем же файлом.</p>
+                <h2 className="text-lg font-bold text-white">Ручная калибровка задач</h2>
+                <p className="text-xs text-slate-500 mt-1">Размечайте по 10 задач: сложность и домен сохраняются в историческую память. После полной разметки задача исчезает из очереди.</p>
               </div>
-              <input
-                value={taskSearch}
-                onChange={(event) => setTaskSearch(event.target.value)}
-                placeholder="Поиск по IS, ФИО, домену..."
-                className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-cyan-500 w-full lg:w-72"
-              />
+              <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowCalibratedTasks(prev => !prev)}
+                  className={`px-3 py-2 rounded-lg text-xs font-bold border ${showCalibratedTasks ? 'bg-cyan-500 text-slate-950 border-cyan-300' : 'bg-slate-950 text-slate-300 border-slate-700 hover:border-cyan-500'}`}
+                >
+                  {showCalibratedTasks ? 'Скрыть размеченные' : 'Показать размеченные'}
+                </button>
+                <input
+                  value={taskSearch}
+                  onChange={(event) => setTaskSearch(event.target.value)}
+                  placeholder="Поиск по IS, ФИО, домену..."
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-cyan-500 w-full lg:w-72"
+                />
+              </div>
             </div>
             <div className="px-5 py-3 bg-slate-900/40 text-xs text-slate-500 border-b border-slate-700/50">
-              Доступно для разметки: {tasksWithDetails}. Показано: {editableTasks.length}. Если список пустой, импортируйте историю заново, чтобы память получила детализацию задач.
+              Всего задач с деталями: {tasksWithDetails}. Полностью размечено: {calibratedTasksCount}. Сейчас показано: {editableTasks.length}. Если список пустой, импортируйте историю заново, чтобы память получила детализацию задач.
             </div>
             <div className="divide-y divide-slate-700/50 max-h-[520px] overflow-y-auto custom-scrollbar">
               {editableTasks.map(task => (
                 <div key={`task-edit-${task.assignee}-${task.id}`} className="grid grid-cols-12 gap-3 px-5 py-3 items-center">
-                  <div className="col-span-12 lg:col-span-6">
+                  <div className="col-span-12 lg:col-span-5">
                     <div className="text-sm font-bold text-white"><span className="text-cyan-300">{task.id}</span> {safeString(task.title).slice(0, 120)}</div>
                     <div className="text-xs text-slate-500 mt-1">{task.assignee} · {task.domain || 'Прочее'} · {task.impact ? 'важная' : 'обычная'}</div>
                   </div>
-                  <div className="col-span-12 lg:col-span-6 flex flex-wrap justify-start lg:justify-end gap-2">
+                  <div className="col-span-12 lg:col-span-3">
+                    <select
+                      value={TEAM_DOMAIN_OPTIONS.includes(task.domain) ? task.domain : normalizeMetricDomain(task.domain || '', task.title || '')}
+                      onChange={(event) => handleStoredTaskDomain(task.assignee, task.id, event.target.value)}
+                      className={`w-full bg-slate-950 border rounded-lg px-3 py-2 text-xs font-bold outline-none ${task.manualDomain ? 'border-emerald-400 text-emerald-200' : 'border-slate-700 text-slate-300 focus:border-cyan-500'}`}
+                    >
+                      {TEAM_DOMAIN_OPTIONS.map(domain => <option key={`domain-${task.id}-${domain}`} value={domain}>{domain}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-10 lg:col-span-3 flex flex-wrap justify-start lg:justify-end gap-2">
                     {['S', 'M', 'L', 'XL'].map(size => (
                       <button
                         key={`task-size-${task.id}-${size}`}
@@ -5527,6 +5642,16 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                         {size}
                       </button>
                     ))}
+                  </div>
+                  <div className="col-span-2 lg:col-span-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleResetTaskCalibration(task.assignee, task.id)}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-700 text-slate-400 bg-slate-950 hover:border-red-400 hover:text-red-200"
+                      title="Отменить ручную разметку этой задачи"
+                    >
+                      Сброс
+                    </button>
                   </div>
                 </div>
               ))}
