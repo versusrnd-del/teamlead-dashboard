@@ -23,7 +23,6 @@ const USER_DICTIONARY = {
   "u0287": "Марк Соколов",
   "u0608": "Максим Гуртов",
   "u0607": "Максим Отрошко",
-  "u0627": "Руслан Халеддинов",
   "mvol": "Михаил Волков",
   "tea1": "Евгений Тихонов",
   "dbog": "Дмитрий Богатырев"
@@ -140,6 +139,167 @@ const normalizeTaskSize = (value) => {
   return '';
 };
 
+const TEAM_METRIC_SIZE_WEIGHTS = { S: 1, M: 3, L: 8, XL: 15 };
+
+const normalizeMetricText = (value) => safeString(value)
+  .toLowerCase()
+  .replace(/ё/g, 'е')
+  .replace(/[^а-яa-z0-9\s]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const inferTaskDomain = (task = {}) => {
+  const explicitDomain = safeString(task.domain || task.competenceDomain || task.serviceDomain || task.system || task.application).trim();
+  if (explicitDomain) return explicitDomain;
+  const text = normalizeMetricText(`${task.title || ''} ${task.summary || ''} ${task.comments || ''} ${task.comment || ''} ${task.tags || ''} ${task.workType || ''}`);
+  if (text.includes('печать') || text.includes('принтер') || text.includes('скан')) return 'Печать';
+  if (text.includes('lotus') || text.includes('лотус') || text.includes('notes')) return 'Lotus';
+  if (text.includes('idm') || text.includes('роль') || text.includes('роли') || text.includes('доступ')) return 'IDM / доступы';
+  if (text.includes('сеть') || text.includes('сетев') || text.includes('vpn') || text.includes('wi fi') || text.includes('wifi')) return 'Сеть';
+  if (text.includes('сервер') || text.includes('host') || text.includes('vm') || text.includes('виртуал')) return 'Серверы / VM';
+  if (text.includes('терминал') || text.includes('rds') || text.includes('remote')) return 'Терминалы / RDS';
+  if (text.includes('почт') || text.includes('email') || text.includes('mail') || text.includes('рассылк')) return 'Почта';
+  if (text.includes('миграц') || text.includes('проект') || text.includes('внедр')) return 'Проекты';
+  if (text.includes('ос ') || text.includes('windows') || text.includes('обновлен')) return 'ОС / рабочие места';
+  return 'Прочее';
+};
+
+const getMetricTaskSize = (task = {}) => normalizeTaskSize(task.size || task.complexity || task.name || task.tshirt || task.tShirt) || 'M';
+const getMetricTaskWeight = (task = {}) => TEAM_METRIC_SIZE_WEIGHTS[getMetricTaskSize(task)] || TEAM_METRIC_SIZE_WEIGHTS.M;
+const isMetricImpactTask = (task = {}) => {
+  const priority = safeString(task.priority || task.importance || task.impact || task.type).toLowerCase();
+  const valueCategory = safeString(task.valueCategory || task.category).toLowerCase();
+  return priority === 'impact' || priority.includes('важ') || priority.includes('important') || valueCategory === 'business';
+};
+
+const getMetricTaskId = (task = {}, index = 0) => {
+  const id = safeString(task.id || task.key || task.issueKey || task.taskId).trim();
+  if (id) return id.toUpperCase();
+  return normalizeMetricText(`${task.assignee || task.executor || task.owner || 'unknown'}-${task.title || task.summary || 'task'}-${task.created || task.resolved || index}`).slice(0, 120);
+};
+
+const createMetricRow = (name) => ({
+  name,
+  totalTasks: 0,
+  totalWeight: 0,
+  impactTasks: 0,
+  sizes: { S: 0, M: 0, L: 0, XL: 0 },
+  domainScores: {},
+  taskIds: {},
+  updatedAt: new Date().toISOString()
+});
+
+const mergeTasksIntoTeamMetrics = (memory = {}, tasks = []) => {
+  const next = JSON.parse(JSON.stringify(memory || {}));
+  let added = 0;
+  let skipped = 0;
+  const updatedEmployees = new Set();
+
+  (Array.isArray(tasks) ? tasks : []).forEach((task, index) => {
+    const rawAssignee = safeString(task.assignee || task.executor || task.owner || task.responsible || task['Исполнитель'] || task['Ответственный']).trim();
+    if (!rawAssignee) { skipped += 1; return; }
+    const fullName = getFullName(rawAssignee);
+    if (!fullName || fullName === 'Неизвестно' || fullName === TEAM_LEAD_NAME) { skipped += 1; return; }
+    const taskId = getMetricTaskId(task, index);
+    if (!next[fullName]) next[fullName] = createMetricRow(fullName);
+    if (next[fullName].taskIds?.[taskId]) { skipped += 1; return; }
+
+    const size = getMetricTaskSize(task);
+    const weight = getMetricTaskWeight(task);
+    const domain = inferTaskDomain(task);
+    next[fullName].name = fullName;
+    next[fullName].totalTasks = (Number(next[fullName].totalTasks) || 0) + 1;
+    next[fullName].totalWeight = (Number(next[fullName].totalWeight) || 0) + weight;
+    next[fullName].impactTasks = (Number(next[fullName].impactTasks) || 0) + (isMetricImpactTask(task) ? 1 : 0);
+    next[fullName].sizes = { S: 0, M: 0, L: 0, XL: 0, ...(next[fullName].sizes || {}) };
+    next[fullName].sizes[size] = (Number(next[fullName].sizes[size]) || 0) + 1;
+    next[fullName].domainScores = { ...(next[fullName].domainScores || {}) };
+    next[fullName].domainScores[domain] = (Number(next[fullName].domainScores[domain]) || 0) + weight;
+    next[fullName].taskIds = { ...(next[fullName].taskIds || {}), [taskId]: true };
+    next[fullName].updatedAt = new Date().toISOString();
+    updatedEmployees.add(fullName);
+    added += 1;
+  });
+
+  return { memory: next, stats: { added, skipped, employees: updatedEmployees.size } };
+};
+
+const buildTeamMetricRows = (memory = {}) => Object.values(memory || {}).map(row => {
+  const totalTasks = Number(row.totalTasks) || 0;
+  const totalWeight = Number(row.totalWeight) || 0;
+  const impactTasks = Number(row.impactTasks) || 0;
+  const impactShare = totalTasks > 0 ? Math.round((impactTasks / totalTasks) * 100) : 0;
+  const sizes = { S: 0, M: 0, L: 0, XL: 0, ...(row.sizes || {}) };
+  const heavyWeight = (Number(sizes.L) || 0) * TEAM_METRIC_SIZE_WEIGHTS.L + (Number(sizes.XL) || 0) * TEAM_METRIC_SIZE_WEIGHTS.XL;
+  const heavyWeightShare = totalWeight > 0 ? Math.round((heavyWeight / totalWeight) * 100) : 0;
+  const topDomains = Object.entries(row.domainScores || {}).sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0));
+  return {
+    ...row,
+    name: row.name || 'Неизвестно',
+    totalTasks,
+    totalWeight,
+    impactTasks,
+    impactShare,
+    heavyWeightShare,
+    sizes,
+    topDomains,
+    isGrowth: impactShare > 30 && heavyWeightShare >= 40
+  };
+}).sort((a, b) => b.totalWeight - a.totalWeight || b.impactShare - a.impactShare);
+
+const getExpertiseBadge = (score) => {
+  const value = Number(score) || 0;
+  if (value > 50) return { label: 'Главный эксперт', icon: '👑', color: '#a16207', bg: '#fef3c7', border: '#facc15' };
+  if (value >= 15) return { label: 'Профильный специалист', icon: '', color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' };
+  return { label: 'Базовый уровень', icon: '', color: '#475569', bg: '#f8fafc', border: '#cbd5e1' };
+};
+
+const parseHistoryCsv = (text) => {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  const source = safeString(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    const next = source[i + 1];
+    if (char === '"' && quoted && next === '"') { cell += '"'; i += 1; continue; }
+    if (char === '"') { quoted = !quoted; continue; }
+    if ((char === ',' || char === ';' || char === '\t') && !quoted) { row.push(cell.trim()); cell = ''; continue; }
+    if (char === '\n' && !quoted) { row.push(cell.trim()); rows.push(row); row = []; cell = ''; continue; }
+    cell += char;
+  }
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  if (rows.length < 2) return [];
+  const headers = rows[0].map(h => normalizeMetricText(h));
+  const pick = (record, names) => {
+    const idx = headers.findIndex(header => names.some(name => header.includes(name)));
+    return idx >= 0 ? record[idx] : '';
+  };
+  return rows.slice(1).filter(record => record.some(Boolean)).map((record, index) => ({
+    id: pick(record, ['id', 'key', 'ключ', 'номер']) || `CSV-${index + 1}`,
+    title: pick(record, ['тема', 'summary', 'title', 'название', 'задач']),
+    assignee: pick(record, ['исполнитель', 'assignee', 'executor', 'ответствен']),
+    domain: pick(record, ['домен', 'domain', 'system', 'систем', 'направлен']),
+    size: pick(record, ['размер', 'size', 'complexity', 'сложност']),
+    priority: pick(record, ['важност', 'priority', 'impact', 'приоритет']),
+    valueCategory: pick(record, ['valuecategory', 'ценност', 'категор'])
+  }));
+};
+
+const parseHistoryInputToTasks = (text) => {
+  const source = safeString(text).trim();
+  if (!source) return [];
+  try {
+    const parsed = JSON.parse(source);
+    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed.detailedTasks)) return parsed.detailedTasks;
+    if (Array.isArray(parsed.tasks)) return parsed.tasks;
+  } catch (e) {}
+  return parseHistoryCsv(source);
+};
+
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const normalizeIncidentKey = (value) => safeString(value).trim().toUpperCase();
@@ -207,6 +367,7 @@ const defaultWeekData = {
   avgCycleTime: 0, reopenRate: 0, techDebtCategories: [],
   mainInsight: "Ожидание данных аналитики...", mainRisk: "Ожидание данных аналитики...",
   nextFocus: "Ожидание данных аналитики...", trainingHypothesis: "Ожидание данных аналитики...",
+  resourceAudit: "",
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных аналитики...",
@@ -1921,7 +2082,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     // ----------------------------------------------
     
     // Ключевые слова для определения 1-й линии
-    const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Лысов", "Халеддинов", "стажер", "младший"];
+    const FIRST_LINE_KEYWORDS = ["Отрошко", "Гуртов", "Соколов", "Лысов", "Нестеров", "стажер", "младший"];
     
     teleData.forEach(op => {
         const isFirstLine = FIRST_LINE_KEYWORDS.some(k => op.name.toLowerCase().includes(k.toLowerCase()));
@@ -2477,7 +2638,7 @@ const TasksArchiveBoard = ({ tasksArchive }) => {
 
 // --- ВКЛАДКА: НОВЫЙ СТАТУС-ОТЧЕТ (ELITE REPORT) ---
 
-const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek, projectTasks, setProjectTasks, csatReviews, aiTaskMemory, setAiTaskMemory, tasksArchive }) => {
+const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, onSaveWeek, projectTasks, setProjectTasks, csatReviews, aiTaskMemory, setAiTaskMemory, tasksArchive, teamMetricsMemory }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
   
@@ -3780,6 +3941,53 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         `;
       };
 
+      const renderResourceAuditReport = () => {
+        const mergedMetrics = mergeTasksIntoTeamMetrics(teamMetricsMemory || {}, completedDetailedTasks).memory;
+        const rows = buildTeamMetricRows(mergedMetrics).slice(0, 10);
+        const auditText = safeString(weekData.resourceAudit).trim() || 'Выводы появятся после импорта аналитики.';
+        return `
+          <div class="section-title" style="--accent: #0e7490;">${sectionCounter++}. Аудит ресурсов и компетенций</div>
+          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">7.1 Выводы ИИ</h3>
+          <div style="background:#ecfeff; border:1px solid #a5f3fc; border-left:5px solid #06b6d4; border-radius:10px; padding:12px 14px; color:#155e75; font-size:13px; line-height:1.55; margin-bottom:18px;">
+            ${escapeHtml(auditText).replace(/\n/g, '<br/>')}
+          </div>
+          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">7.2 Матрица грейдов и компетенций</h3>
+          ${rows.length > 0 ? `
+            <table class="data-table resource-audit-table">
+              <thead>
+                <tr>
+                  <th>Сотрудник</th>
+                  <th>Объем работы (баллы)</th>
+                  <th>Индекс значимости (%)</th>
+                  <th>Ключевые направления</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map(row => `
+                  <tr>
+                    <td>
+                      <b>${escapeHtml(row.name)}</b>
+                      ${row.isGrowth ? '<span style="display:inline-block; margin-left:6px; color:#d97706;" title="Высокая доля важных и тяжелых задач">🚀</span>' : ''}
+                      <div style="font-size:11px; color:#64748b;">Задач: ${row.totalTasks} · L/XL вес: ${row.heavyWeightShare}%</div>
+                    </td>
+                    <td><b style="font-size:15px; color:#0f172a;">${row.totalWeight}</b></td>
+                    <td><b style="font-size:15px; color:${row.impactShare > 30 ? '#d97706' : '#0e7490'};">${row.impactShare}%</b></td>
+                    <td>
+                      <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                        ${row.topDomains.slice(0, 3).map(([domain, score]) => {
+                          const badge = getExpertiseBadge(score);
+                          return `<span style="display:inline-block; background:${badge.bg}; color:${badge.color}; border:1px solid ${badge.border}; border-radius:999px; padding:3px 7px; font-size:10px; font-weight:800;">${badge.icon ? `${badge.icon} ` : ''}${escapeHtml(domain)}: ${score} · ${badge.label}</span>`;
+                        }).join('') || '<span style="color:#94a3b8;">Нет данных</span>'}
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p style="font-size:13px; color:#64748b;">Историческая память компетенций пока не загружена.</p>'}
+        `;
+      };
+
       const generateTableHtml = (headers, rows) => {
         return `
           <table class="data-table">
@@ -4556,6 +4764,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </div>
             ` : (completedDetailedTasks.length > 0 ? '<p style="font-size: 13px; color: #64748b; font-style: italic;">Все закрытые задачи помечены как фоновая поддержка и вынесены в KTLO-блок.</p>' : '')}
             ${idmTasksHtmlRendered}
+            ${routineTasksHtmlRendered}
+            ${renderResourceAuditReport()}
 
             <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
             
@@ -4569,7 +4779,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <li><b>Ситуация в потоке:</b> ${escapeHtml(flowSituationText)}</li>
               <li><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
             </ul>
-            ${routineTasksHtmlRendered}
 
           </div>
         </div>
@@ -4594,7 +4803,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             reportRef.current.innerHTML = getReportHtmlString();
         }
     }
-  }, [weekData, aiTaskMemory]);
+  }, [weekData, aiTaskMemory, teamMetricsMemory]);
 
   useEffect(() => {
     const reportEl = reportRef.current;
@@ -5006,6 +5215,143 @@ const AchievementsBoard = ({ achievements }) => {
   );
 };
 
+const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
+  const fileInputRef = useRef(null);
+  const [importResult, setImportResult] = useState(null);
+  const rows = buildTeamMetricRows(teamMetricsMemory);
+  const totalWeight = rows.reduce((sum, row) => sum + row.totalWeight, 0);
+  const totalTasks = rows.reduce((sum, row) => sum + row.totalTasks, 0);
+  const avgImpact = rows.length > 0 ? Math.round(rows.reduce((sum, row) => sum + row.impactShare, 0) / rows.length) : 0;
+
+  const handleHistoryFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const tasks = parseHistoryInputToTasks(text);
+      const { memory, stats } = mergeTasksIntoTeamMetrics(teamMetricsMemory, tasks);
+      setTeamMetricsMemory(memory);
+      setImportResult({ type: 'success', fileName: file.name, ...stats });
+    } catch (e) {
+      console.error('Team history import error:', e);
+      setImportResult({ type: 'error', fileName: file.name, added: 0, skipped: 0, employees: 0 });
+    } finally {
+      event.target.value = '';
+      setTimeout(() => setImportResult(null), 6000);
+    }
+  };
+
+  return (
+    <div className="animate-in fade-in duration-500">
+      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Команда</h1>
+          <p className="text-slate-400 text-sm">Аудит ресурсов, грейдирование и историческая матрица компетенций</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <input ref={fileInputRef} type="file" accept=".json,.csv,.txt" onChange={handleHistoryFile} className="hidden" />
+          <button onClick={() => fileInputRef.current?.click()} className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-lg flex items-center justify-center gap-2">
+            <DownloadCloud size={16} /> Загрузить историю за год (JSON/CSV)
+          </button>
+        </div>
+      </div>
+
+      {importResult && (
+        <div className={`mb-6 rounded-xl border p-4 ${importResult.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100' : 'bg-red-500/10 border-red-500/30 text-red-100'}`}>
+          {importResult.type === 'success'
+            ? `Импортировано: ${importResult.added}. Дубликаты/пропуски: ${importResult.skipped}. Обновлено сотрудников: ${importResult.employees}. Файл: ${importResult.fileName}.`
+            : `Не удалось разобрать файл ${importResult.fileName}. Проверь JSON или CSV-колонки.`}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50">
+          <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Исторический объем</div>
+          <div className="text-3xl font-black text-white mt-2">{totalWeight}</div>
+          <div className="text-xs text-slate-400 mt-1">баллов по {totalTasks} задачам</div>
+        </div>
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50">
+          <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Средний индекс значимости</div>
+          <div className="text-3xl font-black text-cyan-300 mt-2">{avgImpact}%</div>
+          <div className="text-xs text-slate-400 mt-1">доля важных задач по сотрудникам</div>
+        </div>
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50">
+          <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Покрытие команды</div>
+          <div className="text-3xl font-black text-emerald-300 mt-2">{rows.length}</div>
+          <div className="text-xs text-slate-400 mt-1">сотрудников в исторической памяти</div>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="bg-slate-800/60 border border-dashed border-slate-700 rounded-xl p-10 text-center">
+          <Users size={44} className="text-slate-600 mx-auto mb-4" />
+          <div className="text-slate-300 font-bold">История компетенций пока не загружена</div>
+          <div className="text-slate-500 text-sm mt-2">Загрузите JSON с `detailedTasks` или CSV с исполнителем, доменом, размером и важностью.</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {rows.map(row => {
+            const sizeTotal = ['S', 'M', 'L', 'XL'].reduce((sum, size) => sum + (Number(row.sizes[size]) || 0), 0) || 1;
+            return (
+              <div key={row.name} className={`bg-slate-800 rounded-xl p-5 border shadow-sm ${row.isGrowth ? 'border-amber-400/70 shadow-amber-900/20' : 'border-slate-700/50'}`}>
+                <div className="flex justify-between gap-4 mb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-white">{row.name}</h3>
+                      {row.isGrowth && <span className="text-lg" title="Высокая доля важных и тяжелых задач">🚀</span>}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Объем: {row.totalWeight} баллов · задач: {row.totalTasks}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-black text-cyan-300">{row.impactShare}%</div>
+                    <div className="text-[10px] text-slate-500 uppercase font-bold">Индекс значимости</div>
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs mb-2">
+                    <span className="text-slate-400 font-bold">Профиль сложности</span>
+                    <span className="text-slate-500">L/XL вес: {row.heavyWeightShare}%</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {['S', 'M', 'L', 'XL'].map(size => {
+                      const count = Number(row.sizes[size]) || 0;
+                      const height = Math.max(8, Math.round((count / sizeTotal) * 52));
+                      const color = size === 'S' ? 'bg-emerald-500' : size === 'M' ? 'bg-blue-500' : size === 'L' ? 'bg-orange-500' : 'bg-red-500';
+                      return (
+                        <div key={`${row.name}-${size}`} className="bg-slate-950/60 rounded-lg border border-slate-700/50 p-2 flex flex-col items-center justify-end min-h-[86px]">
+                          <div className={`w-full rounded ${color}`} style={{ height }}></div>
+                          <div className="text-[10px] text-slate-500 font-bold mt-2">{size}</div>
+                          <div className="text-sm text-white font-black">{count}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Ключевая экспертиза</div>
+                  <div className="flex flex-wrap gap-2">
+                    {row.topDomains.slice(0, 2).map(([domain, score]) => {
+                      const badge = getExpertiseBadge(score);
+                      return (
+                        <span key={`${row.name}-${domain}`} className="px-3 py-1.5 rounded-full text-xs font-bold border" style={{ background: badge.bg, color: badge.color, borderColor: badge.border }}>
+                          {badge.icon} {domain}: {score} · {badge.label}
+                        </span>
+                      );
+                    })}
+                    {row.topDomains.length === 0 && <span className="text-xs text-slate-500">Нет доменных данных</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const TeamProfilesBoard = ({ profiles }) => {
   const getDelegationText = (level) => {
     switch(Number(level)) {
@@ -5227,6 +5573,7 @@ const App = () => {
   const [tasksArchive, setTasksArchive] = useState(() => { try { const saved = localStorage.getItem('teamlead_tasks_archive_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
   const [csatReviews, setCsatReviews] = useState(() => { try { const saved = localStorage.getItem('teamlead_csat_reviews_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return {}; });
   const [aiTaskMemory, setAiTaskMemory] = useState(() => { try { const saved = localStorage.getItem('teamlead_ai_memory_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return {}; });
+  const [teamMetricsMemory, setTeamMetricsMemory] = useState(() => { try { const saved = localStorage.getItem('teamlead_metrics_v1'); if (saved) return JSON.parse(saved); } catch (e) {} return {}; });
   
   // НОВЫЙ ГЛОБАЛЬНЫЙ СТЕЙТ ПРОЕКТНЫХ ПОРУЧЕНИЙ РУКОВОДСТВА
   const [projectTasks, setProjectTasks] = useState(() => { try { const saved = localStorage.getItem('teamlead_project_tasks_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
@@ -5257,6 +5604,7 @@ const App = () => {
         const projTaskRow = cloudData.find(r => r.key_name === 'project_tasks'); if (projTaskRow) setProjectTasks(projTaskRow.value_data);
         const csatRow = cloudData.find(r => r.key_name === 'csat_reviews'); if (csatRow) setCsatReviews(csatRow.value_data || {});
         const aiMemoryRow = cloudData.find(r => r.key_name === 'ai_task_memory'); if (aiMemoryRow) setAiTaskMemory(aiMemoryRow.value_data || {});
+        const teamMetricsRow = cloudData.find(r => r.key_name === 'team_metrics_memory'); if (teamMetricsRow) setTeamMetricsMemory(teamMetricsRow.value_data || {});
       }
 
       // 2. ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ (АВТОРИЗАЦИЯ)
@@ -5347,6 +5695,7 @@ const App = () => {
   useEffect(() => { saveToDb('project_tasks', projectTasks, 'teamlead_project_tasks_v8'); }, [projectTasks]);
   useEffect(() => { saveToDb('csat_reviews', csatReviews, 'teamlead_csat_reviews_v8'); }, [csatReviews]);
   useEffect(() => { saveToDb('ai_task_memory', aiTaskMemory, 'teamlead_ai_memory_v8'); }, [aiTaskMemory]);
+  useEffect(() => { saveToDb('team_metrics_memory', teamMetricsMemory, 'teamlead_metrics_v1'); }, [teamMetricsMemory]);
 
   // ФУНКЦИИ АВТОРИЗАЦИИ
   const handleLogin = async (username, password) => {
@@ -5400,8 +5749,9 @@ const App = () => {
     switch(activeTab) {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} projectTasks={projectTasks} tasksArchive={tasksArchive} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} />;
-      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} tasksArchive={tasksArchive} />;
+      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} tasksArchive={tasksArchive} teamMetricsMemory={teamMetricsMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
+      case 'team': return <TeamAnalytics teamMetricsMemory={teamMetricsMemory} setTeamMetricsMemory={setTeamMetricsMemory} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
       case 'achievements': return <AchievementsBoard achievements={achievements} />;
       case 'profiles': return <TeamProfilesBoard profiles={profiles} />;
@@ -5424,6 +5774,7 @@ const App = () => {
     { id: 'fill', icon: Pencil, label: 'Заполнить неделю', roles: ['admin'] },
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
     { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
+    { id: 'team', icon: Users, label: 'Команда', roles: ['admin', 'viewer'] },
     { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
     { id: 'achievements', icon: Activity, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
     { id: 'profiles', icon: Users, label: 'Матрица компетенций', roles: ['admin', 'viewer'] },
