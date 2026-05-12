@@ -151,6 +151,13 @@ const normalizeTaskSize = (value) => {
 };
 
 const TEAM_METRIC_SIZE_WEIGHTS = { S: 1, M: 3, L: 8, XL: 15 };
+const TASK_SIZE_LABELS = {
+  S: 'Легко',
+  M: 'Средне',
+  L: 'Сложно',
+  XL: 'Очень сложно'
+};
+const getTaskSizeLabel = (size) => TASK_SIZE_LABELS[normalizeTaskSize(size)] || 'Средне';
 const TEAM_DOMAIN_OPTIONS = [
   'Citrix / фермы',
   'Скрипты / автоматизация',
@@ -692,7 +699,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     S: 'Быстрые точечные задачи: короткие настройки, хосты, доступы и типовая эксплуатация.',
     M: 'Средние задачи с несколькими шагами: доступы, рабочие места, уточнение параметров и координация.',
     L: 'Крупные прикладные и инфраструктурные работы: обновления ОС, серверы, DNS, сеть и терминальная среда.',
-    XL: 'Тяжелые задачи и старый технический долг: миграции, мониторинг, регламенты, модернизация и долгие хвосты.'
+    XL: 'Очень сложные задачи и старый технический долг: миграции, мониторинг, регламенты, модернизация и долгие хвосты.'
   };
 
   const reopenVal = Number(weekData.reopenRate) || 0;
@@ -1392,7 +1399,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                       return (
                         <div key={size} className={`group relative p-4 rounded-xl border flex flex-col ${count > 0 ? 'bg-slate-900/80 border-slate-700/50 shadow-inner hover:border-indigo-500/50 transition-colors cursor-help' : 'bg-slate-900/30 border-slate-800/50 opacity-50'}`}>
                           <div className="flex justify-between items-start mb-2">
-                            <span className={`text-2xl font-black px-2.5 py-0.5 rounded-lg border-2 border-b-4 ${count > 0 ? getSizeColor(size) : 'bg-slate-800 text-slate-600 border-slate-700'}`}>{size}</span>
+                            <span className={`text-sm font-black px-2.5 py-1 rounded-lg border-2 border-b-4 ${count > 0 ? getSizeColor(size) : 'bg-slate-800 text-slate-600 border-slate-700'}`}>{getTaskSizeLabel(size)}</span>
                             <span className="text-3xl font-bold text-slate-300">{count}</span>
                           </div>
                           <div className="mt-2 text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">{desc}</div>
@@ -1403,7 +1410,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                               <div className="p-5 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
                                 <div className="font-bold text-white mb-3 border-b border-slate-700 pb-3 text-sm flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2">
-                                    <span className={`px-2 py-0.5 rounded text-[12px] ${getSizeColor(size)} border`}>{size}</span>
+                                    <span className={`px-2 py-0.5 rounded text-[12px] ${getSizeColor(size)} border`}>{getTaskSizeLabel(size)}</span>
                                     <span>Выполненные задачи ({tasksOfSize.length} шт.)</span>
                                   </div>
                                 </div>
@@ -1492,12 +1499,12 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
             <div>
               <h2 className="text-lg font-medium text-white flex items-center gap-2"><Users size={20} className="text-cyan-400" /> Матрица компетенций</h2>
-              <p className="text-xs text-slate-500 mt-1">T-shape по закрытым задачам недели: категории ценности и доля L/XL.</p>
+              <p className="text-xs text-slate-500 mt-1">T-shape по закрытым задачам недели: категории ценности и доля сложных задач.</p>
             </div>
             <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">На базе detailedTasks</span>
           </div>
           <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 mb-4 text-xs text-slate-400 leading-relaxed">
-            Считается по сохраненным закрытым задачам недели из `detailedTasks`; отдельная память компетенций не ведется. Размер S/M/L/XL берется из поля `size` или ручной AI-памяти задач, домены - из поля `domain` или темы/комментария. При 1-2 задачах вывод помечается как `мало данных`.
+            Считается по сохраненным закрытым задачам недели из `detailedTasks`; отдельная память компетенций не ведется. Сложность берется из поля `size` или ручной AI-памяти задач, домены - из поля `domain` или темы/комментария. При 1-2 задачах вывод помечается как `мало данных`.
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {skillMatrixRows.slice(0, 9).map(row => (
@@ -1515,13 +1522,13 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                 <div className="grid grid-cols-4 gap-1.5 mb-3">
                   {['S', 'M', 'L', 'XL'].map(size => (
                     <div key={size} className="bg-slate-950/60 rounded border border-slate-700/50 px-2 py-1 text-center">
-                      <div className="text-[9px] text-slate-500 font-bold">{size}</div>
+                      <div className="text-[9px] text-slate-500 font-bold">{getTaskSizeLabel(size)}</div>
                       <div className="text-sm text-white font-black">{row.sizes[size] || 0}</div>
                     </div>
                   ))}
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">L/XL доля</span>
+                  <span className="text-slate-400">Сложные</span>
                   <span className={row.heavyShare >= 45 ? 'text-orange-300 font-bold' : 'text-slate-300 font-bold'}>{row.heavyShare}%</span>
                 </div>
                 <div className="mt-3 pt-3 border-t border-slate-700/50">
@@ -2982,7 +2989,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   };
 
   const handleDownloadAiMemory = () => {
-    const payload = Object.values(aiTaskMemory || {})
+    const weights = Object.values(aiTaskMemory || {})
       .filter(item => item && item.title)
       .map(item => {
         const entry = {
@@ -3002,6 +3009,31 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         if (item.updatedAt) entry.updatedAt = safeString(item.updatedAt);
         return entry;
       });
+    const taskCalibration = Object.values(teamMetricsMemory || {}).flatMap(row => {
+      const assignee = safeString(row?.name).trim();
+      return Object.values(row?.taskDetails || {}).map(task => {
+        const id = safeString(task?.id).trim();
+        if (!id) return null;
+        return {
+          id,
+          task: safeString(task.title || id),
+          assignee,
+          domain: normalizeMetricDomain(task.domain || task.originalDomain || 'Прочее', task.title || ''),
+          complexity: normalizeTaskSize(task.size || task.originalSize) || 'M',
+          manualDomain: Boolean(task.manualDomain),
+          manualSize: Boolean(task.manualSize),
+          impact: Boolean(task.impact),
+          updatedAt: safeString(task.updatedAt || row?.updatedAt)
+        };
+      }).filter(Boolean);
+    });
+    const payload = {
+      schemaVersion: 2,
+      exportedAt: new Date().toISOString(),
+      weights,
+      taskCalibration,
+      teamMetricsMemory: teamMetricsMemory || {}
+    };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -3075,10 +3107,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     if (!taskId) return '';
     const activeComplexity = getTaskComplexity(task);
     const options = [
-      { value: 'S', label: 'S Легкая', color: '#10b981' },
-      { value: 'M', label: 'M Средняя', color: '#3b82f6' },
-      { value: 'L', label: 'L Сложная', color: '#f97316' },
-      { value: 'XL', label: 'XL Тяжелая', color: '#ef4444' }
+      { value: 'S', label: 'Легко', color: '#10b981' },
+      { value: 'M', label: 'Средне', color: '#3b82f6' },
+      { value: 'L', label: 'Сложно', color: '#f97316' },
+      { value: 'XL', label: 'Очень сложно', color: '#ef4444' }
     ];
     return `
       <div class="no-print ai-complexity-controls" contenteditable="false" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px 0;">
