@@ -4103,11 +4103,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const mergedMetrics = mergeTasksIntoTeamMetrics(teamMetricsMemory || {}, completedDetailedTasks).memory;
         const rows = buildTeamMetricRows(mergedMetrics).slice(0, 10);
         const domainRankMap = buildDomainRankMap(rows);
-        const auditText = safeString(weekData.resourceAudit).trim() || 'Выводы появятся после импорта аналитики.';
         return `
-          <div style="background:#ecfeff; border:1px solid #a5f3fc; border-left:5px solid #06b6d4; border-radius:10px; padding:12px 14px; color:#155e75; font-size:13px; line-height:1.55; margin-bottom:18px;">
-            ${escapeHtml(auditText).replace(/\n/g, '<br/>')}
-          </div>
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Матрица админского вклада и компетенций</h3>
           ${rows.length > 0 ? `
             <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-bottom: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
@@ -4784,10 +4780,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const renderExecutiveSummaryItem = (title, text) => `
         <div class="executive-summary-item">
           <b>${escapeHtml(title)}</b>
-          <div>${escapeHtml(safeString(text).trim() || 'Нет данных').replace(/\n/g, '<br/>')}</div>
+          <div>${escapeHtml(replaceLoginsWithNames(safeString(text).trim() || 'Нет данных')).replace(/\n/g, '<br/>')}</div>
         </div>
       `;
-      const blockersAndWasteText = safeString(reportData.blockersAndWaste).trim();
 
       return `
         <style>
@@ -4922,46 +4917,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                   ${renderExecutiveSummaryItem('Зоны внимания (Задачи):', reportData.sprintRisk)}
                 </div>
               </div>
-              ${blockersAndWasteText ? `
-                <div class="executive-blockers">
-                  <b style="display:block; color:#9a3412; margin-bottom:4px;">Препятствия и потери</b>
-                  ${escapeHtml(blockersAndWasteText).replace(/\n/g, '<br/>')}
-                </div>
-              ` : ''}
             </div>
 
-            <div class="section-title" style="--accent: #f59e0b;">2. Проекты и поручения руководства</div>
-            <div id="management-tasks-container">
-               ${generateTasksHtml()}
-            </div>
-
-            <div class="section-title" style="--accent: #0e7490;">3. Эффективность команды и матрица компетенций</div>
-            ${renderResourceAuditReport()}
-
-            <div class="section-title" style="--accent: #a855f7;">4. Основные выполненные задачи недели</div>
-            
-            ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
-              <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Распределение фокуса (Ценность vs Рутина)</h3>
-              ${renderPieChart()}
-              <div style="margin-bottom: 20px;"></div>
-            ` : ''}
-
-            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Нагрузка администраторов (без учета тимлида)</h3>
-            <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
-            ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time', 'Профиль'], taskRows.slice(0, 7))}
-            ${renderValueShowcase()}
-
-            ${keyDetailedTasks.length > 0 ? `
-              <div class="impact-tasks-scroll">
-                ${detailedTasksHtmlRendered}
-              </div>
-            ` : (completedDetailedTasks.length > 0 ? '<p style="font-size: 13px; color: #64748b; font-style: italic;">Все закрытые задачи помечены как фоновая поддержка и вынесены в KTLO-блок.</p>' : '')}
-            ${idmTasksHtmlRendered}
-
-            <div class="section-title" style="--accent: #10b981;">5. Контроль качества (1-я линия)</div>
+            <div class="section-title" style="--accent: #10b981;">2. Контроль качества (1-я линия)</div>
             
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
-            <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
             ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'Профиль', 'CSAT'], incRows.slice(0, 5))}
             ${csatFeedbackHtml}
 
@@ -4973,8 +4933,35 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             ${telephonyHtml}
             ${telephonyInsightHtml}
 
-            <div class="section-title" style="--accent: #94a3b8;">6. Фоновая поддержка (KTLO)</div>
+            <div class="section-title" style="--accent: #a855f7;">3. Основные выполненные задачи недели</div>
+            
+            ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
+              <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Распределение фокуса (Ценность vs Рутина)</h3>
+              ${renderPieChart()}
+              <div style="margin-bottom: 20px;"></div>
+            ` : ''}
+
+            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Нагрузка администраторов (без учета тимлида)</h3>
+            ${generateTableHtml(['Администратор', 'В работе (WIP)', 'Закрыто', 'Cycle Time', 'Профиль'], taskRows.slice(0, 7))}
+            ${renderValueShowcase()}
+
+            ${keyDetailedTasks.length > 0 ? `
+              <div class="impact-tasks-scroll">
+                ${detailedTasksHtmlRendered}
+              </div>
+            ` : (completedDetailedTasks.length > 0 ? '<p style="font-size: 13px; color: #64748b; font-style: italic;">Все закрытые задачи помечены как фоновая поддержка и вынесены в KTLO-блок.</p>' : '')}
+            ${idmTasksHtmlRendered}
+
+            <div class="section-title" style="--accent: #94a3b8;">4. Фоновая поддержка (KTLO)</div>
             ${routineTasksHtmlRendered || '<p style="font-size: 13px; color: #64748b;">Нет задач, явно помеченных как KTLO/Routine.</p>'}
+
+            <div class="section-title" style="--accent: #f59e0b;">5. Проекты и поручения руководства</div>
+            <div id="management-tasks-container">
+               ${generateTasksHtml()}
+            </div>
+
+            <div class="section-title" style="--accent: #0e7490;">6. Эффективность команды и матрица компетенций</div>
+            ${renderResourceAuditReport()}
 
           </div>
         </div>
