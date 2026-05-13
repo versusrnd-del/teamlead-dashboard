@@ -4342,99 +4342,106 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const getSpeedText = (row) => row.onTimeShare === null
           ? 'нет данных'
           : `${row.onTimeShare}% в норме${row.avgCycleTime !== null ? ` · ср. ${row.avgCycleTime} дн.` : ''}`;
+        const getCompactFocus = (row) => {
+          if (row.totalTasks < 15) return 'Мало данных для кадрового вывода';
+          if (row.totalTasks < 40) return 'Средняя выборка, нужен следующий период';
+          if (row.complexTasksCount === 0 || row.heavyWeightShare < 15) return 'Мало сложных задач';
+          if (row.weeklyTrend?.type === 'up') return 'Есть рост недели';
+          if (row.weeklyTrend?.type === 'down') return 'Просадка недели';
+          return 'Устойчивый вклад';
+        };
+        const renderDomainBadges = (row, limit = 2) => {
+          const domains = row.topDomains.slice(0, limit);
+          if (domains.length === 0) return '<span style="color:#94a3b8;">Нет данных</span>';
+          return domains.map(([domain, score]) => {
+            const share = row.totalWeight > 0 ? Math.round(((Number(score) || 0) / row.totalWeight) * 100) : 0;
+            const rank = getDomainRank(domainRankMap, domain, row.name);
+            const badge = getExpertiseBadge(score, rank, share);
+            return `<span style="display:inline-block; background:${badge.bg}; color:${badge.color}; border:1px solid ${badge.border}; border-radius:999px; padding:3px 7px; font-size:10px; font-weight:800; margin:2px 3px 2px 0;">${badge.icon ? `${badge.icon} ` : ''}${escapeHtml(domain)}: ${score}</span>`;
+          }).join('');
+        };
         return `
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Матрица эффективности и компетенций админов</h3>
           ${rows.length > 0 ? `
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom: 14px;">
-              <div style="font-size:12px; color:#334155; line-height:1.5; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px;">
-                <b style="display:block; color:#0f172a; margin-bottom:5px;">Как считается вес задач</b>
-                Легко = 1, Средне = 3, Сложно = 8, Очень сложно = 15. Вес сотрудника — сумма баллов по закрытым задачам. Доменные баллы считаются тем же весом внутри направления.
-              </div>
-              <div style="font-size:12px; color:#334155; line-height:1.5; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px;">
-                <b style="display:block; color:#0f172a; margin-bottom:5px;">Индекс эффективности</b>
-                70% — вес выполненных задач относительно лидера, 30% — доля сложных работ в собственном объеме. Сроки показаны справочно и не снижают индекс, пока нет надежной даты назначения задачи админу.
-              </div>
+            <div style="font-size:12px; color:#334155; line-height:1.45; background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #0891b2; border-radius:10px; padding:10px 12px; margin-bottom:14px;">
+              <b style="color:#0f172a;">Методика:</b> вес задач = Легко 1 / Средне 3 / Сложно 8 / Очень сложно 15; индекс = 70% вес относительно лидера + 30% доля сложных работ.
+              <br/><span style="color:#64748b;">Сроки показаны только как справочный сигнал до появления надежной даты назначения задачи конкретному админу.</span>
             </div>
             <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:12px; margin-bottom:16px;">
               ${rows.slice(0, 3).map((row, idx) => {
                 const accents = ['#f59e0b', '#06b6d4', '#64748b'];
-                const bg = ['linear-gradient(135deg,#fffbeb 0%,#ffffff 70%)', 'linear-gradient(135deg,#ecfeff 0%,#ffffff 70%)', 'linear-gradient(135deg,#f8fafc 0%,#ffffff 70%)'];
-                const label = ['Лидер эффективности', 'Сильная эффективность', 'Стабильная эффективность'][idx] || 'Эффективность';
+                const bg = ['linear-gradient(135deg,#fffbeb 0%,#ffffff 72%)', 'linear-gradient(135deg,#ecfeff 0%,#ffffff 72%)', 'linear-gradient(135deg,#f8fafc 0%,#ffffff 72%)'];
+                const rankNames = ['1 место', '2 место', '3 место'];
+                const rankTitles = ['Лидер вклада', 'Сильный вклад', 'Стабильный вклад'];
                 return `
-                  <div style="border:1px solid ${accents[idx]}; border-radius:14px; padding:13px; background:${bg[idx]}; box-shadow:0 8px 22px rgba(15,23,42,0.07);">
-                    <div style="font-size:10px; color:#64748b; font-weight:900; text-transform:uppercase;">${idx + 1} место · ${label}</div>
-                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-top:5px;">
+                  <div style="border:1px solid ${accents[idx]}; border-radius:14px; padding:14px; background:${bg[idx]}; box-shadow:0 10px 24px rgba(15,23,42,0.08);">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
                       <div>
-                        <div style="font-size:14px; color:#0f172a; font-weight:900;">${escapeHtml(row.name)}</div>
-                        <div style="font-size:10px; color:#64748b;">${row.totalTasks} задач · вес ${row.totalWeight}</div>
+                        <div style="font-size:10px; color:${accents[idx]}; font-weight:900; text-transform:uppercase; letter-spacing:0.04em;">${rankNames[idx]} · ${rankTitles[idx]}</div>
+                        <div style="font-size:15px; color:#0f172a; font-weight:900; margin-top:4px;">${escapeHtml(row.name)}</div>
                       </div>
                       <div style="text-align:right;">
-                        <div style="font-size:26px; color:${accents[idx]}; font-weight:900; line-height:1;">${row.efficiencyIndex}</div>
+                        <div style="font-size:30px; color:${accents[idx]}; font-weight:900; line-height:1;">${row.efficiencyIndex}</div>
                         <div style="font-size:9px; color:#64748b; font-weight:900; text-transform:uppercase;">индекс</div>
                       </div>
                     </div>
-                    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; margin-top:10px;">
-                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">Средние<br><b style="color:#0f172a; font-size:13px;">${row.mediumTasksCount}</b></div>
-                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">Сложные+<br><b style="color:#0f172a; font-size:13px;">${row.complexTasksCount}</b></div>
-                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">Вес<br><b style="color:#0f172a; font-size:13px;">${row.totalWeight}</b></div>
+                    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:11px;">
+                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:6px; font-size:10px; color:#64748b;">Закрыто<br><b style="color:#0f172a; font-size:14px;">${row.totalTasks}</b></div>
+                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:6px; font-size:10px; color:#64748b;">Вес<br><b style="color:#0f172a; font-size:14px;">${row.totalWeight}</b></div>
+                      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:6px; font-size:10px; color:#64748b;">Сложные+<br><b style="color:#0f172a; font-size:14px;">${row.complexTasksCount}</b></div>
                     </div>
-                    <div style="display:flex; justify-content:space-between; gap:6px; align-items:center; margin-top:9px; font-size:11px; color:#475569;">
-                      <span>Сроки справочно: <b>${getSpeedText(row)}</b></span>
+                    <div style="margin-top:10px; min-height:26px;">${renderDomainBadges(row, 2)}</div>
+                    <div style="display:flex; justify-content:space-between; gap:6px; align-items:center; margin-top:7px;">
+                      ${renderConfidenceBadge(row)}
                       ${renderTrendBadge(row.weeklyTrend)}
                     </div>
                   </div>
                 `;
               }).join('')}
             </div>
-            <table class="data-table resource-audit-table">
-              <thead>
-                <tr>
-                  <th>Сотрудник</th>
-                  <th>Закрыто</th>
-                  <th>Вес задач</th>
-                  <th>Сроки справочно</th>
-                  <th>Индекс эффективности</th>
-                  <th>Ключевые направления</th>
-                  <th>Вывод</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rows.map((row, idx) => `
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;">
+              <table class="data-table resource-audit-table" style="margin:0; border:0;">
+                <thead>
                   <tr>
-                    <td>
-                      <b>${idx < 3 ? `${idx + 1}. ` : ''}${escapeHtml(row.name)}</b>
-                      <div style="font-size:11px; color:#64748b;">${renderConfidenceBadge(row)} ${renderTrendBadge(row.weeklyTrend)}</div>
-                    </td>
-                    <td><b style="font-size:15px; color:#0f172a;">${row.totalTasks}</b></td>
-                    <td>
-                      <b style="font-size:15px; color:#0f172a;">${row.totalWeight}</b>
-                    </td>
-                    <td>
-                      <b style="font-size:12px; color:${row.onTimeShare !== null && row.onTimeShare < 60 ? '#b91c1c' : '#0e7490'};">${getSpeedText(row)}</b>
-                      ${row.slowSimpleTasks.length > 0 ? `<div style="font-size:10px; color:#92400e; line-height:1.35;">Сигнал: проверить дату назначения, возможно закрывали старый бэклог</div>` : ''}
-                    </td>
-                    <td>
-                      <b style="font-size:15px; color:${row.efficiencyIndex >= 75 ? '#d97706' : '#0e7490'};">${row.efficiencyIndex}</b>
-                      <div style="font-size:10px; color:#64748b;">вес ${row.volumeShare}% · сложность ${row.heavyWeightShare}%</div>
-                    </td>
-                    <td>
-                      <div style="display:flex; flex-wrap:wrap; gap:5px;">
-                        ${row.topDomains.slice(0, 2).map(([domain, score]) => {
-                          const share = row.totalWeight > 0 ? Math.round(((Number(score) || 0) / row.totalWeight) * 100) : 0;
-                          const rank = getDomainRank(domainRankMap, domain, row.name);
-                          const badge = getExpertiseBadge(score, rank, share);
-                          return `<span style="display:inline-block; background:${badge.bg}; color:${badge.color}; border:1px solid ${badge.border}; border-radius:999px; padding:3px 7px; font-size:10px; font-weight:800;">${badge.icon ? `${badge.icon} ` : ''}${escapeHtml(domain)}: ${score} · ${badge.label}</span>`;
-                        }).join('') || '<span style="color:#94a3b8;">Нет данных</span>'}
-                      </div>
-                    </td>
-                    <td style="font-size:11px; color:#334155; line-height:1.45;">${escapeHtml(row.summary)}</td>
+                    <th>Сотрудник</th>
+                    <th>Закрыто</th>
+                    <th>Вес</th>
+                    <th>Сложные+</th>
+                    <th>Индекс</th>
+                    <th>Ключевые направления</th>
+                    <th>Статус</th>
                   </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            <div style="margin-top:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:11px 12px; color:#334155; font-size:12px; line-height:1.55;">
-              <b style="display:block; color:#0f172a; margin-bottom:4px;">Как читать результат</b>
-              Сначала смотрим закрытые задачи и вес, затем долю сложных работ и подтвержденные домены. Сроки сейчас справочные: они помогают найти задачи, которые долго висели, но не штрафуют админа, пока не фиксируется дата назначения именно на него. Индекс не является автоматическим решением по окладу, но дает прозрачные аргументы для разговора.
+                </thead>
+                <tbody>
+                  ${rows.map((row, idx) => `
+                    <tr>
+                      <td>
+                        <b>${idx < 3 ? `${idx + 1}. ` : ''}${escapeHtml(row.name)}</b>
+                        <div style="font-size:10px; color:#64748b; margin-top:3px;">${renderConfidenceBadge(row)}</div>
+                      </td>
+                      <td><b style="font-size:15px; color:#0f172a;">${row.totalTasks}</b></td>
+                      <td><b style="font-size:15px; color:#0f172a;">${row.totalWeight}</b></td>
+                      <td>
+                        <b style="font-size:15px; color:${row.complexTasksCount > 0 ? '#0e7490' : '#64748b'};">${row.complexTasksCount}</b>
+                        <div style="font-size:10px; color:#64748b;">${row.heavyWeightShare}% веса</div>
+                      </td>
+                      <td>
+                        <b style="font-size:16px; color:${row.efficiencyIndex >= 75 ? '#d97706' : '#0e7490'};">${row.efficiencyIndex}</b>
+                        <div style="font-size:10px; color:#64748b;">вес ${row.volumeShare}%</div>
+                      </td>
+                      <td>${renderDomainBadges(row, 2)}</td>
+                      <td>
+                        <div style="font-size:11px; color:#334155; font-weight:800;">${escapeHtml(getCompactFocus(row))}</div>
+                        <div style="font-size:10px; color:#64748b; margin-top:3px;">Сроки: ${escapeHtml(getSpeedText(row))}</div>
+                        <div style="margin-top:4px;">${renderTrendBadge(row.weeklyTrend)}</div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div style="margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:9px 11px; color:#475569; font-size:11px; line-height:1.45;">
+              <b style="color:#0f172a;">Как читать:</b> сначала закрыто и вес, затем сложные+ и домены. Сроки сейчас не штрафуют рейтинг, а помогают найти задачи для ручной проверки.
             </div>
           ` : '<p style="font-size:13px; color:#64748b;">Историческая память компетенций пока не загружена.</p>'}
         `;
