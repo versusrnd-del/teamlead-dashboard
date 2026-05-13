@@ -1253,6 +1253,60 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     return { ...row, topCategory, topSize, topDomains, heavyShare, confidence, profile, keyTasks };
   }).sort((a, b) => b.total - a.total);
 
+  const buildDisplaySlaMetrics = () => {
+    const sourceMetrics = Array.isArray(weekData.slaMetrics) ? weekData.slaMetrics : [];
+    const details = Array.isArray(weekData.slaBreachDetails) ? weekData.slaBreachDetails : [];
+
+    const isPrimaryReaction = (value) => {
+      const text = safeString(value).toLowerCase();
+      return text.includes('взят')
+        || text.includes('перв')
+        || text.includes('создан')
+        || text.includes('момент')
+        || text.includes('reaction')
+        || text.includes('first');
+    };
+
+    const isResolution = (value) => {
+      const text = safeString(value).toLowerCase();
+      return text.includes('решен')
+        || text.includes('решени')
+        || text.includes('закрыт')
+        || text.includes('resolution')
+        || text.includes('resolve');
+    };
+
+    const getOverdueMinutes = (item) => Number(item?.overdueMin ?? item?.overdueMinutes ?? item?.overdue ?? item?.avgOverdueMin ?? 0) || 0;
+    const averageOverdue = (items) => {
+      const values = items.map(getOverdueMinutes).filter(value => value > 0);
+      if (values.length === 0) return 0;
+      return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+    };
+
+    const metricLabel = (item) => item?.name || item?.slaType || item?.type || item?.metric || '';
+    const metricByName = (predicate) => sourceMetrics.find(item => predicate(metricLabel(item)));
+    const metricFromDetails = (name, predicate) => {
+      const items = details.filter(item => predicate(metricLabel(item)));
+      return { name, avgOverdueMin: averageOverdue(items), violations: items.length };
+    };
+
+    const primaryMetric = metricByName(isPrimaryReaction);
+    const resolutionMetric = metricByName(isResolution);
+
+    const primary = primaryMetric
+      ? { name: 'До взятия в работу', avgOverdueMin: Number(primaryMetric.avgOverdueMin) || 0, violations: Number(primaryMetric.violations) || 0 }
+      : metricFromDetails('До взятия в работу', isPrimaryReaction);
+
+    const resolution = resolutionMetric
+      ? { name: 'До решения', avgOverdueMin: Number(resolutionMetric.avgOverdueMin) || 0, violations: Number(resolutionMetric.violations) || 0 }
+      : metricFromDetails('До решения', isResolution);
+
+    if (sourceMetrics.length === 0 && details.length === 0) return [];
+    return [primary, resolution];
+  };
+
+  const displaySlaMetrics = buildDisplaySlaMetrics();
+
   return (
     <div className="animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
@@ -1717,13 +1771,13 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
           <h3 className="text-base font-medium text-slate-200 flex items-center gap-2 mb-5"><Timer size={18} className="text-red-400" /> Мониторинг SLA</h3>
           <div className="space-y-4">
-            {weekData.slaMetrics && weekData.slaMetrics.map((sla, idx) => (
+            {displaySlaMetrics.map((sla, idx) => (
               <div key={idx} className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 flex justify-between items-center">
                 <div><h4 className="text-sm font-medium text-slate-300">{safeString(sla.name) || 'Неизвестно'}</h4><p className="text-xs text-slate-500 mt-1">Ср. время просрочки: <span className="text-red-400 font-bold">{Number(sla.avgOverdueMin) || 0} мин</span></p></div>
                 <div className="text-center bg-red-500/10 px-3 py-1.5 rounded border border-red-500/20"><span className="block text-lg font-bold text-red-400 leading-none">{Number(sla.violations) || 0}</span><span className="text-[10px] text-red-400/80 uppercase">нарушений</span></div>
               </div>
             ))}
-            {(!weekData.slaMetrics || weekData.slaMetrics.length === 0) && <p className="text-sm text-slate-500">Нет данных по SLA</p>}
+            {displaySlaMetrics.length === 0 && <p className="text-sm text-slate-500">Нет данных по SLA</p>}
           </div>
         </div>
 
