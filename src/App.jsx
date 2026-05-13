@@ -396,9 +396,9 @@ const getDomainRank = (domainRankMap, domain, name) => {
 
 const getExpertiseBadge = (score, rank = 999, share = 0) => {
   const value = Number(score) || 0;
-  if (value > 50 && rank === 1 && share >= 20) return { label: 'Главный эксперт', icon: '👑', color: '#a16207', bg: '#fef3c7', border: '#facc15' };
-  if (value >= 15 || rank <= 3) return { label: 'Профильная зона', icon: '', color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' };
-  return { label: 'Базовый уровень', icon: '', color: '#475569', bg: '#f8fafc', border: '#cbd5e1' };
+  if (value > 50 && rank === 1 && share >= 20) return { label: 'Эксперт домена', icon: '👑', color: '#a16207', bg: '#fef3c7', border: '#facc15' };
+  if (value >= 15 || rank <= 3) return { label: 'Ведущий специалист', icon: '', color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' };
+  return { label: 'Накопление экспертизы', icon: '', color: '#475569', bg: '#f8fafc', border: '#cbd5e1' };
 };
 
 const parseHistoryCsv = (text) => {
@@ -3429,6 +3429,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const getReportHtmlString = (options = {}) => {
     try {
       const exportMode = Boolean(options.exportMode);
+      const reportData = weekData || {};
       const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
       const top3 = sortedIncidents.slice(0, 3);
       const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
@@ -4106,12 +4107,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const domainRankMap = buildDomainRankMap(rows);
         const auditText = safeString(weekData.resourceAudit).trim() || 'Выводы появятся после импорта аналитики.';
         return `
-          <div class="section-title" style="--accent: #0e7490;">${sectionCounter++}. Аудит админов и компетенций</div>
-          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">7.1 Выводы ИИ</h3>
+          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Выводы ИИ</h3>
           <div style="background:#ecfeff; border:1px solid #a5f3fc; border-left:5px solid #06b6d4; border-radius:10px; padding:12px 14px; color:#155e75; font-size:13px; line-height:1.55; margin-bottom:18px;">
             ${escapeHtml(auditText).replace(/\n/g, '<br/>')}
           </div>
-          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">7.2 Матрица админского вклада и компетенций</h3>
+          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Матрица админского вклада и компетенций</h3>
           ${rows.length > 0 ? `
             <div style="font-size: 12px; color: #475569; line-height: 1.45; margin-bottom: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;">
               Методика адаптирована под системных админов: учитываются устойчивый объем работ, ручная сложность, инфраструктурный эффект и подтвержденные домены. Это не автоматическое кадровое решение; перед выводами нужна ручная калибровка задач и проверка контекста.
@@ -4660,7 +4660,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const taskMetaBadgesHtml = taskMetaBadges ? `<span style="color: #cbd5e1;">|</span> ${taskMetaBadges}` : '';
 
         return `
-          <div style="margin-bottom: 20px; border-left: 4px solid ${borderColor}; padding-left: 14px; padding-bottom: 5px; ${cardBgStyle}">
+          <div style="${cardBgStyle} margin-bottom: 24px; border-left: 4px solid ${borderColor}; border-bottom: 1px solid #e2e8f0; padding-left: 14px; padding-bottom: 16px;">
              <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px;">
                <span style="color: #3b82f6;">${t.id}</span>: ${safeString(t.title)}
              </div>
@@ -4766,7 +4766,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         : keyDetailedTasks.map(renderDetailedTaskCard).join('');
 
       const idmTasksHtmlRendered = idmDetailedTasks.length > 0 ? `
-        <div class="section-title" style="--accent: #7c3aed;">Задачи по IDM</div>
+        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Задачи по IDM</h3>
         ${exportMode ? renderTaskGroup({
           title: 'IDM / роли и доступы',
           subtitle: 'Отдельный поток задач по ролям, доступам, IDM CUSTOM и ролевой модели',
@@ -4778,7 +4778,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       ` : '';
 
       const routineTasksHtmlRendered = routineDetailedTasks.length > 0 ? `
-        <div class="section-title" style="--accent: #94a3b8;">Фоновая поддержка (KTLO)</div>
         <div class="task-group task-group-compact" style="--group-accent: #94a3b8; background: #f8fafc;">
           <div class="task-group-header">
             <div>
@@ -4806,7 +4805,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         </div>
       ` : '';
 
-      let sectionCounter = 1;
+      const renderExecutiveSummaryItem = (title, text) => `
+        <div class="executive-summary-item">
+          <b>${escapeHtml(title)}</b>
+          <div>${escapeHtml(safeString(text).trim() || 'Нет данных').replace(/\n/g, '<br/>')}</div>
+        </div>
+      `;
+      const blockersAndWasteText = safeString(reportData.blockersAndWaste).trim();
 
       return `
         <style>
@@ -4845,6 +4850,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .task-group-count { flex-shrink: 0; color: var(--group-accent); background: #ffffff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 900; }
           .task-group-body > div:last-child { margin-bottom: 0 !important; }
           .task-group-compact { box-shadow: none; }
+          .impact-tasks-scroll { max-height: 800px; overflow-y: auto; padding-right: 8px; }
+          .impact-tasks-scroll::-webkit-scrollbar { width: 8px; }
+          .impact-tasks-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+          .executive-summary { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 5px solid #0f172a; border-radius: 10px; padding: 16px; margin-bottom: 26px; }
+          .executive-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+          .executive-summary-col { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+          .executive-summary-col-title { color: #0f172a; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 9px; }
+          .executive-summary-item { color: #475569; font-size: 12px; line-height: 1.5; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; }
+          .executive-summary-item:last-child { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
+          .executive-summary-item b { display: block; color: #0f172a; margin-bottom: 3px; }
+          .executive-blockers { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 11px 12px; color: #9a3412; font-size: 12px; line-height: 1.5; margin-top: 12px; }
           .idm-task-card { background: #ffffff; border: 1px solid #ddd6fe; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
           .telephony-panel { background: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #2563eb; border-radius: 10px; padding: 16px; margin-bottom: 30px; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06); }
           .telephony-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 12px; }
@@ -4888,7 +4904,29 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
           <div style="padding: 0 10px;">
 
-            <div class="section-title" style="--accent: #3b82f6;">${sectionCounter++}. Операционная сводка (KPI)</div>
+            <div class="section-title" style="--accent: #0f172a;">1. Executive Summary: Риски и Стратегия</div>
+            <div class="executive-summary">
+              <div class="executive-summary-grid">
+                <div class="executive-summary-col">
+                  <div class="executive-summary-col-title">Первая линия</div>
+                  ${renderExecutiveSummaryItem('Статус потока (1-я линия):', reportData.incidentSummary)}
+                  ${renderExecutiveSummaryItem('Драйверы и риски инцидентов:', reportData.incidentRisks)}
+                </div>
+                <div class="executive-summary-col">
+                  <div class="executive-summary-col-title">Задачи на развитие</div>
+                  ${renderExecutiveSummaryItem('Главные достижения (Проекты):', reportData.sprintWin)}
+                  ${renderExecutiveSummaryItem('Зоны внимания (Задачи):', reportData.sprintRisk)}
+                </div>
+              </div>
+              ${blockersAndWasteText ? `
+                <div class="executive-blockers">
+                  <b style="display:block; color:#9a3412; margin-bottom:4px;">Препятствия и потери</b>
+                  ${escapeHtml(blockersAndWasteText).replace(/\n/g, '<br/>')}
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="section-title" style="--accent: #3b82f6;">Операционная сводка (KPI)</div>
             
             <div class="kpi-grid">
               <div class="kpi-card" style="border-top: 4px solid ${incColor};">
@@ -4916,22 +4954,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </div>
             </div>
 
-            <div class="section-title" style="--accent: #10b981;">${sectionCounter++}. Блок 1-й Линии (Инциденты и Телефония)</div>
-            
-            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
-            <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
-            ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'Профиль', 'CSAT'], incRows.slice(0, 5))}
-            ${csatFeedbackHtml}
+            <div class="section-title" style="--accent: #f59e0b;">2. Проекты и поручения руководства</div>
+            <div id="management-tasks-container">
+               ${generateTasksHtml()}
+            </div>
 
-            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
-            ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
-            ${slaBreachHtml}
+            <div class="section-title" style="--accent: #0e7490;">3. Эффективность команды и матрица компетенций</div>
+            ${renderResourceAuditReport()}
 
-            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
-            ${telephonyHtml}
-            ${telephonyInsightHtml}
-
-            <div class="section-title" style="--accent: #a855f7;">${sectionCounter++}. Блок Инфраструктуры (Задачи)</div>
+            <div class="section-title" style="--accent: #a855f7;">4. Детализация инженерных работ (Impact)</div>
             
             ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
               <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Распределение фокуса (Ценность vs Рутина)</h3>
@@ -4946,26 +4977,29 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
             ${keyDetailedTasks.length > 0 ? `
               <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 10px;">Автоматическая сводка из Jira:</p>
-              <div>
+              <div class="impact-tasks-scroll">
                 ${detailedTasksHtmlRendered}
               </div>
             ` : (completedDetailedTasks.length > 0 ? '<p style="font-size: 13px; color: #64748b; font-style: italic;">Все закрытые задачи помечены как фоновая поддержка и вынесены в KTLO-блок.</p>' : '')}
             ${idmTasksHtmlRendered}
-            ${routineTasksHtmlRendered}
-            ${renderResourceAuditReport()}
 
-            <div class="section-title" style="--accent: #f59e0b;">${sectionCounter++}. Статусы по проектам и поручениям руководства</div>
+            <div class="section-title" style="--accent: #10b981;">5. Контроль качества (1-я линия)</div>
             
-            <div id="management-tasks-container">
-               ${generateTasksHtml()}
-            </div>
+            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
+            <p style="font-size: 12px; color: #64748b; margin-bottom: 10px;"><i>Администраторы, отмеченные значком 🔥, находятся в зоне риска выгорания (перегруз).</i></p>
+            ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'Профиль', 'CSAT'], incRows.slice(0, 5))}
+            ${csatFeedbackHtml}
 
-            <div class="section-title" style="--accent: #ef4444;">${sectionCounter++}. Риски, Инциденты и Улучшения</div>
-            <ul class="custom-list" style="line-height: 1.6;">
-              <li><b>Топ драйверы инцидентов:</b> ${top3Text || 'Нет данных'}</li>
-              <li><b>Ситуация в потоке:</b> ${escapeHtml(flowSituationText)}</li>
-              <li><b>План расшивки:</b> ${safeString(weekData.nextFocus).replace(/\n/g, ' ')}</li>
-            </ul>
+            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Ключевые системные проблемы (Топ-3)</h3>
+            ${topIncidentsHtml || '<p style="font-size: 13px; color: #64748b;">Нет данных</p>'}
+            ${slaBreachHtml}
+
+            <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Сводка по Телефонии</h3>
+            ${telephonyHtml}
+            ${telephonyInsightHtml}
+
+            <div class="section-title" style="--accent: #94a3b8;">6. Фоновая поддержка (KTLO)</div>
+            ${routineTasksHtmlRendered || '<p style="font-size: 13px; color: #64748b;">Нет задач, явно помеченных как KTLO/Routine.</p>'}
 
           </div>
         </div>
