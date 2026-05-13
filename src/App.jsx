@@ -3494,11 +3494,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         });
 
       const keyDetailedTasks = exportMode
-        ? completedDetailedTasks.filter(task => getTaskReportBucket(task) === 'main')
+        ? completedDetailedTasks.filter(task => ['main', 'idm'].includes(getTaskReportBucket(task)))
         : completedDetailedTasks;
-      const idmDetailedTasks = exportMode
-        ? completedDetailedTasks.filter(task => getTaskReportBucket(task) === 'idm')
-        : [];
+      const idmDetailedTasks = [];
       const routineDetailedTasks = exportMode
         ? completedDetailedTasks.filter(task => getTaskReportBucket(task) === 'ktlo')
         : [];
@@ -4107,7 +4105,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const domainRankMap = buildDomainRankMap(rows);
         const auditText = safeString(weekData.resourceAudit).trim() || 'Выводы появятся после импорта аналитики.';
         return `
-          <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Выводы ИИ</h3>
           <div style="background:#ecfeff; border:1px solid #a5f3fc; border-left:5px solid #06b6d4; border-radius:10px; padding:12px 14px; color:#155e75; font-size:13px; line-height:1.55; margin-bottom:18px;">
             ${escapeHtml(auditText).replace(/\n/g, '<br/>')}
           </div>
@@ -4552,19 +4549,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; font-size: 12px; color:#334155; margin-top:9px; line-height:1.45;">
             <b>Что делать:</b> ${escapeHtml(slaFocusAction)}
           </div>
-          <div style="font-size: 11px; color: #475569; margin-top: 8px; line-height: 1.45;">
-            <b>Где:</b> ${escapeHtml(topPrimaryDomain || 'нет данных')}${topPrimaryDomainCount ? ` (${topPrimaryDomainCount})` : ''} ·
-            <b>Почему:</b> ${escapeHtml(topPrimaryReason || 'нет данных')}${topPrimaryReasonCount ? ` (${topPrimaryReasonCount})` : ''} ·
-            <b>Кто закрывал чаще:</b> ${escapeHtml(topPrimaryAssignee || 'нет данных')}${topPrimaryAssigneeCount ? ` (${topPrimaryAssigneeCount})` : ''} ·
-            <b>Ср. первичная просрочка:</b> ${primaryAvgOverdue > 0 ? `+${primaryAvgOverdue} мин` : '-'}
-          </div>
-          ${primarySlaBreaches.length > 0 ? `<div style="margin-top: 6px;">${renderSlaAssigneeChips()}</div>` : ''}
-          <div style="border-top: 1px solid ${slaHeat.border}; margin-top: 9px; padding-top: 8px;">
-            <div style="font-size: 10px; color: #64748b; font-weight: 900; text-transform: uppercase; margin-bottom: 4px;">3 показательных примера для разбора</div>
-            <ul class="compact-list">
-              ${renderSlaBreachItems(primarySlaBreaches.length ? primarySlaBreaches : slaBreachDetails)}
-            </ul>
-          </div>
         </div>
       ` : '';
       
@@ -4632,12 +4616,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         // Выбираем цвет полоски (Синяя если от руководства, красная если долг, иначе базовая серая)
         const memoryEntry = getTaskMemoryEntry(t);
         const taskPriority = getTaskPriority(t);
+        const isIdmTask = getTaskWorkType(t) === 'IDM';
         const memoryBorderColor = taskPriority === 'Impact' ? '#f59e0b' : (taskPriority === 'Routine' ? '#64748b' : '#334155');
         const memoryBgColor = taskPriority === 'Impact' ? '#fffbeb' : (taskPriority === 'Routine' ? '#f8fafc' : '#f8fafc');
         const memoryFrameColor = taskPriority === 'Impact' ? '#fde68a' : (taskPriority === 'Routine' ? '#cbd5e1' : '#cbd5e1');
-        const borderColor = memoryEntry ? memoryBorderColor : (isMgmtTask ? '#2563eb' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8'));
-        const cardBgStyle = memoryEntry ? `background: ${memoryBgColor}; border: 1px solid ${memoryFrameColor}; border-radius: 8px; padding: 12px 12px 12px 14px;` : '';
-        const isIdmTask = getTaskWorkType(t) === 'IDM';
+        const borderColor = isIdmTask ? '#7c3aed' : (memoryEntry ? memoryBorderColor : (isMgmtTask ? '#2563eb' : (cycleDays >= 30 ? '#ef4444' : '#94a3b8')));
+        const cardBgStyle = isIdmTask
+          ? 'background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 12px 12px 12px 14px;'
+          : (memoryEntry ? `background: ${memoryBgColor}; border: 1px solid ${memoryFrameColor}; border-radius: 8px; padding: 12px 12px 12px 14px;` : '');
         const complexity = getTaskComplexity(t) || 'M';
         const priorityMeta = taskPriority === 'Impact'
           ? { label: 'Важное', color: '#92400e', bg: '#fef3c7', border: '#fcd34d' }
@@ -4765,17 +4751,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         ? renderMainTaskGroups(keyDetailedTasks)
         : keyDetailedTasks.map(renderDetailedTaskCard).join('');
 
-      const idmTasksHtmlRendered = idmDetailedTasks.length > 0 ? `
-        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">Задачи по IDM</h3>
-        ${exportMode ? renderTaskGroup({
-          title: 'IDM / роли и доступы',
-          subtitle: 'Отдельный поток задач по ролям, доступам, IDM CUSTOM и ролевой модели',
-          accent: '#7c3aed',
-          background: '#f5f3ff',
-          tasks: idmDetailedTasks,
-          renderer: renderIdmTaskCard
-        }) : `<div>${idmDetailedTasks.map(renderDetailedTaskCard).join('')}</div>`}
-      ` : '';
+      const idmTasksHtmlRendered = '';
 
       const routineTasksHtmlRendered = routineDetailedTasks.length > 0 ? `
         <div class="task-group task-group-compact" style="--group-accent: #94a3b8; background: #f8fafc;">
@@ -4904,28 +4880,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
           <div style="padding: 0 10px;">
 
-            <div class="section-title" style="--accent: #0f172a;">1. Executive Summary: Риски и Стратегия</div>
-            <div class="executive-summary">
-              <div class="executive-summary-grid">
-                <div class="executive-summary-col">
-                  <div class="executive-summary-col-title">Первая линия</div>
-                  ${renderExecutiveSummaryItem('Статус потока (1-я линия):', reportData.incidentSummary)}
-                  ${renderExecutiveSummaryItem('Драйверы и риски инцидентов:', reportData.incidentRisks)}
-                </div>
-                <div class="executive-summary-col">
-                  <div class="executive-summary-col-title">Задачи на развитие</div>
-                  ${renderExecutiveSummaryItem('Главные достижения (Проекты):', reportData.sprintWin)}
-                  ${renderExecutiveSummaryItem('Зоны внимания (Задачи):', reportData.sprintRisk)}
-                </div>
-              </div>
-              ${blockersAndWasteText ? `
-                <div class="executive-blockers">
-                  <b style="display:block; color:#9a3412; margin-bottom:4px;">Препятствия и потери</b>
-                  ${escapeHtml(blockersAndWasteText).replace(/\n/g, '<br/>')}
-                </div>
-              ` : ''}
-            </div>
-
             <div class="section-title" style="--accent: #3b82f6;">Операционная сводка (KPI)</div>
             
             <div class="kpi-grid">
@@ -4954,6 +4908,28 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </div>
             </div>
 
+            <div class="section-title" style="--accent: #0f172a;">1. Главное за неделю: Риски и Стратегия</div>
+            <div class="executive-summary">
+              <div class="executive-summary-grid">
+                <div class="executive-summary-col">
+                  <div class="executive-summary-col-title">Первая линия</div>
+                  ${renderExecutiveSummaryItem('Статус потока (1-я линия):', reportData.incidentSummary)}
+                  ${renderExecutiveSummaryItem('Драйверы и риски инцидентов:', reportData.incidentRisks)}
+                </div>
+                <div class="executive-summary-col">
+                  <div class="executive-summary-col-title">Задачи на развитие</div>
+                  ${renderExecutiveSummaryItem('Главные достижения (Проекты):', reportData.sprintWin)}
+                  ${renderExecutiveSummaryItem('Зоны внимания (Задачи):', reportData.sprintRisk)}
+                </div>
+              </div>
+              ${blockersAndWasteText ? `
+                <div class="executive-blockers">
+                  <b style="display:block; color:#9a3412; margin-bottom:4px;">Препятствия и потери</b>
+                  ${escapeHtml(blockersAndWasteText).replace(/\n/g, '<br/>')}
+                </div>
+              ` : ''}
+            </div>
+
             <div class="section-title" style="--accent: #f59e0b;">2. Проекты и поручения руководства</div>
             <div id="management-tasks-container">
                ${generateTasksHtml()}
@@ -4962,7 +4938,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <div class="section-title" style="--accent: #0e7490;">3. Эффективность команды и матрица компетенций</div>
             ${renderResourceAuditReport()}
 
-            <div class="section-title" style="--accent: #a855f7;">4. Детализация инженерных работ (Impact)</div>
+            <div class="section-title" style="--accent: #a855f7;">4. Основные выполненные задачи недели</div>
             
             ${weekData.taskTypesDistribution && weekData.taskTypesDistribution.length > 0 ? `
               <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Распределение фокуса (Ценность vs Рутина)</h3>
@@ -4976,7 +4952,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             ${renderValueShowcase()}
 
             ${keyDetailedTasks.length > 0 ? `
-              <p style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 10px;">Автоматическая сводка из Jira:</p>
               <div class="impact-tasks-scroll">
                 ${detailedTasksHtmlRendered}
               </div>
