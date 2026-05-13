@@ -245,6 +245,31 @@ const parseMetricDate = (value) => {
   if (!raw) return null;
   const nativeDate = new Date(raw);
   if (!Number.isNaN(nativeDate.getTime())) return nativeDate;
+  const monthMap = {
+    янв: 0, январ: 0,
+    фев: 1, феврал: 1,
+    мар: 2, март: 2,
+    апр: 3, апрел: 3,
+    май: 4, мая: 4,
+    июн: 5, июнь: 5,
+    июл: 6, июль: 6,
+    авг: 7, август: 7,
+    сен: 8, сент: 8, сентябр: 8,
+    окт: 9, октябр: 9,
+    ноя: 10, ноябр: 10,
+    дек: 11, декабр: 11
+  };
+  const ruMatch = raw.toLowerCase().replace(/ё/g, 'е').match(/(\d{1,2})\/([а-яa-z]{3,12})\/(\d{2,4})/i);
+  if (ruMatch) {
+    const day = Number(ruMatch[1]);
+    const monthKey = Object.keys(monthMap).find(key => ruMatch[2].startsWith(key));
+    const month = monthKey !== undefined ? monthMap[monthKey] : null;
+    const year = Number(ruMatch[3].length === 2 ? `20${ruMatch[3]}` : ruMatch[3]);
+    if (month !== null) {
+      const parsed = new Date(year, month, day);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+  }
   const match = raw.match(/(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})/);
   if (match) {
     const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
@@ -266,6 +291,19 @@ const getMetricTaskWeekKey = (task = {}, fallbackWeekKey = '') => {
 };
 
 const getMetricTaskCycleDays = (task = {}) => {
+  const direct = Number(task.assigneeCycleTime ?? task.assigneeCycleDays ?? task.assignedCycleTime ?? task.assignedCycleDays);
+  if (Number.isFinite(direct) && direct >= 0) return direct;
+  const assignedAt = parseMetricDate(task.assignedAt || task.assignedDate || task.assignmentDate);
+  const resolvedAt = parseMetricDate(task.resolved || task.resolutionDate || task.closedAt);
+  if (assignedAt && resolvedAt && resolvedAt >= assignedAt) {
+    return Math.round(((resolvedAt.getTime() - assignedAt.getTime()) / 86400000) * 10) / 10;
+  }
+  const fallbackDirect = Number(task.cycleTime ?? task.cycleDays ?? task.leadTime ?? task.durationDays);
+  if (Number.isFinite(fallbackDirect) && fallbackDirect >= 0) return fallbackDirect;
+  return null;
+};
+
+const getMetricTaskLeadDays = (task = {}) => {
   const direct = Number(task.cycleTime ?? task.cycleDays ?? task.leadTime ?? task.durationDays);
   if (Number.isFinite(direct) && direct >= 0) return direct;
   const created = parseMetricDate(task.created);
@@ -293,6 +331,7 @@ const createMetricTaskDetail = (task = {}, index = 0, options = {}) => {
   const id = getMetricTaskId(task, index);
   const domain = inferTaskDomain(task);
   const cycleTime = getMetricTaskCycleDays(task);
+  const leadTime = getMetricTaskLeadDays(task);
   const weekKey = getMetricTaskWeekKey(task, options.weekKey);
   return {
     id,
@@ -304,7 +343,9 @@ const createMetricTaskDetail = (task = {}, index = 0, options = {}) => {
     originalSize: size,
     weight: TEAM_METRIC_SIZE_WEIGHTS[size] || TEAM_METRIC_SIZE_WEIGHTS.M,
     cycleTime,
+    leadTime,
     created: safeString(task.created || task.createdAt || '').trim(),
+    assignedAt: safeString(task.assignedAt || task.assignedDate || task.assignmentDate || '').trim(),
     resolved: safeString(task.resolved || task.resolutionDate || task.closedAt || '').trim(),
     weekKey,
     impact: isMetricImpactTask(task),
@@ -338,7 +379,9 @@ const mergeTasksIntoTeamMetrics = (memory = {}, tasks = [], options = {}) => {
           ...incomingDetail,
           ...next[fullName].taskDetails[taskId],
           cycleTime: next[fullName].taskDetails[taskId].cycleTime ?? incomingDetail.cycleTime,
+          leadTime: next[fullName].taskDetails[taskId].leadTime ?? incomingDetail.leadTime,
           created: next[fullName].taskDetails[taskId].created || incomingDetail.created,
+          assignedAt: next[fullName].taskDetails[taskId].assignedAt || incomingDetail.assignedAt,
           resolved: next[fullName].taskDetails[taskId].resolved || incomingDetail.resolved,
           weekKey: next[fullName].taskDetails[taskId].weekKey || incomingDetail.weekKey
         };
@@ -403,7 +446,7 @@ const buildTeamMetricRows = (memory = {}, options = {}) => {
     : null;
   const onTimeTasks = cycleTasks.filter(task => task.cycleTime <= (TEAM_METRIC_EXPECTED_DAYS[task.size] || TEAM_METRIC_EXPECTED_DAYS.M));
   const onTimeShare = cycleTasks.length > 0 ? Math.round((onTimeTasks.length / cycleTasks.length) * 100) : null;
-  const speedScore = onTimeShare === null ? 70 : onTimeShare;
+  const speedScore = onTimeShare === null ? null : onTimeShare;
   const slowSimpleTasks = cycleTasks
     .filter(task => ['S', 'M'].includes(task.size) && task.cycleTime > (TEAM_METRIC_EXPECTED_DAYS[task.size] || TEAM_METRIC_EXPECTED_DAYS.M))
     .sort((a, b) => b.cycleTime - a.cycleTime)
@@ -426,9 +469,9 @@ const buildTeamMetricRows = (memory = {}, options = {}) => {
   const historicalWeight = Math.max(0, totalWeight - weeklyWeight);
   const weeklyAverageWeight = comparableWeeks > 0 ? Math.round((historicalWeight / comparableWeeks) * 10) / 10 : weeklyWeight;
   let weeklyTrend = { type: 'stable', label: 'стабильно', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1', icon: '→' };
-  if (weeklyAverageWeight > 0 && weeklyWeight >= weeklyAverageWeight * 1.2 && (weeklyOnTimeShare === null || weeklyOnTimeShare >= Math.max(50, speedScore - 10))) {
+  if (weeklyAverageWeight > 0 && weeklyWeight >= weeklyAverageWeight * 1.2) {
     weeklyTrend = { type: 'up', label: 'рост недели', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', icon: '↑' };
-  } else if ((weeklyAverageWeight > 0 && weeklyWeight <= weeklyAverageWeight * 0.8) || (weeklyOnTimeShare !== null && weeklyOnTimeShare < 50)) {
+  } else if (weeklyAverageWeight > 0 && weeklyWeight <= weeklyAverageWeight * 0.8) {
     weeklyTrend = { type: 'down', label: 'просадка', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', icon: '↓' };
   }
   const domainScores = canUseDetails
@@ -475,7 +518,7 @@ const buildTeamMetricRows = (memory = {}, options = {}) => {
   const maxWeight = Math.max(1, ...baseRows.map(row => row.totalWeight));
   return baseRows.map(row => {
     const volumeShare = Math.round((row.totalWeight / maxWeight) * 100);
-    const rawIndex = Math.round((volumeShare * 0.50) + (row.heavyWeightShare * 0.25) + (row.speedScore * 0.25));
+    const rawIndex = Math.round((volumeShare * 0.70) + (row.heavyWeightShare * 0.30));
     const confidenceCap = row.totalTasks < 15 ? 55 : row.totalTasks < 40 ? 68 : 100;
     const efficiencyIndex = Math.min(rawIndex, confidenceCap);
     const confidenceLabel = row.totalTasks < 15 ? 'мало данных' : row.totalTasks < 40 ? 'средняя выборка' : 'устойчиво';
@@ -483,9 +526,9 @@ const buildTeamMetricRows = (memory = {}, options = {}) => {
     const riskNotes = [];
     if (row.totalTasks < 40) riskNotes.push('низкий объем относительно команды');
     if (row.complexTasksCount === 0 || row.heavyWeightShare < 15) riskNotes.push('мало подтвержденных сложных задач');
-    if (row.onTimeShare !== null && row.onTimeShare < 60) riskNotes.push('простые/средние задачи часто дольше нормы');
+    if (row.onTimeShare !== null && row.onTimeShare < 60) riskNotes.push('проверить длительность задач после назначения');
     if (row.weeklyTrend?.type === 'down') riskNotes.push('нет устойчивого роста в текущей неделе');
-    const summary = `Сильная сторона: ${mainStrength}. ${riskNotes.length > 0 ? `Риск: ${riskNotes.slice(0, 2).join('; ')}.` : 'Риск: критичных просадок по объему и срокам не видно.'}`;
+    const summary = `Опора: ${mainStrength}. Факт: ${row.totalTasks} задач, вес ${row.totalWeight}, сложные+ ${row.complexTasksCount}. ${riskNotes.length > 0 ? `Зона проверки: ${riskNotes.slice(0, 2).join('; ')}.` : 'Зона проверки: явных просадок по объему и сложности не видно.'}`;
     return {
       ...row,
       volumeShare,
@@ -550,8 +593,10 @@ const parseHistoryCsv = (text) => {
     assignee: pick(record, ['исполнитель', 'assignee', 'executor', 'ответствен']),
     domain: pick(record, ['домен', 'domain', 'system', 'систем', 'направлен']),
     size: pick(record, ['размер', 'size', 'complexity', 'сложност']),
-    cycleTime: pick(record, ['cycletime', 'cycle time', 'leadtime', 'lead time', 'дней', 'цикл', 'время']),
+    cycleTime: pick(record, ['cycletime', 'cycle time', 'leadtime', 'lead time', 'дней', 'цикл', 'since creation', 'time to resolution']),
+    assigneeCycleTime: pick(record, ['время от начала работы до завершения', 'execution time', 'assignee cycle', 'assigned cycle']),
     created: pick(record, ['created', 'создан', 'дата создан']),
+    assignedAt: pick(record, ['дата назначения', 'assigned', 'assignment']),
     resolved: pick(record, ['resolved', 'closed', 'решен', 'дата реш', 'закрыт']),
     weekKey: pick(record, ['weekkey', 'week', 'недел', 'период']),
     priority: pick(record, ['важност', 'priority', 'impact', 'приоритет']),
@@ -1259,7 +1304,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
     const isPrimaryReaction = (value) => {
       const text = safeString(value).toLowerCase();
-      return text.includes('взят')
+      return text.includes('инцидент от момента')
+        || text.includes('взят')
         || text.includes('перв')
         || text.includes('создан')
         || text.includes('момент')
@@ -1294,8 +1340,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const resolutionMetric = metricByName(isResolution);
 
     const primary = primaryMetric
-      ? { name: 'До взятия в работу', avgOverdueMin: Number(primaryMetric.avgOverdueMin) || 0, violations: Number(primaryMetric.violations) || 0 }
-      : metricFromDetails('До взятия в работу', isPrimaryReaction);
+      ? { name: 'Инцидент от момента создания', avgOverdueMin: Number(primaryMetric.avgOverdueMin) || 0, violations: Number(primaryMetric.violations) || 0 }
+      : metricFromDetails('Инцидент от момента создания', isPrimaryReaction);
 
     const resolution = resolutionMetric
       ? { name: 'До решения', avgOverdueMin: Number(resolutionMetric.avgOverdueMin) || 0, violations: Number(resolutionMetric.violations) || 0 }
@@ -4296,7 +4342,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const getSpeedText = (row) => row.onTimeShare === null
           ? 'нет данных'
           : `${row.onTimeShare}% в норме${row.avgCycleTime !== null ? ` · ср. ${row.avgCycleTime} дн.` : ''}`;
-        const getWeightBreakdown = (row) => `Легко ${Number(row.sizes.S) || 0}×1 + Средне ${Number(row.sizes.M) || 0}×3 + Сложно ${Number(row.sizes.L) || 0}×8 + Очень сложно ${Number(row.sizes.XL) || 0}×15 = ${row.totalWeight}`;
         return `
           <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Матрица эффективности и компетенций админов</h3>
           ${rows.length > 0 ? `
@@ -4307,16 +4352,16 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </div>
               <div style="font-size:12px; color:#334155; line-height:1.5; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px;">
                 <b style="display:block; color:#0f172a; margin-bottom:5px;">Индекс эффективности</b>
-                50% — вес задач относительно лидера, 25% — доля сложных работ, 25% — соблюдение ожидаемых сроков. При малой выборке индекс ограничен, чтобы 10-15 задач не обгоняли устойчивую работу.
+                70% — вес выполненных задач относительно лидера, 30% — доля сложных работ в собственном объеме. Сроки показаны справочно и не снижают индекс, пока нет надежной даты назначения задачи админу.
               </div>
             </div>
-            <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; margin-bottom:14px;">
+            <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:12px; margin-bottom:16px;">
               ${rows.slice(0, 3).map((row, idx) => {
                 const accents = ['#f59e0b', '#06b6d4', '#64748b'];
-                const bg = ['#fffbeb', '#ecfeff', '#f8fafc'];
+                const bg = ['linear-gradient(135deg,#fffbeb 0%,#ffffff 70%)', 'linear-gradient(135deg,#ecfeff 0%,#ffffff 70%)', 'linear-gradient(135deg,#f8fafc 0%,#ffffff 70%)'];
                 const label = ['Лидер эффективности', 'Сильная эффективность', 'Стабильная эффективность'][idx] || 'Эффективность';
                 return `
-                  <div style="border:1px solid ${accents[idx]}; border-radius:12px; padding:12px; background:${bg[idx]};">
+                  <div style="border:1px solid ${accents[idx]}; border-radius:14px; padding:13px; background:${bg[idx]}; box-shadow:0 8px 22px rgba(15,23,42,0.07);">
                     <div style="font-size:10px; color:#64748b; font-weight:900; text-transform:uppercase;">${idx + 1} место · ${label}</div>
                     <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-top:5px;">
                       <div>
@@ -4334,7 +4379,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                       <div style="background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:5px; font-size:10px; color:#64748b;">Вес<br><b style="color:#0f172a; font-size:13px;">${row.totalWeight}</b></div>
                     </div>
                     <div style="display:flex; justify-content:space-between; gap:6px; align-items:center; margin-top:9px; font-size:11px; color:#475569;">
-                      <span>Сроки: <b>${getSpeedText(row)}</b></span>
+                      <span>Сроки справочно: <b>${getSpeedText(row)}</b></span>
                       ${renderTrendBadge(row.weeklyTrend)}
                     </div>
                   </div>
@@ -4347,7 +4392,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                   <th>Сотрудник</th>
                   <th>Закрыто</th>
                   <th>Вес задач</th>
-                  <th>Сроки</th>
+                  <th>Сроки справочно</th>
                   <th>Индекс эффективности</th>
                   <th>Ключевые направления</th>
                   <th>Вывод</th>
@@ -4363,15 +4408,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                     <td><b style="font-size:15px; color:#0f172a;">${row.totalTasks}</b></td>
                     <td>
                       <b style="font-size:15px; color:#0f172a;">${row.totalWeight}</b>
-                      <div style="font-size:10px; color:#64748b; line-height:1.35;">${escapeHtml(getWeightBreakdown(row))}</div>
                     </td>
                     <td>
                       <b style="font-size:12px; color:${row.onTimeShare !== null && row.onTimeShare < 60 ? '#b91c1c' : '#0e7490'};">${getSpeedText(row)}</b>
-                      ${row.slowSimpleTasks.length > 0 ? `<div style="font-size:10px; color:#b91c1c; line-height:1.35;">Риск: простые/средние задачи дольше нормы</div>` : ''}
+                      ${row.slowSimpleTasks.length > 0 ? `<div style="font-size:10px; color:#92400e; line-height:1.35;">Сигнал: проверить дату назначения, возможно закрывали старый бэклог</div>` : ''}
                     </td>
                     <td>
                       <b style="font-size:15px; color:${row.efficiencyIndex >= 75 ? '#d97706' : '#0e7490'};">${row.efficiencyIndex}</b>
-                      <div style="font-size:10px; color:#64748b;">вес ${row.volumeShare}% · сложность ${row.heavyWeightShare}% · сроки ${row.speedScore}%</div>
+                      <div style="font-size:10px; color:#64748b;">вес ${row.volumeShare}% · сложность ${row.heavyWeightShare}%</div>
                     </td>
                     <td>
                       <div style="display:flex; flex-wrap:wrap; gap:5px;">
@@ -4390,7 +4434,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             </table>
             <div style="margin-top:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:11px 12px; color:#334155; font-size:12px; line-height:1.55;">
               <b style="display:block; color:#0f172a; margin-bottom:4px;">Как читать результат</b>
-              Сначала смотрим закрытые задачи и вес, затем проверяем сложность и сроки. Компетенции показывают подтвержденные домены, а не должность. Индекс не является автоматическим решением по окладу, но дает прозрачные аргументы для разговора.
+              Сначала смотрим закрытые задачи и вес, затем долю сложных работ и подтвержденные домены. Сроки сейчас справочные: они помогают найти задачи, которые долго висели, но не штрафуют админа, пока не фиксируется дата назначения именно на него. Индекс не является автоматическим решением по окладу, но дает прозрачные аргументы для разговора.
             </div>
           ` : '<p style="font-size:13px; color:#64748b;">Историческая память компетенций пока не загружена.</p>'}
         `;
@@ -4591,13 +4635,28 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
       const slaBreachDetails = Array.isArray(weekData.slaBreachDetails) ? weekData.slaBreachDetails : [];
       const getBreachType = (item) => safeString(item.slaType || item.type || item.name || item.metric);
+      const sourceSlaMetrics = Array.isArray(weekData.slaMetrics) ? weekData.slaMetrics : [];
+      const isPrimarySlaType = (value) => {
+        const type = safeString(value).toLowerCase();
+        return type.includes('инцидент от момента')
+          || type.includes('момент')
+          || type.includes('создан')
+          || type.includes('взят')
+          || type.includes('перв')
+          || type.includes('first')
+          || type.includes('reaction');
+      };
+      const isResolutionSlaType = (value) => {
+        const type = safeString(value).toLowerCase();
+        return type.includes('решен') || type.includes('решени') || type.includes('закрыт') || type.includes('resolution') || type.includes('resolve');
+      };
+      const primaryMetric = sourceSlaMetrics.find(item => isPrimarySlaType(item.name || item.slaType || item.type || item.metric));
+      const resolutionMetric = sourceSlaMetrics.find(item => isResolutionSlaType(item.name || item.slaType || item.type || item.metric));
       const primarySlaBreaches = slaBreachDetails.filter(item => {
-        const type = getBreachType(item).toLowerCase();
-        return type.includes('момент') || type.includes('создан') || type.includes('first') || type.includes('reaction');
+        return isPrimarySlaType(getBreachType(item));
       });
       const resolutionSlaBreaches = slaBreachDetails.filter(item => {
-        const type = getBreachType(item).toLowerCase();
-        return type.includes('решен') || type.includes('решени') || type.includes('resolution');
+        return isResolutionSlaType(getBreachType(item));
       });
       const countByField = (items, getter) => items.reduce((acc, item) => {
         const key = safeString(getter(item)).trim() || 'Неизвестно';
@@ -4649,17 +4708,23 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const [topPrimaryAssignee, topPrimaryAssigneeCount] = getTopEntry(countByField(primarySlaBreaches, item => getSlaAssigneeName(item.assignee || item.resolver || item.closedBy || item.owner)));
       const [topPrimaryDomain, topPrimaryDomainCount] = getTopEntry(countByField(primarySlaBreaches, item => item.domain || item.category));
       const [topPrimaryReason, topPrimaryReasonCount] = getTopEntry(countByField(primarySlaBreaches, item => item.reason || item.analysis || item.comment));
-      const primaryAvgOverdue = getAvgOverdue(primarySlaBreaches);
-      const resolutionAvgOverdue = getAvgOverdue(resolutionSlaBreaches);
-      const slaHeat = primarySlaBreaches.length >= 50 || primaryEasyShare >= 50
+      const primaryMetricViolations = Number(primaryMetric?.violations) || 0;
+      const resolutionMetricViolations = Number(resolutionMetric?.violations) || 0;
+      const primaryViolationCount = Math.max(primarySlaBreaches.length, primaryMetricViolations);
+      const resolutionViolationCount = Math.max(resolutionSlaBreaches.length, resolutionMetricViolations);
+      const primaryAvgOverdue = getAvgOverdue(primarySlaBreaches) || (Number(primaryMetric?.avgOverdueMin) || 0);
+      const resolutionAvgOverdue = getAvgOverdue(resolutionSlaBreaches) || (Number(resolutionMetric?.avgOverdueMin) || 0);
+      const slaHeat = primaryViolationCount >= 50 || primaryEasyShare >= 50
         ? { label: 'Критично', color: '#dc2626', bg: '#fff7ed', border: '#fed7aa', fill: 92 }
-        : (primarySlaBreaches.length >= 20 || primaryEasyShare >= 30
+        : (primaryViolationCount >= 20 || primaryEasyShare >= 30
           ? { label: 'Риск', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', fill: 68 }
-          : (primarySlaBreaches.length > 0
+          : (primaryViolationCount > 0
             ? { label: 'Контроль', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', fill: 38 }
             : { label: 'Норма', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', fill: 8 }));
-      let slaDiagnosis = 'Нет деталей по основному SLA для анализа.';
-      if (primarySlaBreaches.length > 0) {
+      let slaDiagnosis = 'Нет нарушений основного SLA `Инцидент от момента создания`.';
+      if (primaryViolationCount > 0 && primarySlaBreaches.length === 0) {
+        slaDiagnosis = `Есть ${primaryViolationCount} нарушений основного SLA, но в JSON нет детализации кейсов. Нужна выгрузка \`slaBreachDetails\` по SLA "Инцидент от момента создания", чтобы понять исполнителей, домены и причины.`;
+      } else if (primarySlaBreaches.length > 0) {
         if (slaReviewCounts.reaction_discipline >= 3) {
           slaDiagnosis = `По ручной разметке основной паттерн - обращения не брали в первые 15 минут (${slaReviewCounts.reaction_discipline}). Нужен контроль очереди, статусов АТС/Jira и дежурного окна.`;
         } else if (slaReviewCounts.complexity >= 3) {
@@ -4672,13 +4737,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           slaDiagnosis = 'Просрочки смешанные: нужно смотреть домены и смены, без вывода только по одному человеку.';
         }
       }
-      const slaFocusAction = primarySlaBreaches.length === 0
-        ? 'Действий не требуется: нет деталей по первичной реакции.'
+      const slaFocusAction = primaryViolationCount === 0
+        ? 'Действий не требуется: нарушений основного SLA нет.'
+        : (primarySlaBreaches.length === 0
+          ? 'Фокус руководителя: повторить выгрузку инцидентов с деталями `slaBreachDetails` по SLA "Инцидент от момента создания"; без списка кейсов нельзя честно разобрать причины.'
         : (primaryEasyShare >= 35
           ? 'Фокус руководителя: проверить очередь первой линии и правило взятия простых обращений в первые 15 минут. Основной риск не в сложности, а в реакции на типовые обращения.'
           : (primaryComplexShare >= 40
             ? 'Фокус руководителя: отделить массовые и сложные кейсы от обычной очереди, зафиксировать быстрый маршрут эскалации и шаблон первичного ответа пользователю.'
-            : 'Фокус руководителя: разобрать несколько показательных кейсов, подтвердить причину просрочки и проверить, не смешались ли дисциплина реакции и сложность.'));
+            : 'Фокус руководителя: разобрать несколько показательных кейсов, подтвердить причину просрочки и проверить, не смешались ли дисциплина реакции и сложность.')));
       const slaAssigneeStats = Object.entries(primarySlaBreaches.reduce((acc, item) => {
         const assignee = getSlaAssigneeName(item.assignee || item.resolver || item.closedBy || item.owner);
         if (!acc[assignee]) acc[assignee] = { total: 0, easy: 0, complex: 0, overdue: [] };
@@ -4750,8 +4817,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         `;
         }).join('')}${hiddenCount > 0 ? `<li style="list-style:none; color:#64748b; font-size:11px; margin-top:5px;">Еще ${hiddenCount} кейсов в разборе. Полный список остается в данных SLA и AI-памяти.</li>` : ''}`;
       };
-      const slaBreachHtml = slaBreachDetails.length > 0 ? `
-        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">SLA-температура первой реакции</h3>
+      const slaBreachHtml = (primaryViolationCount > 0 || resolutionViolationCount > 0 || slaBreachDetails.length > 0) ? `
+        <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px; margin-top: 20px;">SLA-температура основного контроля</h3>
         <div style="background: ${slaHeat.bg}; border: 1px solid ${slaHeat.border}; border-left: 5px solid ${slaHeat.color}; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;">
           <div style="display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;">
             <div style="min-width: 0; flex: 1;">
@@ -4760,11 +4827,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 <div style="height: 100%; width: ${slaHeat.fill}%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);"></div>
               </div>
               <div style="font-size: 12px; color: #334155; line-height: 1.45;">${escapeHtml(slaDiagnosis)}</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 5px;">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
               ${slaReviewSummary ? `<div style="font-size: 11px; color: #64748b; margin-top: 5px;">Ручная память: ${slaReviewSummary}.</div>` : ''}
             </div>
             <div style="display: grid; grid-template-columns: repeat(4, minmax(64px, 1fr)); gap: 6px; min-width: 340px;">
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">Первичная</span><b style="font-size:17px; color:#0f172a;">${primarySlaBreaches.length}</b></div>
-              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">До решения</span><b style="font-size:17px; color:#0f172a;">${resolutionSlaBreaches.length}</b></div>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">Основной SLA</span><b style="font-size:17px; color:#0f172a;">${primaryViolationCount}</b><span style="display:block; color:#64748b; font-size:9px;">+${primaryAvgOverdue} мин</span></div>
+              <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">До решения</span><b style="font-size:17px; color:#0f172a;">${resolutionViolationCount}</b><span style="display:block; color:#64748b; font-size:9px;">+${resolutionAvgOverdue} мин</span></div>
               <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">Простые</span><b style="font-size:17px; color:#0f172a;">${primaryEasyShare}%</b></div>
               <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; padding: 7px;"><span style="display:block; color:#64748b; font-size:8px; font-weight:900; text-transform:uppercase;">Сложные</span><b style="font-size:17px; color:#0f172a;">${primaryComplexShare}%</b></div>
             </div>
@@ -5748,7 +5816,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50">
           <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Средний индекс эффективности</div>
           <div className="text-3xl font-black text-cyan-300 mt-2">{avgEfficiency}</div>
-          <div className="text-xs text-slate-400 mt-1">50% вес + 25% сложность + 25% сроки</div>
+          <div className="text-xs text-slate-400 mt-1">70% вес задач + 30% сложность. Сроки справочно</div>
         </div>
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50">
           <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Покрытие команды</div>
@@ -5760,7 +5828,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       <div className="bg-slate-800/70 border border-slate-700/50 rounded-xl p-4 mb-6 text-sm text-slate-300 leading-relaxed">
         <div className="font-bold text-white mb-1">Как читать этот экран</div>
         <div className="text-slate-400">
-          Это не автоматическое кадровое решение, а калиброванный срез работы системных админов. Вес считается по закрытым задачам: Легко=1, Средне=3, Сложно=8, Очень сложно=15. Индекс эффективности складывается из веса задач относительно лидера, доли сложных работ и соблюдения ожидаемых сроков по cycleTime. Для решений по окладу сначала проверьте ручную разметку задач, сроки и домены, затем используйте рейтинг как доказательную базу.
+          Это не автоматическое кадровое решение, а калиброванный срез работы системных админов. Вес считается по закрытым задачам: Легко=1, Средне=3, Сложно=8, Очень сложно=15. Индекс эффективности складывается из веса задач относительно лидера и доли сложных работ. Сроки пока справочные: они не штрафуют админа, пока в данных нет надежной даты назначения задачи именно на него.
         </div>
       </div>
 
@@ -5800,7 +5868,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                       <div className="bg-slate-950/60 rounded border border-slate-700 p-2"><div className="text-[10px] text-slate-500 uppercase font-bold">Вес</div><div className="text-white font-black">{row.totalWeight}</div></div>
                     </div>
                     <div className="flex items-center justify-between gap-2 mb-4 text-xs">
-                      <span className="text-slate-400">Сроки: <b className={row.onTimeShare !== null && row.onTimeShare < 60 ? 'text-red-300' : 'text-emerald-300'}>{row.onTimeShare === null ? 'нет данных' : `${row.onTimeShare}% в норме`}</b></span>
+                      <span className="text-slate-400">Сроки справочно: <b className={row.onTimeShare !== null && row.onTimeShare < 60 ? 'text-amber-300' : 'text-emerald-300'}>{row.onTimeShare === null ? 'нет данных' : `${row.onTimeShare}% в норме`}</b></span>
                       <span className="px-2 py-0.5 rounded-full border font-bold" style={{ background: row.weeklyTrend.bg, color: row.weeklyTrend.color, borderColor: row.weeklyTrend.border }}>{row.weeklyTrend.icon} {row.weeklyTrend.label}</span>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -5831,7 +5899,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                     <div className="text-xs text-slate-500">{row.totalTasks} задач · вес {row.totalWeight}</div>
                   </div>
                   <div className="col-span-2 text-cyan-300 font-black text-xl">{row.efficiencyIndex}</div>
-                  <div className="col-span-2 text-sm text-slate-300">Вес {row.totalWeight}<br/><span className="text-slate-500">Сроки {row.onTimeShare === null ? '-' : `${row.onTimeShare}%`}</span></div>
+                  <div className="col-span-2 text-sm text-slate-300">Вес {row.totalWeight}<br/><span className="text-slate-500">Сроки справочно {row.onTimeShare === null ? '-' : `${row.onTimeShare}%`}</span></div>
                   <div className="col-span-4 flex flex-wrap gap-2">
                     {row.topDomains.slice(0, 2).map(([domain, score]) => {
                       const share = row.totalWeight > 0 ? Math.round(((Number(score) || 0) / row.totalWeight) * 100) : 0;
