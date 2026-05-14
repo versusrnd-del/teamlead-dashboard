@@ -574,11 +574,11 @@ const buildTeamMetricRows = (memory = {}, options = {}) => {
   const comparableWeeks = Math.max(0, weekKeys.length - (currentWeekKey && weekKeys.includes(currentWeekKey) ? 1 : 0));
   const historicalWeight = Math.max(0, totalWeight - weeklyWeight);
   const weeklyAverageWeight = comparableWeeks > 0 ? Math.round((historicalWeight / comparableWeeks) * 10) / 10 : weeklyWeight;
-  let weeklyTrend = { type: 'stable', label: 'стабильно', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1', icon: '→' };
+  let weeklyTrend = { type: 'stable', label: 'неделя без резких изменений', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1', icon: '→' };
   if (weeklyAverageWeight > 0 && weeklyWeight >= weeklyAverageWeight * 1.2) {
-    weeklyTrend = { type: 'up', label: 'рост недели', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', icon: '↑' };
+    weeklyTrend = { type: 'up', label: 'неделя выше личной базы', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', icon: '↑' };
   } else if (weeklyAverageWeight > 0 && weeklyWeight <= weeklyAverageWeight * 0.8) {
-    weeklyTrend = { type: 'down', label: 'просадка', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', icon: '↓' };
+    weeklyTrend = { type: 'down', label: 'неделя ниже личной базы', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', icon: '↓' };
   }
   const domainScores = canUseDetails
     ? taskDetails.reduce((acc, task) => {
@@ -627,13 +627,13 @@ const buildTeamMetricRows = (memory = {}, options = {}) => {
     const rawIndex = Math.round((volumeShare * 0.70) + (row.heavyWeightShare * 0.30));
     const confidenceCap = row.totalTasks < 15 ? 55 : row.totalTasks < 40 ? 68 : 100;
     const efficiencyIndex = Math.min(rawIndex, confidenceCap);
-    const confidenceLabel = row.totalTasks < 15 ? 'мало данных' : row.totalTasks < 40 ? 'средняя выборка' : 'устойчиво';
+    const confidenceLabel = row.totalTasks < 15 ? 'мало данных' : row.totalTasks < 40 ? 'средняя выборка' : 'достаточно данных';
     const mainStrength = row.topDomains?.[0]?.[0] || 'Профиль пока не подтвержден';
     const riskNotes = [];
     if (row.totalTasks < 40) riskNotes.push('низкий объем относительно команды');
     if (row.complexTasksCount === 0 || row.heavyWeightShare < 15) riskNotes.push('фокус на потоковых и рутинных задачах');
     if (row.onTimeShare !== null && row.onTimeShare < 60) riskNotes.push('проверить длительность задач после назначения');
-    if (row.weeklyTrend?.type === 'down') riskNotes.push('нет устойчивого роста в текущей неделе');
+    if (row.weeklyTrend?.type === 'down') riskNotes.push('текущая неделя ниже личной базы');
     const summary = `Опора: ${mainStrength}. Факт: ${row.totalTasks} задач, вес ${row.totalWeight}, сложные+ ${row.complexTasksCount}. ${riskNotes.length > 0 ? `Зона проверки: ${riskNotes.slice(0, 2).join('; ')}.` : 'Зона проверки: явных просадок по объему и сложности не видно.'}`;
     return {
       ...row,
@@ -1389,7 +1389,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const topSize = Object.entries(row.sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 'M';
     const topDomains = Object.entries(row.domains).sort((a, b) => b[1] - a[1]).slice(0, 4);
     const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
-    const confidence = row.total >= 5 ? 'устойчиво' : (row.total >= 3 ? 'средне' : 'мало данных');
+    const confidence = row.total >= 5 ? 'достаточно данных' : (row.total >= 3 ? 'средне' : 'мало данных');
     let profile = 'Универсал';
     if (heavyShare >= 45) profile = 'Тяжелые задачи';
     else if (topCategory === 'stability') profile = 'Стабильность';
@@ -1847,7 +1847,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <span className="text-xs font-bold text-slate-300 bg-slate-950/70 border border-slate-700 rounded px-2 py-1">{row.total} задач</span>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold ${row.confidence === 'устойчиво' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : row.confidence === 'средне' ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-slate-700/40 text-slate-400 border-slate-600'}`}>{row.confidence}</span>
+                    <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold ${row.confidence === 'достаточно данных' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : row.confidence === 'средне' ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-slate-700/40 text-slate-400 border-slate-600'}`}>{row.confidence}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-1.5 mb-3">
@@ -4376,7 +4376,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const topCategory = Object.entries(row.categories).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Смешанный профиль';
           const topDomains = Object.entries(row.domains).sort((a, b) => b[1] - a[1]).slice(0, 4);
           const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
-          const confidence = row.total >= 5 ? 'устойчиво' : (row.total >= 3 ? 'средне' : 'мало данных');
+          const confidence = row.total >= 5 ? 'достаточно данных' : (row.total >= 3 ? 'средне' : 'мало данных');
           const keyTasks = [...row.samples]
             .sort((a, b) => {
               const sizeRank = { XL: 4, L: 3, M: 2, S: 1 };
@@ -5070,6 +5070,36 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const taskMetaBadges = [debtBadge, mgmtBadge].filter(Boolean).join(' ');
         const taskMetaBadgesHtml = taskMetaBadges ? `<span style="color: #cbd5e1;">|</span> ${taskMetaBadges}` : '';
 
+        if (exportMode) {
+          const domain = getReportTaskDomain(t);
+          const serviceType = isIdmTask ? 'IDM' : domain;
+          const impactLabel = taskPriority === 'Impact' ? 'Значимый эффект' : (taskPriority === 'Routine' ? 'Фоновая поддержка' : 'Рабочее изменение');
+          const detailsBlock = contextHtml
+            ? `<div class="itil-task-details">${contextHtml}</div>`
+            : '';
+          return `
+            <div class="itil-task-row" style="--task-accent:${borderColor};">
+              <div class="itil-task-main">
+                <div class="itil-task-title">
+                  <span>${escapeHtml(t.id)}</span>
+                  ${escapeHtml(safeString(t.title))}
+                </div>
+                <div class="itil-task-meta">
+                  <span>Исполнитель: <b>${escapeHtml(getFullName(t.assignee))}</b></span>
+                  <span>Направление: <b>${escapeHtml(serviceType)}</b></span>
+                  ${cycleDays > 0 ? `<span>Cycle Time: <b>${cycleDays} дн.</b></span>` : ''}
+                </div>
+                ${detailsBlock}
+              </div>
+              <div class="itil-task-side">
+                <span class="itil-pill" style="--pill-bg:${priorityMeta.bg}; --pill-color:${priorityMeta.color}; --pill-border:${priorityMeta.border};">${impactLabel}</span>
+                <span class="itil-pill" style="--pill-bg:${complexityMeta.bg}; --pill-color:${complexityMeta.color}; --pill-border:${complexityMeta.border};">${complexityMeta.label}</span>
+                ${taskMetaBadges ? `<div class="itil-task-flags">${taskMetaBadges}</div>` : ''}
+              </div>
+            </div>
+          `;
+        }
+
         return `
           <div style="${cardBgStyle} margin-bottom: 24px; border-left: 4px solid ${borderColor}; border-bottom: 1px solid #e2e8f0; padding-left: 14px; padding-bottom: 16px;">
              <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px;">
@@ -5243,13 +5273,25 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .value-summary-stats span { display: inline-block; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 8px; color: #475569; font-size: 11px; font-weight: 800; }
           .value-summary-stats b { color: #0f172a; }
           .value-card { border: 1px solid #e2e8f0; border-top: 4px solid #64748b; border-radius: 8px; padding: 12px; min-height: 104px; }
-          .task-group { border: 1px solid #e2e8f0; border-left: 5px solid var(--group-accent); border-radius: 10px; padding: 14px 16px; margin: 16px 0 18px 0; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06); }
-          .task-group-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.35); padding-bottom: 10px; margin-bottom: 12px; }
-          .task-group-title { color: #0f172a; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
+          .task-group { border: 1px solid #e2e8f0; border-left: 4px solid var(--group-accent); border-radius: 10px; padding: 0; margin: 16px 0 18px 0; background: #ffffff !important; overflow: hidden; }
+          .task-group-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 1px solid #e2e8f0; padding: 12px 14px; margin-bottom: 0; background: #f8fafc; }
+          .task-group-title { color: #0f172a; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
           .task-group-subtitle { color: #64748b; font-size: 12px; margin-top: 2px; }
           .task-group-count { flex-shrink: 0; color: var(--group-accent); background: #ffffff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 900; }
-          .task-group-body > div:last-child { margin-bottom: 0 !important; }
+          .task-group-body { padding: 0; }
+          .task-group-body > div:last-child { border-bottom: 0 !important; }
           .task-group-compact { box-shadow: none; }
+          .itil-task-row { display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 14px; padding: 13px 14px 13px 16px; border-bottom: 1px solid #e2e8f0; border-left: 3px solid var(--task-accent); background: #ffffff; }
+          .itil-task-row:nth-child(even) { background: #fbfdff; }
+          .itil-task-main { min-width: 0; }
+          .itil-task-title { color: #0f172a; font-size: 13px; line-height: 1.35; font-weight: 800; }
+          .itil-task-title span { color: var(--task-accent); font-weight: 900; margin-right: 6px; white-space: nowrap; }
+          .itil-task-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; color: #64748b; font-size: 11px; margin-top: 6px; }
+          .itil-task-meta b { color: #334155; }
+          .itil-task-side { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+          .itil-pill { display: inline-block; background: var(--pill-bg); color: var(--pill-color); border: 1px solid var(--pill-border); border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase; white-space: nowrap; }
+          .itil-task-flags { color: #475569; font-size: 10px; line-height: 1.35; }
+          .itil-task-details > div { margin-top: 9px !important; background: #f8fafc !important; border: 1px solid #e2e8f0 !important; border-radius: 8px !important; padding: 8px 10px !important; }
           .impact-tasks-scroll { max-height: 800px; overflow-y: auto; padding-right: 8px; }
           .impact-tasks-scroll::-webkit-scrollbar { width: 8px; }
           .impact-tasks-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
