@@ -4442,16 +4442,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const rows = buildTeamMetricRows(mergedMetrics, { currentWeekKey: selectedKey }).filter(isReportableEmployeeRow).slice(0, 10);
         const domainRankMap = buildDomainRankMap(rows);
         const renderTrendBadge = (trend) => {
-          const meta = trend || { label: 'стабильно', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1', icon: '→' };
-          return `<span style="display:inline-block; background:${meta.bg}; color:${meta.color}; border:1px solid ${meta.border}; border-radius:999px; padding:3px 8px; font-size:10px; font-weight:900;">${meta.icon} ${meta.label}</span>`;
-        };
-        const renderConfidenceBadge = (row) => {
-          const isLow = row.confidenceLabel === 'мало данных';
-          const isMedium = row.confidenceLabel === 'средняя выборка';
-          const bg = isLow ? '#fef2f2' : (isMedium ? '#fffbeb' : '#ecfdf5');
-          const color = isLow ? '#b91c1c' : (isMedium ? '#92400e' : '#047857');
-          const border = isLow ? '#fecaca' : (isMedium ? '#fde68a' : '#a7f3d0');
-          return `<span style="display:inline-block; background:${bg}; color:${color}; border:1px solid ${border}; border-radius:999px; padding:2px 7px; font-size:10px; font-weight:900;">${escapeHtml(row.confidenceLabel)}</span>`;
+          if (!trend || trend.type === 'stable') return '';
+          const title = trend.type === 'up' ? 'Неделя выше личной базы' : 'Неделя ниже личной базы';
+          const arrow = trend.type === 'up' ? '↑' : '↓';
+          const className = trend.type === 'up' ? 'trend-arrow trend-arrow-up' : 'trend-arrow trend-arrow-down';
+          return `<span class="${className}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${arrow}</span>`;
         };
         const getSpeedText = (row) => row.onTimeShare === null
           ? 'нет данных'
@@ -4504,8 +4499,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                       <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:6px; font-size:10px; color:#64748b;">Сложные+<br><b style="color:#0f172a; font-size:14px;">${row.complexTasksCount}</b></div>
                     </div>
                     <div style="margin-top:10px; min-height:26px;">${renderDomainBadges(row, 2)}</div>
-                    <div style="display:flex; justify-content:space-between; gap:6px; align-items:center; margin-top:7px;">
-                      ${renderConfidenceBadge(row)}
+                    <div style="display:flex; justify-content:flex-end; gap:6px; align-items:center; margin-top:7px; min-height:24px;">
                       ${renderTrendBadge(row.weeklyTrend)}
                     </div>
                   </div>
@@ -4530,7 +4524,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                     <tr>
                       <td>
                         <b>${idx < 3 ? `${idx + 1}. ` : ''}${escapeHtml(row.name)}</b>
-                        <div style="font-size:10px; color:#64748b; margin-top:3px;">${renderConfidenceBadge(row)}</div>
                       </td>
                       <td><b style="font-size:15px; color:#0f172a;">${row.totalTasks}</b></td>
                       <td><b style="font-size:15px; color:#0f172a;">${row.totalWeight}</b></td>
@@ -5210,36 +5203,36 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
         return [
           renderTaskGroup({
-            title: 'Важные сложные',
-            subtitle: 'Высокий эффект и высокая трудоемкость',
+            title: 'Ключевые инфраструктурные изменения',
+            subtitle: 'Работы с высоким управленческим эффектом и высокой трудоемкостью',
             accent: '#f59e0b',
             background: '#fffbeb',
             tasks: importantHeavyTasks
           }),
           renderTaskGroup({
-            title: 'Важные средние',
-            subtitle: 'Заметные задачи без перегруза основного отчета',
+            title: 'Значимые плановые работы',
+            subtitle: 'Задачи с заметным результатом без перегруза основного отчета',
             accent: '#3b82f6',
             background: '#eff6ff',
             tasks: importantMediumTasks
           }),
           renderTaskGroup({
-            title: 'Важные быстрые',
-            subtitle: 'Важные, но небольшие изменения',
+            title: 'Быстрые значимые изменения',
+            subtitle: 'Небольшие работы с понятной пользой для потока',
             accent: '#10b981',
             background: '#ecfdf5',
             tasks: importantLightTasks
           }),
           renderTaskGroup({
-            title: 'Трудоемкие без флага важности',
-            subtitle: 'Сложные задачи, которые стоит показать даже без флага важности',
+            title: 'Сложные инфраструктурные работы',
+            subtitle: 'Трудоемкие технические изменения без отдельного управленческого акцента',
             accent: '#f97316',
             background: '#fff7ed',
             tasks: heavyTasks
           }),
           renderTaskGroup({
-            title: 'Обычные рабочие задачи',
-            subtitle: 'Standard: нормальная выполненная работа без отдельного управленческого акцента',
+            title: 'Плановые рабочие задачи',
+            subtitle: 'Регулярная выполненная работа без отдельного управленческого акцента',
             accent: '#64748b',
             background: '#f8fafc',
             tasks: standardTasks
@@ -5326,6 +5319,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .task-group-body { padding: 0; }
           .task-group-body > div:last-child { border-bottom: 0 !important; }
           .task-group-compact { box-shadow: none; }
+          .trend-arrow { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 999px; font-size: 16px; font-weight: 900; line-height: 1; }
+          .trend-arrow-up { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+          .trend-arrow-down { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; animation: trend-soft-drop 1.6s ease-in-out infinite; }
+          @keyframes trend-soft-drop { 0%, 100% { transform: translateY(0); opacity: .9; } 50% { transform: translateY(2px); opacity: 1; } }
           .itil-task-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 14px; padding: 14px 14px; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
           .itil-task-row:nth-child(even) { background: #fbfdff; }
           .itil-task-main { min-width: 0; }
