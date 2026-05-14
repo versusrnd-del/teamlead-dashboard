@@ -4274,7 +4274,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <div style="font-size: 12px; font-weight: 900; color: ${group.color};">${group.items.length} / ${percent}%</div>
             </div>
             <div style="font-size: 12px; color: #475569; line-height: 1.45;">${group.value}</div>
-            ${sampleTask ? `<div style="font-size: 11px; color: #64748b; line-height: 1.35; margin-top: 7px;">Пример: <b style="color: ${group.color};">${escapeHtml(sampleTask.id)}</b> ${escapeHtml(safeString(sampleTask.title).slice(0, 74))}${safeString(sampleTask.title).length > 74 ? '...' : ''}</div>` : ''}
+            ${sampleTask ? (() => {
+              const sampleTitle = cleanReportTaskTitle(sampleTask.title);
+              return `<div style="font-size: 11px; color: #64748b; line-height: 1.35; margin-top: 7px;">Пример: <b style="color: ${group.color};">${escapeHtml(sampleTask.id)}</b> ${escapeHtml(sampleTitle.slice(0, 74))}${sampleTitle.length > 74 ? '...' : ''}</div>`;
+            })() : ''}
           </div>
         `;
         }).join('');
@@ -4563,10 +4566,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           ? 'нет данных'
           : `${row.onTimeShare}% в норме${row.avgCycleTime !== null ? ` · ср. ${row.avgCycleTime} дн.` : ''}`;
         const getCompactFocus = (row) => {
-          if (row.totalTasks < 15) return 'Мало данных для кадрового вывода';
-          if (row.totalTasks < 40) return 'Средняя выборка, нужен следующий период';
+          if (row.totalTasks < 15) return 'Небольшой объем в исторической базе';
+          if (row.totalTasks < 40) return 'Наблюдать следующий период';
           if (row.complexTasksCount === 0 || row.heavyWeightShare <= 0) return 'Фокус на потоковых и рутинных задачах (Легко/Средне)';
-          if (row.heavyWeightShare <= 15) return 'Привлекается к сложным инфраструктурным задачам';
+          if (row.heavyWeightShare <= 15) return 'Привлекается к сложным техническим задачам';
           return 'Берет на себя тяжелые проекты и архитектурные задачи';
         };
         const renderDomainBadges = (row, limit = 2) => {
@@ -5120,16 +5123,24 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .replace(/\r\n/g, '\n')
           .replace(/\r/g, '\n')
           .replace(/\[~[^\]]+\]/g, '')
+          .replace(/\[(HOST|PATH|DOMAIN|PHONE|IP|LOGIN|USER|EMAIL)\]/gi, '')
+          .replace(/\bu\d{3,}\b/gi, '')
+          .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '')
+          .replace(/\b\d{2,3}[-\s]\d{2,3}[-\s]\d{2,3}(?:[-\s]\d{1,3})?\b/g, '')
           .replace(/!\S+?\.(png|jpg|jpeg|gif)\|[^!]*!/gi, '')
           .replace(/\b(public|internal)\s*;;/gi, '')
           .replace(/;public;;|;internal;;/gi, '')
           .replace(/\[LINK\]/gi, '')
+          .replace(/^[|,\sА-ЯЁа-яёA-Za-z."'-]+$/gm, '')
+          .replace(/^\s*\|.*$/gm, '')
           .replace(/\b\d{1,2}\/[а-яё]{3,}\/\d{2}\s+\d{1,2}:\d{2};[^;]+;/gi, '')
           .replace(/\b\d{1,2}\.\d{1,2}\.\d{2,4}\s+\d{1,2}:\d{2};[^;]+;/gi, '')
           .replace(/\s*-->\s*/g, ' -> ')
+          .replace(/\s+([,.!?;:])/g, '$1')
           .replace(/[ \t]+/g, ' ')
           .replace(/\n{3,}/g, '\n\n')
           .trim();
+        if ((text.match(/["|,]/g) || []).length >= 8) return '';
         const noisyPatterns = [
           'мы кажется уже делали',
           'напомни пожалуйста',
@@ -5148,6 +5159,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const result = sentences.join(' ');
         return result.length > 420 ? `${result.slice(0, 417).trim()}...` : result;
       };
+
+      const cleanReportTaskTitle = (value) => safeString(value)
+        .replace(/\[(HOST|PATH|DOMAIN|PHONE|IP|LOGIN|USER|EMAIL)\]/gi, '')
+        .replace(/\bu\d{3,}\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([,.!?;:])/g, '$1')
+        .trim();
 
       const renderDetailedTaskCard = (t) => {
         let contextHtml = '';
@@ -5249,7 +5267,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               <div class="itil-task-main">
                 <div class="itil-task-title">
                   <span>${escapeHtml(t.id)}</span>
-                  ${escapeHtml(safeString(t.title))}
+                  ${escapeHtml(cleanReportTaskTitle(t.title))}
                 </div>
                 <div class="itil-task-meta">
                   <span>Исполнитель: <b>${escapeHtml(getFullName(t.assignee))}</b></span>
@@ -5268,7 +5286,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         return `
           <div style="${cardBgStyle} margin-bottom: 24px; border-left: 4px solid ${borderColor}; border-bottom: 1px solid #e2e8f0; padding-left: 14px; padding-bottom: 16px;">
              <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 6px;">
-               <span style="color: #3b82f6;">${t.id}</span>: ${safeString(t.title)}
+               <span style="color: #3b82f6;">${t.id}</span>: ${cleanReportTaskTitle(t.title)}
              </div>
              ${exportBadges}
              ${exportMode ? '' : renderPriorityControls(t)}
@@ -5293,7 +5311,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         return `
           <div class="idm-task-card">
             <div style="font-weight: 800; font-size: 13px; color: #0f172a; line-height: 1.35;">
-              <span style="color: #7c3aed;">${escapeHtml(t.id)}</span>: ${escapeHtml(t.title)}
+              <span style="color: #7c3aed;">${escapeHtml(t.id)}</span>: ${escapeHtml(cleanReportTaskTitle(t.title))}
             </div>
             <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 7px; color: #64748b; font-size: 12px;">
               <span>Исполнитель: <span style="font-weight: 700; color: #334155;">${escapeHtml(getFullName(t.assignee))}</span></span>
@@ -5391,7 +5409,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                   <span style="display: inline-block; margin-left: 5px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">Рутина</span>
                   <span style="display: inline-block; margin-left: 3px; color: #64748b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 1px 5px; font-size: 9px; font-weight: 800;">${escapeHtml(getTaskSizeLabel(complexity))}</span>
                   <span style="color: #94a3b8;"> / ${escapeHtml(getFullName(t.assignee))}</span>
-                  <span style="color: #94a3b8;"> — ${escapeHtml(t.title)}</span>
+                  <span style="color: #94a3b8;"> — ${escapeHtml(cleanReportTaskTitle(t.title))}</span>
                   ${exportMode ? '' : renderPriorityControls(t)}
                   ${exportMode ? '' : renderComplexityControls(t)}
                 </li>
