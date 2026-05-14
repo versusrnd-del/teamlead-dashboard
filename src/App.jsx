@@ -5126,21 +5126,22 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .replace(/\[(HOST|PATH|DOMAIN|PHONE|IP|LOGIN|USER|EMAIL)\]/gi, '')
           .replace(/\bu\d{3,}\b/gi, '')
           .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '')
+          .replace(/\bСНИЛС\b\s*[:№#-]?\s*/gi, '')
+          .replace(/\b\d{3}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{2}\b/g, '')
           .replace(/\b\d{2,3}[-\s]\d{2,3}[-\s]\d{2,3}(?:[-\s]\d{1,3})?\b/g, '')
           .replace(/!\S+?\.(png|jpg|jpeg|gif)\|[^!]*!/gi, '')
           .replace(/\b(public|internal)\s*;;/gi, '')
           .replace(/;public;;|;internal;;/gi, '')
           .replace(/\[LINK\]/gi, '')
-          .replace(/^[|,\sА-ЯЁа-яёA-Za-z."'-]+$/gm, '')
-          .replace(/^\s*\|.*$/gm, '')
           .replace(/\b\d{1,2}\/[а-яё]{3,}\/\d{2}\s+\d{1,2}:\d{2};[^;]+;/gi, '')
           .replace(/\b\d{1,2}\.\d{1,2}\.\d{2,4}\s+\d{1,2}:\d{2};[^;]+;/gi, '')
           .replace(/\s*-->\s*/g, ' -> ')
+          .replace(/\|{2,}/g, '|')
+          .replace(/\s*\|\s*/g, ' | ')
           .replace(/\s+([,.!?;:])/g, '$1')
           .replace(/[ \t]+/g, ' ')
           .replace(/\n{3,}/g, '\n\n')
           .trim();
-        if ((text.match(/["|,]/g) || []).length >= 8) return '';
         const noisyPatterns = [
           'мы кажется уже делали',
           'напомни пожалуйста',
@@ -5163,6 +5164,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const cleanReportTaskTitle = (value) => safeString(value)
         .replace(/\[(HOST|PATH|DOMAIN|PHONE|IP|LOGIN|USER|EMAIL)\]/gi, '')
         .replace(/\bu\d{3,}\b/gi, '')
+        .replace(/\bСНИЛС\b\s*[:№#-]?\s*/gi, '')
+        .replace(/\b\d{3}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{2}\b/g, '')
         .replace(/\s{2,}/g, ' ')
         .replace(/\s+([,.!?;:])/g, '$1')
         .trim();
