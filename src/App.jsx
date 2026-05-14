@@ -236,8 +236,7 @@ const getTaskSizeLabel = (size) => TASK_SIZE_LABELS[normalizeTaskSize(size)] || 
 const TEAM_DOMAIN_OPTIONS = [
   'Citrix / фермы',
   'Скрипты / автоматизация',
-  'Виртуализация / серверы',
-  'Терминалы / Серверы',
+  'Серверная инфраструктура',
   'Сеть / BinkD',
   'Работы по Лотус',
   'IDM',
@@ -274,11 +273,11 @@ const normalizeMetricDomain = (explicitDomain, text) => {
   if (source.includes('почт') || source.includes('email') || source.includes('mail') || source.includes('рассылк') || source.includes('мессендж') || source.includes('messenger')) return 'Почта / Мессенджеры';
   if (source.includes('сертификат') || source.includes('крипт') || source.includes('безопасност') || source.includes('иб ')) return 'ИБ / сертификаты';
   if (source.includes('папк') || source.includes('файл') || source.includes('шар') || source.includes('каталог')) return 'Файлы / каталоги';
-  if (source.includes('терминал') || source.includes('rds') || source.includes('remote') || source.includes('цб ')) return 'Терминалы / Серверы';
+  if (source.includes('терминал') || source.includes('rds') || source.includes('remote') || source.includes('цб ')) return 'Серверная инфраструктура';
   if (source.includes('binkd') || source.includes('бинк') || source.includes('vpn') || source.includes('сеть') || source.includes('сетев') || source.includes('маршрут') || source.includes('wi fi') || source.includes('wifi')) return 'Сеть / BinkD';
   if (source.includes('фин') || source.includes('финист') || source.includes('кредит') || source.includes('юл ') || source.includes('фл ')) return 'Бизнес-системы';
   if (source.includes('бд ') || source.includes('база') || source.includes('oracle') || source.includes('sql')) return 'Базы данных';
-  if (source.includes('сервер') || source.includes('host') || source.includes('vm') || source.includes('виртуал')) return 'Виртуализация / серверы';
+  if (source.includes('сервер') || source.includes('host') || source.includes('vm') || source.includes('виртуал')) return 'Серверная инфраструктура';
   if (source.includes('ос ') || source.includes('windows') || source.includes('рабоч') || source.includes('арм') || source.includes('по ')) return 'Рабочие места / ПО';
   if (source.includes('миграц') || source.includes('проект') || source.includes('внедр') || source.includes('регламент') || source.includes('процесс')) return 'Проекты / процессы';
   if (domain.includes('сеть') || domain.includes('vpn')) return 'Сеть / BinkD';
@@ -286,7 +285,7 @@ const normalizeMetricDomain = (explicitDomain, text) => {
   if (domain.includes('скрипт') || domain.includes('автоматизац')) return 'Скрипты / автоматизация';
   if (domain.includes('zabbix') || domain.includes('заббикс') || domain.includes('мониторинг')) return 'Zabbix / мониторинг';
   if (domain.includes('2fa') || domain.includes('otp') || domain.includes('аутентификац')) return '2FA';
-  if (domain.includes('терминал') || domain.includes('rds')) return 'Терминалы / Серверы';
+  if (domain.includes('терминал') || domain.includes('rds') || domain.includes('виртуал') || domain.includes('сервер')) return 'Серверная инфраструктура';
   if (domain.includes('lotus') || domain.includes('лотус')) return 'Работы по Лотус';
   if (domain.includes('idm') || domain.includes('доступ')) return 'IDM';
   if (domain.includes('печать') || domain.includes('принтер')) return 'Принтера';
@@ -632,7 +631,7 @@ const buildTeamMetricRows = (memory = {}, options = {}) => {
     const mainStrength = row.topDomains?.[0]?.[0] || 'Профиль пока не подтвержден';
     const riskNotes = [];
     if (row.totalTasks < 40) riskNotes.push('низкий объем относительно команды');
-    if (row.complexTasksCount === 0 || row.heavyWeightShare < 15) riskNotes.push('мало подтвержденных сложных задач');
+    if (row.complexTasksCount === 0 || row.heavyWeightShare < 15) riskNotes.push('фокус на потоковых и рутинных задачах');
     if (row.onTimeShare !== null && row.onTimeShare < 60) riskNotes.push('проверить длительность задач после назначения');
     if (row.weeklyTrend?.type === 'down') riskNotes.push('нет устойчивого роста в текущей неделе');
     const summary = `Опора: ${mainStrength}. Факт: ${row.totalTasks} задач, вес ${row.totalWeight}, сложные+ ${row.complexTasksCount}. ${riskNotes.length > 0 ? `Зона проверки: ${riskNotes.slice(0, 2).join('; ')}.` : 'Зона проверки: явных просадок по объему и сложности не видно.'}`;
@@ -1207,12 +1206,11 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     if (!incidentDomain || incidentDomain === 'Прочее') return true;
     if (incidentDomain === taskDomain) return true;
     const related = {
-      'Сеть / BinkD': ['Терминалы / Серверы', 'Виртуализация / серверы'],
-      'Терминалы / Серверы': ['Сеть / BinkD', 'Виртуализация / серверы'],
-      'Виртуализация / серверы': ['Сеть / BinkD', 'Терминалы / Серверы'],
+      'Сеть / BinkD': ['Серверная инфраструктура'],
+      'Серверная инфраструктура': ['Сеть / BinkD', 'Zabbix / мониторинг', 'Citrix / фермы'],
       'IDM': ['Проекты / процессы'],
       '2FA': ['Проекты / процессы'],
-      'Zabbix / мониторинг': ['Виртуализация / серверы', 'Сеть / BinkD'],
+      'Zabbix / мониторинг': ['Серверная инфраструктура', 'Сеть / BinkD'],
       'Проекты / процессы': ['IDM']
     };
     return (related[incidentDomain] || []).includes(taskDomain);
@@ -4268,12 +4266,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         if (!incidentDomain || incidentDomain === 'Прочее') return true;
         if (incidentDomain === taskDomain) return true;
         const related = {
-          'Сеть / BinkD': ['Терминалы / Серверы', 'Виртуализация / серверы'],
-          'Терминалы / Серверы': ['Сеть / BinkD', 'Виртуализация / серверы'],
-          'Виртуализация / серверы': ['Сеть / BinkD', 'Терминалы / Серверы'],
+          'Сеть / BinkD': ['Серверная инфраструктура'],
+          'Серверная инфраструктура': ['Сеть / BinkD', 'Zabbix / мониторинг', 'Citrix / фермы'],
           'IDM': ['Проекты / процессы'],
           '2FA': ['Проекты / процессы'],
-          'Zabbix / мониторинг': ['Виртуализация / серверы', 'Сеть / BinkD'],
+          'Zabbix / мониторинг': ['Серверная инфраструктура', 'Сеть / BinkD'],
           'Проекты / процессы': ['IDM']
         };
         return (related[incidentDomain] || []).includes(taskDomain);
@@ -4456,10 +4453,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const getCompactFocus = (row) => {
           if (row.totalTasks < 15) return 'Мало данных для кадрового вывода';
           if (row.totalTasks < 40) return 'Средняя выборка, нужен следующий период';
-          if (row.complexTasksCount === 0 || row.heavyWeightShare < 15) return 'Мало сложных задач';
-          if (row.weeklyTrend?.type === 'up') return 'Есть рост недели';
-          if (row.weeklyTrend?.type === 'down') return 'Просадка недели';
-          return 'Устойчивый вклад';
+          if (row.complexTasksCount === 0 || row.heavyWeightShare <= 0) return 'Фокус на потоковых и рутинных задачах (Легко/Средне)';
+          if (row.heavyWeightShare <= 15) return 'Привлекается к сложным инфраструктурным задачам';
+          return 'Берет на себя тяжелые проекты и архитектурные задачи';
         };
         const renderDomainBadges = (row, limit = 2) => {
           const domains = row.topDomains.slice(0, limit);
@@ -4696,6 +4692,26 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           })
           .filter(Boolean);
       }).sort((a, b) => a.rating - b.rating);
+
+      const csatScores = sortedIncPerformers
+        .map(p => Number(p.csat))
+        .filter(score => Number.isFinite(score) && score > 0);
+      const overallCsat = csatScores.length > 0
+        ? (csatScores.reduce((sum, score) => sum + score, 0) / csatScores.length).toFixed(1)
+        : 'нет данных';
+      const lowCsatCount = csatFeedbackItems.length;
+      const overallCsatHtml = `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid ${lowCsatCount > 0 ? '#f59e0b' : '#10b981'}; border-radius:10px; padding:10px 12px; margin:0 0 12px 0;">
+          <div>
+            <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase; letter-spacing:0.04em;">Общий CSAT первой линии</div>
+            <div style="font-size:12px; color:#475569; margin-top:2px;">Средняя оценка по сотрудникам в таблице контроля качества.</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:22px; color:#0f172a; font-weight:900; line-height:1;">${overallCsat}</div>
+            <div style="font-size:10px; color:${lowCsatCount > 0 ? '#b45309' : '#047857'}; font-weight:900; margin-top:3px;">оценок ниже 5: ${lowCsatCount}</div>
+          </div>
+        </div>
+      `;
 
       const csatFeedbackHtml = csatFeedbackItems.length > 0 ? `
         <div class="csat-hover-wrap">
@@ -5335,6 +5351,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <div class="section-title" style="--accent: #10b981;">2. Контроль качества (1-я линия)</div>
             
             <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">Эффективность смен (без учета тимлида)</h3>
+            ${overallCsatHtml}
             ${generateTableHtml(['Администратор', 'Закрыто', 'Ср. Время', 'Профиль', 'CSAT'], incRows.slice(0, 5))}
             ${csatFeedbackHtml}
 
