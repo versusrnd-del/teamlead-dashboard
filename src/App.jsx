@@ -138,6 +138,81 @@ const escapeHtml = (value) => safeString(value)
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#039;');
 
+const getNonDeliveryReason = (task = {}) => {
+  const text = safeString([
+    task.resolutionType,
+    task.resolution,
+    task['Решение'],
+    task.status,
+    task['Статус'],
+    task.comments,
+    task.comment
+  ].join(' ')).toLowerCase().replace(/ё/g, 'е');
+  if (text.includes('нет активности по кейсу') || text.includes('закрыто по бездействию') || text.includes('бездейств')) {
+    return 'Нет активности по кейсу';
+  }
+  if (text.includes('отклон')) return 'Отклонено';
+  if (text.includes('отмен')) return 'Отменено';
+  return '';
+};
+
+const isNonDeliveryTask = (task = {}) => Boolean(getNonDeliveryReason(task));
+
+const normalizeDroppedTask = (task = {}, fallbackReason = '') => ({
+  id: typeof task === 'object' ? safeString(task.id || task.key || task.issueKey || task['Ключ']).trim() : safeString(task).trim(),
+  title: typeof task === 'object' ? safeString(task.title || task.summary || task.name || task['Тема']).trim() : '',
+  reason: typeof task === 'object' ? safeString(task.reason || fallbackReason || getNonDeliveryReason(task) || 'Закрыто без выполнения').trim() : safeString(fallbackReason || 'Закрыто без выполнения').trim()
+});
+
+const enrichPerformersWithNonDeliveryTasks = (performers = [], detailedTasks = []) => {
+  const droppedByName = new Map();
+  (Array.isArray(detailedTasks) ? detailedTasks : []).forEach(task => {
+    const reason = getNonDeliveryReason(task);
+    if (!reason) return;
+    const assignee = safeString(task.assignee || task.executor || task.owner || task.responsible || task['Исполнитель']).trim();
+    if (!assignee || !isKnownTeamMember(assignee) || isExcludedUser(assignee)) return;
+    const fullName = getFullName(assignee);
+    if (!droppedByName.has(fullName)) droppedByName.set(fullName, []);
+    droppedByName.get(fullName).push(normalizeDroppedTask(task, reason));
+  });
+
+  const seenNames = new Set();
+  const normalizedPerformers = (Array.isArray(performers) ? performers : []).map(performer => {
+    const fullName = getFullName(performer?.name);
+    seenNames.add(fullName);
+    const existingDropped = Array.isArray(performer?.droppedTasks)
+      ? performer.droppedTasks.map(item => normalizeDroppedTask(item))
+      : [];
+    const existingIds = new Set(existingDropped.map(item => item.id).filter(Boolean));
+    const derivedDropped = (droppedByName.get(fullName) || []).filter(item => item.id && !existingIds.has(item.id));
+    const droppedTasks = [...existingDropped, ...derivedDropped];
+    const adjustedClosed = Math.max(0, (Number(performer?.closed) || 0) - derivedDropped.length);
+    return {
+      ...performer,
+      closed: adjustedClosed,
+      droppedTasks
+    };
+  });
+
+  droppedByName.forEach((items, fullName) => {
+    if (seenNames.has(fullName)) return;
+    normalizedPerformers.push({
+      name: fullName,
+      closed: 0,
+      wip: 0,
+      avgTimeMin: 0,
+      commentsFreq: 'Низкая',
+      taskContext: 'Есть закрытия без выполнения',
+      droppedTasks: items,
+      techDebtClosed: [],
+      reopenedTasks: [],
+      csat: 5.0
+    });
+  });
+
+  return normalizedPerformers;
+};
+
 const normalizeTaskSize = (value) => {
   const raw = safeString(value).trim();
   if (!raw) return '';
@@ -394,6 +469,7 @@ const mergeTasksIntoTeamMetrics = (memory = {}, tasks = [], options = {}) => {
   const updatedEmployees = new Set();
 
   (Array.isArray(tasks) ? tasks : []).forEach((task, index) => {
+    if (isNonDeliveryTask(task)) { skipped += 1; return; }
     const rawAssignee = safeString(task.assignee || task.executor || task.owner || task.responsible || task['Исполнитель'] || task['Ответственный']).trim();
     if (!rawAssignee) { skipped += 1; return; }
     const fullName = getFullName(rawAssignee);
@@ -894,7 +970,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const memorySize = taskId ? aiTaskMemory?.[taskId]?.complexity : null;
     return normalizeTaskSize(memorySize || task?.size || task?.complexity || task?.name);
   };
-  const closedDetailedTasks = (weekData.detailedTasks || []).filter(isClosedTask);
+  const closedDetailedTasks = (weekData.detailedTasks || []).filter(task => isClosedTask(task) && !isNonDeliveryTask(task));
   const hasDetailedSizingForPulse = closedDetailedTasks.some(task => getTaskSize(task));
   const defaultSizeDescriptions = {
     S: 'Быстрые точечные задачи: короткие настройки, хосты, доступы и типовая эксплуатация.',
@@ -1078,7 +1154,9 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
      return !isTeamLead && !isThirdLine && !isUnknown && !isLiterallyUnknown && !isExcludedUser(p.name);
   });
 
-  let filteredTaskPerformers = (weekData.taskPerformers || []).filter(p => {
+  const taskPerformersWithNonDelivery = enrichPerformersWithNonDeliveryTasks(weekData.taskPerformers || [], weekData.detailedTasks || []);
+
+  let filteredTaskPerformers = taskPerformersWithNonDelivery.filter(p => {
      const fName = getFullName(p.name);
      const isTeamLead = p.name === TEAM_LEAD_ID || fName === TEAM_LEAD_NAME || String(p.name).includes('Виктор');
      const isUnknown = fName === p.name && !Object.keys(USER_DICTIONARY).includes(p.name.toLowerCase());
@@ -1912,17 +1990,18 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                           {droppedCount > 0 && (
                             <div className="group relative flex items-center justify-center mt-1 cursor-help">
                               <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/30 text-slate-300 border border-slate-500/40">
-                                -{droppedCount} безд.
+                                -{droppedCount} без вып.
                               </span>
                               {droppedList.length > 0 && (
                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[350px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                                   <div className="p-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
-                                    <div className="font-bold text-slate-300 mb-2 border-b border-slate-700 pb-2 text-sm">Закрыто по бездействию:</div>
+                                    <div className="font-bold text-slate-300 mb-2 border-b border-slate-700 pb-2 text-sm">Закрыто без выполнения:</div>
                                     <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
                                       {droppedList.map((dt, i) => (
                                         <div key={i} className="leading-tight bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
                                           <span className="text-slate-300 font-bold text-[13px]">{dt.id}</span><br/>
                                           <span className="truncate block w-full text-[12px] text-slate-400 mt-1">{dt.title}</span>
+                                          {dt.reason && <span className="block text-[11px] text-amber-300 mt-1">Причина: {dt.reason}</span>}
                                         </div>
                                       ))}
                                     </div>
@@ -2058,17 +2137,18 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                             {droppedCount > 0 && (
                               <div className="group relative flex items-center justify-center mt-1 cursor-help">
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/30 text-slate-300 border border-slate-500/40">
-                                  -{droppedCount} безд.
+                                  -{droppedCount} без вып.
                                 </span>
                                 {droppedList.length > 0 && (
                                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[350px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                                     <div className="p-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] text-slate-300 text-left relative cursor-auto pointer-events-auto">
-                                      <div className="font-bold text-slate-300 mb-2 border-b border-slate-700 pb-2 text-sm">Закрыто по бездействию:</div>
+                                      <div className="font-bold text-slate-300 mb-2 border-b border-slate-700 pb-2 text-sm">Закрыто без выполнения:</div>
                                       <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
                                         {droppedList.map((dt, i) => (
                                           <div key={i} className="leading-tight bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
                                             <span className="text-slate-300 font-bold text-[13px]">{dt.id}</span><br/>
                                             <span className="truncate block w-full text-[12px] text-slate-400 mt-1">{dt.title}</span>
+                                            {dt.reason && <span className="block text-[11px] text-amber-300 mt-1">Причина: {dt.reason}</span>}
                                           </div>
                                         ))}
                                       </div>
@@ -2412,7 +2492,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
             return [...newTasks, ...prev];
          });
          if (setTeamMetricsMemory) {
-            setTeamMetricsMemory(prev => mergeTasksIntoTeamMetrics(prev, parsedData.detailedTasks, { weekKey: selectedKey }).memory);
+            setTeamMetricsMemory(prev => mergeTasksIntoTeamMetrics(prev, parsedData.detailedTasks.filter(task => !isNonDeliveryTask(task)), { weekKey: selectedKey }).memory);
          }
       }
 
@@ -3715,7 +3795,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         return '';
       };
 
-      let sortedTaskPerformers = [...(weekData.taskPerformers || [])]
+      let sortedTaskPerformers = [...enrichPerformersWithNonDeliveryTasks(weekData.taskPerformers || [], weekData.detailedTasks || [])]
         .filter(p => {
            const fName = getFullName(p.name);
            const isUnknown = String(p.name).toLowerCase() === 'неизвестно' || fName.toLowerCase() === 'неизвестно';
@@ -3736,7 +3816,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         .sort((a,b) => (Number(b.closed)||0) - (Number(a.closed)||0));
 
       const completedDetailedTasks = (weekData.detailedTasks || [])
-        .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved))
+        .filter(t => t && (t.status === 'Закрыт' || t.status === 'Готово' || t.status === 'Resolved' || t.status === 'Завершен' || t.resolved) && !isNonDeliveryTask(t))
         .filter(t => {
            // В автоматическую сводку попадают только администраторы из USER_DICTIONARY; чужие исполнители отсекаются.
            const fName = getFullName(t.assignee);
@@ -4516,7 +4596,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const taskRows = sortedTaskPerformers.map(p => {
          const droppedCount = Array.isArray(p.droppedTasks) ? p.droppedTasks.length : (Number(p.droppedTasks) || 0);
          const closedHtml = droppedCount > 0 
-            ? `${p.closed || 0}<br/><span style="font-size: 10px; color: #94a3b8; font-weight: normal;">(-${droppedCount} безд.)</span>`
+            ? `${p.closed || 0}<br/><span style="font-size: 10px; color: #94a3b8; font-weight: normal;">(-${droppedCount} без вып.)</span>`
             : `${p.closed || 0}`;
          return [`${getFullName(p.name)} ${getBurnoutBadge(p.wip, p.closed, 'task')}`, p.wip || 0, closedHtml, `${p.avgTimeMin || 0} дн.`, getContextStringHtml(p.taskContext)];
       });
@@ -4593,7 +4673,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const incRows = sortedIncPerformers.map(p => {
          const droppedCount = Array.isArray(p.droppedTasks) ? p.droppedTasks.length : (Number(p.droppedTasks) || 0);
          const closedHtml = droppedCount > 0 
-            ? `${p.closed || 0}<br/><span style="font-size: 10px; color: #94a3b8; font-weight: normal;">(-${droppedCount} безд.)</span>`
+            ? `${p.closed || 0}<br/><span style="font-size: 10px; color: #94a3b8; font-weight: normal;">(-${droppedCount} без вып.)</span>`
             : `${p.closed || 0}`;
          return [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, closedHtml, `${p.avgTimeMin || 0} мин.`, getContextStringHtml(p.taskContext), renderReportCsatCell(p)];
       });
