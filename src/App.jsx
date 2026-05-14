@@ -23,7 +23,8 @@ const USER_DICTIONARY = {
   "u0287": "Марк Соколов",
   "u0608": "Максим Гуртов",
   "u0607": "Максим Отрошко",
-  "u0627": "Руслан Халеддинов",  
+  "ruslan_khaleddinov": "Руслан Халеддинов",
+  "khaleddinov": "Руслан Халеддинов",
   "mvol": "Михаил Волков",
   "tea1": "Евгений Тихонов",
   "dbog": "Дмитрий Богатырев"
@@ -324,6 +325,38 @@ const createMetricRow = (name) => ({
   taskDetails: {},
   updatedAt: new Date().toISOString()
 });
+
+const rebuildMetricRowFromTaskDetails = (row = {}) => {
+  const details = Object.values(row.taskDetails || {}).filter(task => task && task.id);
+  const next = {
+    ...row,
+    name: row.name || 'Неизвестно',
+    totalTasks: 0,
+    totalWeight: 0,
+    impactTasks: 0,
+    sizes: { S: 0, M: 0, L: 0, XL: 0 },
+    domainScores: {},
+    taskIds: {},
+    taskDetails: {},
+    updatedAt: new Date().toISOString()
+  };
+  details.forEach(task => {
+    const id = safeString(task.id).trim();
+    if (!id) return;
+    const size = normalizeTaskSize(task.size) || 'M';
+    const weight = TEAM_METRIC_SIZE_WEIGHTS[size] || TEAM_METRIC_SIZE_WEIGHTS.M;
+    const domain = normalizeMetricDomain(task.domain || task.originalDomain || '', task.title || '') || 'Прочее';
+    const detail = { ...task, id, size, weight, domain };
+    next.totalTasks += 1;
+    next.totalWeight += weight;
+    next.impactTasks += detail.impact ? 1 : 0;
+    next.sizes[size] = (Number(next.sizes[size]) || 0) + 1;
+    next.domainScores[domain] = (Number(next.domainScores[domain]) || 0) + weight;
+    next.taskIds[id] = true;
+    next.taskDetails[id] = detail;
+  });
+  return next;
+};
 
 const createMetricTaskDetail = (task = {}, index = 0, options = {}) => {
   const size = getMetricTaskSize(task);
@@ -5750,7 +5783,7 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       row.taskDetails[taskId].weight = TEAM_METRIC_SIZE_WEIGHTS[cleanSize] || TEAM_METRIC_SIZE_WEIGHTS.M;
       row.taskDetails[taskId].manualSize = true;
       row.taskDetails[taskId].updatedAt = new Date().toISOString();
-      row.updatedAt = new Date().toISOString();
+      next[assignee] = rebuildMetricRowFromTaskDetails(row);
       return next;
     });
   };
@@ -5765,7 +5798,27 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       row.taskDetails[taskId].domain = cleanDomain;
       row.taskDetails[taskId].manualDomain = true;
       row.taskDetails[taskId].updatedAt = new Date().toISOString();
-      row.updatedAt = new Date().toISOString();
+      next[assignee] = rebuildMetricRowFromTaskDetails(row);
+      return next;
+    });
+  };
+
+  const handleCommitTaskCalibration = (assignee, taskId) => {
+    if (!assignee || !taskId) return;
+    setTeamMetricsMemory(prev => {
+      const next = JSON.parse(JSON.stringify(prev || {}));
+      const row = next[assignee];
+      const task = row?.taskDetails?.[taskId];
+      if (!task) return prev || {};
+      const size = normalizeTaskSize(task.size || task.originalSize) || 'M';
+      const domain = normalizeMetricDomain(task.domain || task.originalDomain || '', task.title || '') || 'Прочее';
+      task.size = size;
+      task.weight = TEAM_METRIC_SIZE_WEIGHTS[size] || TEAM_METRIC_SIZE_WEIGHTS.M;
+      task.domain = domain;
+      task.manualSize = true;
+      task.manualDomain = true;
+      task.updatedAt = new Date().toISOString();
+      next[assignee] = rebuildMetricRowFromTaskDetails(row);
       return next;
     });
   };
@@ -5785,9 +5838,46 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       task.manualSize = false;
       task.manualDomain = false;
       task.updatedAt = new Date().toISOString();
-      row.updatedAt = new Date().toISOString();
+      next[assignee] = rebuildMetricRowFromTaskDetails(row);
       return next;
     });
+  };
+
+  const handleDeleteStoredTask = (assignee, taskId) => {
+    if (!assignee || !taskId) return;
+    setTeamMetricsMemory(prev => {
+      const next = JSON.parse(JSON.stringify(prev || {}));
+      const row = next[assignee];
+      if (!row?.taskDetails?.[taskId]) return prev || {};
+      delete row.taskDetails[taskId];
+      if (row.taskIds) delete row.taskIds[taskId];
+      const rebuilt = rebuildMetricRowFromTaskDetails(row);
+      if (Object.keys(rebuilt.taskDetails || {}).length === 0) delete next[assignee];
+      else next[assignee] = rebuilt;
+      return next;
+    });
+  };
+
+  const handleClearUncalibratedTasks = () => {
+    let removedCount = 0;
+    const next = JSON.parse(JSON.stringify(teamMetricsMemory || {}));
+    Object.keys(next).forEach(assignee => {
+      const row = next[assignee];
+      Object.keys(row?.taskDetails || {}).forEach(taskId => {
+        const task = row.taskDetails[taskId];
+        if (!(task?.manualSize && task?.manualDomain)) {
+          delete row.taskDetails[taskId];
+          if (row.taskIds) delete row.taskIds[taskId];
+          removedCount += 1;
+        }
+      });
+      const rebuilt = rebuildMetricRowFromTaskDetails(row);
+      if (Object.keys(rebuilt.taskDetails || {}).length === 0) delete next[assignee];
+      else next[assignee] = rebuilt;
+    });
+    setTeamMetricsMemory(next);
+    setImportResult({ type: 'cleanup', fileName: 'Очистка очереди', removed: removedCount });
+    setTimeout(() => setImportResult(null), 5000);
   };
 
   return (
@@ -5806,8 +5896,10 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
       </div>
 
       {importResult && (
-        <div className={`mb-6 rounded-xl border p-4 ${importResult.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100' : 'bg-red-500/10 border-red-500/30 text-red-100'}`}>
-          {importResult.type === 'success'
+        <div className={`mb-6 rounded-xl border p-4 ${importResult.type === 'success' || importResult.type === 'cleanup' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100' : 'bg-red-500/10 border-red-500/30 text-red-100'}`}>
+          {importResult.type === 'cleanup'
+            ? `Очистка выполнена: удалено неразмеченных задач из памяти: ${importResult.removed}. При следующем импорте недели они загрузятся заново.`
+            : importResult.type === 'success'
             ? `Импортировано: ${importResult.added}. Дубликаты/пропуски: ${importResult.skipped}. Обновлено сотрудников: ${importResult.employees}. Файл: ${importResult.fileName}.`
             : `Не удалось разобрать файл ${importResult.fileName}. Проверь JSON или CSV-колонки.`}
         </div>
@@ -5932,6 +6024,14 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
               <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
                 <button
                   type="button"
+                  onClick={handleClearUncalibratedTasks}
+                  className="px-3 py-2 rounded-lg text-xs font-bold border bg-red-500/10 text-red-200 border-red-500/30 hover:bg-red-500/20"
+                  title="Удалить из памяти все задачи без ручной разметки сложности и домена. При следующем импорте недели они загрузятся заново."
+                >
+                  Очистить неразмеченные
+                </button>
+                <button
+                  type="button"
                   onClick={() => setShowCalibratedTasks(prev => !prev)}
                   className={`px-3 py-2 rounded-lg text-xs font-bold border ${showCalibratedTasks ? 'bg-cyan-500 text-slate-950 border-cyan-300' : 'bg-slate-950 text-slate-300 border-slate-700 hover:border-cyan-500'}`}
                 >
@@ -5978,14 +6078,35 @@ const TeamAnalytics = ({ teamMetricsMemory, setTeamMetricsMemory }) => {
                     ))}
                   </div>
                   <div className="col-span-2 lg:col-span-1 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => handleResetTaskCalibration(task.assignee, task.id)}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-700 text-slate-400 bg-slate-950 hover:border-red-400 hover:text-red-200"
-                      title="Отменить ручную разметку этой задачи"
-                    >
-                      Сброс
-                    </button>
+                    <div className="flex flex-col gap-1 items-end">
+                      <button
+                        type="button"
+                        onClick={() => handleCommitTaskCalibration(task.assignee, task.id)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border ${task.manualSize && task.manualDomain ? 'border-emerald-400 bg-emerald-500/10 text-emerald-200' : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20'}`}
+                        title="Записать текущую сложность и домен в память"
+                      >
+                        В память
+                      </button>
+                      {task.manualSize && task.manualDomain ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStoredTask(task.assignee, task.id)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-red-500/40 text-red-200 bg-red-500/10 hover:bg-red-500/20"
+                          title="Удалить эту задачу из исторической памяти"
+                        >
+                          Удалить
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleResetTaskCalibration(task.assignee, task.id)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-700 text-slate-400 bg-slate-950 hover:border-red-400 hover:text-red-200"
+                          title="Отменить ручную разметку этой задачи"
+                        >
+                          Сброс
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
