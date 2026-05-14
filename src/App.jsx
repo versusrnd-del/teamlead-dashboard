@@ -4518,9 +4518,9 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const rows = buildTeamMetricRows(mergedMetrics, { currentWeekKey: selectedKey }).filter(isReportableEmployeeRow).slice(0, 10);
         const domainRankMap = buildDomainRankMap(rows);
         const renderTrendBadge = (trend) => {
-          if (!trend || trend.type === 'stable') return '';
-          const title = trend.type === 'up' ? 'Неделя выше личной базы' : 'Неделя ниже личной базы';
-          if (trend.type === 'down') {
+          const trendType = trend?.type || 'stable';
+          const title = trendType === 'up' ? 'Неделя выше личной базы' : (trendType === 'down' ? 'Неделя ниже личной базы' : 'Неделя на уровне личной базы');
+          if (trendType === 'down') {
             return `
               <span class="trend-kpi-drop" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block; flex:0 0 auto;">
@@ -4533,7 +4533,31 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
               </span>
             `;
           }
-          return `<span class="trend-arrow trend-arrow-up" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">↑</span>`;
+          if (trendType === 'stable') {
+            return `
+              <span class="trend-kpi-stable" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block; flex:0 0 auto;">
+                  <path d="M4 12h3.2l2.1-3.2 2.7 6.4 2.7-6.4 1.8 3.2H20" stroke="#0369a1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M7 18h10" stroke="#0ea5e9" stroke-width="2.1" stroke-linecap="round"/>
+                  <path d="M9.5 15.5 7 18l2.5 2.5M14.5 15.5 17 18l-2.5 2.5" stroke="#0ea5e9" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="4" cy="12" r="1.4" fill="#0ea5e9"/>
+                  <circle cx="20" cy="12" r="1.4" fill="#0ea5e9"/>
+                </svg>
+                <span>стабильно KPI</span>
+              </span>
+            `;
+          }
+          return `
+            <span class="trend-kpi-grow" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block; flex:0 0 auto;">
+                <path d="M4 17.5h3.2l2.1-3.2 2.7 5.1 2.7-8 1.8 3.1H20" stroke="#047857" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M15.5 8.5 19 5m0 0 3.5 3.5M19 5v8" stroke="#10b981" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="4" cy="17.5" r="1.4" fill="#10b981"/>
+                <circle cx="20" cy="14.5" r="1.4" fill="#10b981"/>
+              </svg>
+              <span>рост KPI</span>
+            </span>
+          `;
         };
         const getSpeedText = (row) => row.onTimeShare === null
           ? 'нет данных'
@@ -5424,10 +5448,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .task-group-body { padding: 0; }
           .task-group-body > div:last-child { border-bottom: 0 !important; }
           .task-group-compact { box-shadow: none; }
-          .trend-arrow { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 999px; font-size: 16px; font-weight: 900; line-height: 1; }
-          .trend-arrow-up { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
           .trend-kpi-drop { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg,#fff1f2 0%,#fee2e2 55%,#ffffff 100%); color: #991b1b; border: 1px solid #fca5a5; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 900; letter-spacing: 0.02em; box-shadow: 0 0 0 1px rgba(239,68,68,0.08), 0 6px 14px rgba(239,68,68,0.16); white-space: nowrap; }
+          .trend-kpi-grow { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg,#ecfdf5 0%,#d1fae5 55%,#ffffff 100%); color: #047857; border: 1px solid #6ee7b7; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 900; letter-spacing: 0.02em; box-shadow: 0 0 0 1px rgba(16,185,129,0.08), 0 6px 14px rgba(16,185,129,0.16); white-space: nowrap; }
+          .trend-kpi-stable { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg,#f8fafc 0%,#e0f2fe 55%,#ffffff 100%); color: #0369a1; border: 1px solid #7dd3fc; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 900; letter-spacing: 0.02em; box-shadow: 0 0 0 1px rgba(14,165,233,0.08), 0 6px 14px rgba(14,165,233,0.14); white-space: nowrap; }
           .trend-kpi-drop span { text-transform: uppercase; }
+          .trend-kpi-grow span { text-transform: uppercase; }
+          .trend-kpi-stable span { text-transform: uppercase; }
           .itil-task-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 14px; padding: 14px 14px; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
           .itil-task-row:nth-child(even) { background: #fbfdff; }
           .itil-task-main { min-width: 0; }
