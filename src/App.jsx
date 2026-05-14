@@ -782,6 +782,57 @@ const formatCSAT = (val) => {
   return isNaN(num) || num === 0 ? '5.0' : num.toFixed(1);
 };
 
+const getFirstLineProfileMeta = (perf = {}) => {
+  const closed = Number(perf.closed) || 0;
+  const avgTime = Number(perf.avgTimeMin) || 0;
+  const reopenedCount = Array.isArray(perf.reopenedTasks) ? perf.reopenedTasks.length : (Number(perf.reopenedTasks) || 0);
+  const droppedCount = Array.isArray(perf.droppedTasks) ? perf.droppedTasks.length : (Number(perf.droppedTasks) || 0);
+  const csat = Number(perf.csat) || 5;
+  const context = safeString(perf.taskContext).trim();
+  const hasContext = context && context !== '-' && context.toLowerCase() !== 'нет данных';
+
+  if (reopenedCount > 0 || droppedCount > 0 || csat < 4.8) {
+    return {
+      label: 'Контроль качества',
+      tone: 'risk',
+      detail: hasContext ? context : 'Есть сигналы по возвратам, закрытиям без выполнения или оценкам пользователей.'
+    };
+  }
+  if (closed >= 30 && avgTime > 0 && avgTime <= 45) {
+    return {
+      label: 'Потоковый решатель',
+      tone: 'success',
+      detail: hasContext ? context : 'Высокий объем закрытий при коротком среднем времени решения.'
+    };
+  }
+  if (closed >= 20 && avgTime > 90) {
+    return {
+      label: 'Сложные обращения',
+      tone: 'complex',
+      detail: hasContext ? context : 'Заметная нагрузка с длинным средним временем: стоит смотреть состав обращений.'
+    };
+  }
+  if (closed >= 15) {
+    return {
+      label: 'Стабильный поток',
+      tone: 'steady',
+      detail: hasContext ? context : 'Регулярно закрывает обращения без явных сигналов качества.'
+    };
+  }
+  if (avgTime >= 180) {
+    return {
+      label: 'Долгие кейсы',
+      tone: 'complex',
+      detail: hasContext ? context : 'Небольшой объем, но высокое среднее время: проверить, были ли сложные консультации.'
+    };
+  }
+  return {
+    label: 'Точечное участие',
+    tone: 'neutral',
+    detail: hasContext ? context : 'Небольшой объем обращений в текущем периоде.'
+  };
+};
+
 // --- НАЧАЛЬНЫЕ ДАННЫЕ ---
 const defaultWeekData = {
   year: new Date().getFullYear(), month: new Date().getMonth(), weekNumber: getISOWeekNumber(new Date()), dates: "Текущая неделя", 
@@ -1136,6 +1187,33 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           <div className="p-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[13px] leading-relaxed text-slate-300 relative cursor-auto pointer-events-auto">
             {context}
             <div className={arrowClass}></div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const getFirstLineProfileBadge = (perf) => {
+    const meta = getFirstLineProfileMeta(perf);
+    const toneClass = {
+      success: 'bg-emerald-500/10 text-emerald-300 border-emerald-400/30 shadow-[0_0_18px_rgba(16,185,129,0.08)]',
+      steady: 'bg-cyan-500/10 text-cyan-300 border-cyan-400/30',
+      complex: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-400/30',
+      risk: 'bg-rose-500/10 text-rose-300 border-rose-400/30',
+      neutral: 'bg-slate-500/10 text-slate-300 border-slate-500/30'
+    }[meta.tone] || 'bg-slate-500/10 text-slate-300 border-slate-500/30';
+
+    return (
+      <div className="group relative flex justify-center cursor-help">
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.08em] border whitespace-nowrap ${toneClass}`}>
+          <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80"></span>
+          {meta.label}
+        </span>
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 w-[360px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 text-left">
+          <div className="p-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl text-[12px] leading-relaxed text-slate-300 relative cursor-auto pointer-events-auto">
+            <div className="text-white font-bold mb-1">{meta.label}</div>
+            <div>{meta.detail}</div>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600"></div>
           </div>
         </div>
       </div>
@@ -1964,8 +2042,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                     } else {
                       commentsFreq = safeString(perf.commentsFreq) || 'Низкая';
                     }
-                    const contextStr = safeString(perf.taskContext);
-                    
                     const reopenedList = Array.isArray(perf.reopenedTasks) ? perf.reopenedTasks : [];
                     const reopenedCount = reopenedList.length > 0 ? reopenedList.length : (Number(perf.reopenedTasks) || 0);
                     
@@ -2011,7 +2087,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
                         </td>
                         
                         <td className="py-3 text-center text-slate-400">{Number(perf.avgTimeMin) || 0} м</td>
-                        <td className="py-3 text-center">{getContextBadge(contextStr)}</td>
+                        <td className="py-3 text-center">{getFirstLineProfileBadge(perf)}</td>
                         <td className="py-3 text-center"><span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wider font-bold ${commentsFreq === 'Высокая' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : commentsFreq === 'Средняя' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>{commentsFreq}</span></td>
                         
                         <td className="py-3 text-center">
@@ -4444,9 +4520,20 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const renderTrendBadge = (trend) => {
           if (!trend || trend.type === 'stable') return '';
           const title = trend.type === 'up' ? 'Неделя выше личной базы' : 'Неделя ниже личной базы';
-          const arrow = trend.type === 'up' ? '↑' : '↓';
-          const className = trend.type === 'up' ? 'trend-arrow trend-arrow-up' : 'trend-arrow trend-arrow-down';
-          return `<span class="${className}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${arrow}</span>`;
+          if (trend.type === 'down') {
+            return `
+              <span class="trend-kpi-drop" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block; flex:0 0 auto;">
+                  <path d="M4 6.5h3.2l2.1 3.2 2.7-5.1 2.7 8 1.8-3.1H20" stroke="#991b1b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M15.5 15.5 19 19m0 0 3.5-3.5M19 19V11" stroke="#dc2626" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="4" cy="6.5" r="1.4" fill="#ef4444"/>
+                  <circle cx="20" cy="9.5" r="1.4" fill="#ef4444"/>
+                </svg>
+                <span>просадка KPI</span>
+              </span>
+            `;
+          }
+          return `<span class="trend-arrow trend-arrow-up" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">↑</span>`;
         };
         const getSpeedText = (row) => row.onTimeShare === null
           ? 'нет данных'
@@ -4587,6 +4674,22 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         return `<span style="color: ${color}; font-weight: bold; font-size: 11px;" title="${context}">${shortText}</span>`;
       };
 
+      const getFirstLineProfileHtml = (perf) => {
+        const meta = getFirstLineProfileMeta(perf);
+        const tone = {
+          success: { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0' },
+          steady: { bg: '#ecfeff', color: '#0e7490', border: '#a5f3fc' },
+          complex: { bg: '#fdf4ff', color: '#a21caf', border: '#f5d0fe' },
+          risk: { bg: '#fff1f2', color: '#be123c', border: '#fecdd3' },
+          neutral: { bg: '#f8fafc', color: '#475569', border: '#cbd5e1' }
+        }[meta.tone] || { bg: '#f8fafc', color: '#475569', border: '#cbd5e1' };
+        return `
+          <span class="first-line-profile" title="${escapeHtml(meta.detail)}" style="background:${tone.bg}; color:${tone.color}; border-color:${tone.border};">
+            <span class="first-line-profile-dot"></span>${escapeHtml(meta.label)}
+          </span>
+        `;
+      };
+
       const taskRows = sortedTaskPerformers.map(p => {
          const droppedCount = Array.isArray(p.droppedTasks) ? p.droppedTasks.length : (Number(p.droppedTasks) || 0);
          const closedHtml = droppedCount > 0 
@@ -4669,7 +4772,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
          const closedHtml = droppedCount > 0 
             ? `${p.closed || 0}<br/><span style="font-size: 10px; color: #94a3b8; font-weight: normal;">(-${droppedCount} без вып.)</span>`
             : `${p.closed || 0}`;
-         return [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, closedHtml, `${p.avgTimeMin || 0} мин.`, getContextStringHtml(p.taskContext), renderReportCsatCell(p)];
+         return [`${getFullName(p.name)} ${getBurnoutBadge(0, p.closed, 'inc')}`, closedHtml, `${p.avgTimeMin || 0} мин.`, getFirstLineProfileHtml(p), renderReportCsatCell(p)];
       });
 
       const csatFeedbackItems = sortedIncPerformers.flatMap(p => {
@@ -5201,37 +5304,37 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const heavyTasks = tasks.filter(t => getTaskPriority(t) !== 'Impact' && ['L', 'XL'].includes(getTaskComplexity(t)));
         const standardTasks = tasks.filter(t => getTaskPriority(t) === 'Standard' && !['L', 'XL'].includes(getTaskComplexity(t)));
 
-        return [
-          renderTaskGroup({
-            title: 'Ключевые инфраструктурные изменения',
-            subtitle: 'Работы с высоким управленческим эффектом и высокой трудоемкостью',
+          return [
+            renderTaskGroup({
+            title: 'Ключевые изменения',
+            subtitle: 'Отмечены для показа выше: заметный результат и высокая трудоемкость',
             accent: '#f59e0b',
             background: '#fffbeb',
             tasks: importantHeavyTasks
           }),
           renderTaskGroup({
-            title: 'Значимые плановые работы',
-            subtitle: 'Задачи с заметным результатом без перегруза основного отчета',
+            title: 'Значимые работы',
+            subtitle: 'Отмечены для основного отчета: результат важнее рутинного потока',
             accent: '#3b82f6',
             background: '#eff6ff',
             tasks: importantMediumTasks
           }),
           renderTaskGroup({
-            title: 'Быстрые значимые изменения',
-            subtitle: 'Небольшие работы с понятной пользой для потока',
+            title: 'Быстрые полезные изменения',
+            subtitle: 'Небольшие задачи с понятным результатом для недели',
             accent: '#10b981',
             background: '#ecfdf5',
             tasks: importantLightTasks
           }),
           renderTaskGroup({
-            title: 'Сложные инфраструктурные работы',
-            subtitle: 'Трудоемкие технические изменения без отдельного управленческого акцента',
+            title: 'Трудоемкие работы',
+            subtitle: 'Сложные задачи, которые стоит видеть отдельно от обычного потока',
             accent: '#f97316',
             background: '#fff7ed',
             tasks: heavyTasks
           }),
           renderTaskGroup({
-            title: 'Плановые рабочие задачи',
+            title: 'Рабочий поток',
             subtitle: 'Регулярная выполненная работа без отдельного управленческого акцента',
             accent: '#64748b',
             background: '#f8fafc',
@@ -5303,6 +5406,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .report-csat-score { display: inline-flex; align-items: center; gap: 3px; color: #0f172a; font-weight: 800; white-space: nowrap; }
           .report-csat-popover { display: none; position: absolute; z-index: 40; right: 0; top: 24px; width: 520px; max-height: 340px; overflow-y: auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22); padding: 14px; }
           .report-csat-cell:hover .report-csat-popover { display: block; }
+          .first-line-profile { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+          .first-line-profile-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: .75; }
           .value-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
           .value-summary { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 5px solid #10b981; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
           .value-summary-title { color: #0f172a; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px; }
@@ -5313,7 +5418,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .value-card { border: 1px solid #e2e8f0; border-top: 4px solid #64748b; border-radius: 8px; padding: 12px; min-height: 104px; }
           .task-group { border: 1px solid #e2e8f0; border-left: 4px solid var(--group-accent); border-radius: 10px; padding: 0; margin: 16px 0 18px 0; background: #ffffff !important; overflow: hidden; }
           .task-group-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 1px solid #e2e8f0; padding: 12px 14px; margin-bottom: 0; background: #f8fafc; }
-          .task-group-title { color: #0f172a; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
+          .task-group-title { color: #0f172a; font-size: 14px; font-weight: 900; letter-spacing: 0; line-height: 1.25; }
           .task-group-subtitle { color: #64748b; font-size: 12px; margin-top: 2px; }
           .task-group-count { flex-shrink: 0; color: var(--group-accent); background: #ffffff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 900; }
           .task-group-body { padding: 0; }
@@ -5321,8 +5426,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .task-group-compact { box-shadow: none; }
           .trend-arrow { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 999px; font-size: 16px; font-weight: 900; line-height: 1; }
           .trend-arrow-up { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
-          .trend-arrow-down { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; animation: trend-soft-drop 1.6s ease-in-out infinite; }
-          @keyframes trend-soft-drop { 0%, 100% { transform: translateY(0); opacity: .9; } 50% { transform: translateY(2px); opacity: 1; } }
+          .trend-kpi-drop { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg,#fff1f2 0%,#fee2e2 55%,#ffffff 100%); color: #991b1b; border: 1px solid #fca5a5; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 900; letter-spacing: 0.02em; box-shadow: 0 0 0 1px rgba(239,68,68,0.08), 0 6px 14px rgba(239,68,68,0.16); white-space: nowrap; }
+          .trend-kpi-drop span { text-transform: uppercase; }
           .itil-task-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 14px; padding: 14px 14px; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
           .itil-task-row:nth-child(even) { background: #fbfdff; }
           .itil-task-main { min-width: 0; }
