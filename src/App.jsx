@@ -4433,7 +4433,13 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
       const renderResourceAuditReport = () => {
         const mergedMetrics = mergeTasksIntoTeamMetrics(teamMetricsMemory || {}, completedDetailedTasks, { weekKey: selectedKey }).memory;
-        const rows = buildTeamMetricRows(mergedMetrics, { currentWeekKey: selectedKey }).slice(0, 10);
+        const isReportableEmployeeRow = (row) => {
+          const name = safeString(row?.name).trim();
+          const normalized = name.toLowerCase().replace(/ё/g, 'е');
+          if (!name || ['не назначен', 'без автора', 'неизвестно', 'не назначено', 'без исполнителя'].includes(normalized)) return false;
+          return isKnownTeamMember(name) && !isExcludedUser(name);
+        };
+        const rows = buildTeamMetricRows(mergedMetrics, { currentWeekKey: selectedKey }).filter(isReportableEmployeeRow).slice(0, 10);
         const domainRankMap = buildDomainRankMap(rows);
         const renderTrendBadge = (trend) => {
           const meta = trend || { label: 'стабильно', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1', icon: '→' };
@@ -4989,6 +4995,40 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       ` : '';
 
       // КРАСИВЫЙ БЛОК ДЛЯ ДЕТАЛЬНЫХ ЗАДАЧ С УМНЫМИ БЕЙДЖАМИ И ФИЛЬТРАЦИЕЙ ИИ-ГАЛЛЮЦИНАЦИЙ
+      const cleanTaskDetailsText = (value) => {
+        let text = safeString(value)
+          .replace(/\r\n/g, '\n')
+          .replace(/\r/g, '\n')
+          .replace(/\[~[^\]]+\]/g, '')
+          .replace(/!\S+?\.(png|jpg|jpeg|gif)\|[^!]*!/gi, '')
+          .replace(/\b(public|internal)\s*;;/gi, '')
+          .replace(/;public;;|;internal;;/gi, '')
+          .replace(/\[LINK\]/gi, '')
+          .replace(/\b\d{1,2}\/[а-яё]{3,}\/\d{2}\s+\d{1,2}:\d{2};[^;]+;/gi, '')
+          .replace(/\b\d{1,2}\.\d{1,2}\.\d{2,4}\s+\d{1,2}:\d{2};[^;]+;/gi, '')
+          .replace(/\s*-->\s*/g, ' -> ')
+          .replace(/[ \t]+/g, ' ')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+        const noisyPatterns = [
+          'мы кажется уже делали',
+          'напомни пожалуйста',
+          'админ наш просто подстраховывал',
+          'нет данных',
+          'готово',
+          'решено'
+        ];
+        const normalized = text.toLowerCase().replace(/ё/g, 'е');
+        if (!text || text.length < 12 || noisyPatterns.some(pattern => normalized.includes(pattern))) return '';
+        const sentences = text
+          .split(/(?<=[.!?])\s+|\n+/)
+          .map(item => item.trim())
+          .filter(item => item.length >= 12)
+          .slice(0, 3);
+        const result = sentences.join(' ');
+        return result.length > 420 ? `${result.slice(0, 417).trim()}...` : result;
+      };
+
       const renderDetailedTaskCard = (t) => {
         let contextHtml = '';
         
@@ -5010,14 +5050,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             "готово",
             "решено"
         ];
-        const commentLower = (t.comments || '').toLowerCase();
+        const cleanedDetails = cleanTaskDetailsText(t.comments || t.description || t.summary || '');
+        const commentLower = cleanedDetails.toLowerCase();
         const isGeneric = genericPhrases.some(phrase => commentLower.includes(phrase));
         
-        if (t.comments && t.comments.trim() !== '' && !isGeneric) {
+        if (cleanedDetails && !isGeneric) {
            contextHtml = `
              <div style="font-size: 12px; color: #334155; margin-top: 8px; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
                <span style="font-weight: 800; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">Детали решения:</span><br/>
-               <div style="margin-top: 4px; white-space: pre-wrap; line-height: 1.5;">${safeString(t.comments)}</div>
+               <div style="margin-top: 4px; white-space: pre-wrap; line-height: 1.5;">${escapeHtml(cleanedDetails)}</div>
              </div>`;
         }
 
@@ -5025,7 +5066,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const cycleDays = Number(t.cycleTime) || 0;
         let debtBadge = '';
         if (cycleDays >= 30) {
-          debtBadge = `<span style="background-color: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">☠️ Закрыт старый долг (${cycleDays} дн.)</span>`;
+          debtBadge = `Старый долг: ${cycleDays} дн.`;
         } else {
           debtBadge = exportMode ? '' : `<span style="background-color: #f0fdf4; color: #10b981; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">⚡ Свежая задача</span>`;
         }
@@ -5035,7 +5076,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const isMgmtTask = Boolean(matchedProjectTask);
 
         let mgmtBadge = isMgmtTask 
-          ? `<span style="display: inline-block; transform: rotate(-2deg); background-color: rgba(37, 99, 235, 0.05); color: #2563eb; border: 2px solid #2563eb; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 8px;">⭐ ЗАДАЧА РУКОВОДСТВА</span>` 
+          ? `Поручение руководства` 
           : '';
 
         // Выбираем цвет полоски (Синяя если от руководства, красная если долг, иначе базовая серая)
@@ -5073,12 +5114,18 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         if (exportMode) {
           const domain = getReportTaskDomain(t);
           const serviceType = isIdmTask ? 'IDM' : domain;
-          const impactLabel = taskPriority === 'Impact' ? 'Значимый эффект' : (taskPriority === 'Routine' ? 'Фоновая поддержка' : 'Рабочее изменение');
+          const impactLabel = taskPriority === 'Impact' ? 'Важная работа' : (taskPriority === 'Routine' ? 'Фоновая поддержка' : 'Рабочее изменение');
           const detailsBlock = contextHtml
             ? `<div class="itil-task-details">${contextHtml}</div>`
             : '';
+          const sideLines = [
+            `Тип: ${impactLabel}`,
+            `Трудоемкость: ${complexityMeta.label}`,
+            isMgmtTask ? 'Поручение руководства' : '',
+            cycleDays >= 30 ? `Старый долг: ${cycleDays} дн.` : ''
+          ].filter(Boolean);
           return `
-            <div class="itil-task-row" style="--task-accent:${borderColor};">
+            <div class="itil-task-row">
               <div class="itil-task-main">
                 <div class="itil-task-title">
                   <span>${escapeHtml(t.id)}</span>
@@ -5092,9 +5139,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 ${detailsBlock}
               </div>
               <div class="itil-task-side">
-                <span class="itil-pill" style="--pill-bg:${priorityMeta.bg}; --pill-color:${priorityMeta.color}; --pill-border:${priorityMeta.border};">${impactLabel}</span>
-                <span class="itil-pill" style="--pill-bg:${complexityMeta.bg}; --pill-color:${complexityMeta.color}; --pill-border:${complexityMeta.border};">${complexityMeta.label}</span>
-                ${taskMetaBadges ? `<div class="itil-task-flags">${taskMetaBadges}</div>` : ''}
+                ${sideLines.map(line => `<div>${escapeHtml(line)}</div>`).join('')}
               </div>
             </div>
           `;
@@ -5281,16 +5326,14 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           .task-group-body { padding: 0; }
           .task-group-body > div:last-child { border-bottom: 0 !important; }
           .task-group-compact { box-shadow: none; }
-          .itil-task-row { display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 14px; padding: 13px 14px 13px 16px; border-bottom: 1px solid #e2e8f0; border-left: 3px solid var(--task-accent); background: #ffffff; }
+          .itil-task-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 14px; padding: 14px 14px; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
           .itil-task-row:nth-child(even) { background: #fbfdff; }
           .itil-task-main { min-width: 0; }
           .itil-task-title { color: #0f172a; font-size: 13px; line-height: 1.35; font-weight: 800; }
-          .itil-task-title span { color: var(--task-accent); font-weight: 900; margin-right: 6px; white-space: nowrap; }
+          .itil-task-title span { color: #64748b; font-weight: 900; margin-right: 6px; white-space: nowrap; }
           .itil-task-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; color: #64748b; font-size: 11px; margin-top: 6px; }
           .itil-task-meta b { color: #334155; }
-          .itil-task-side { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
-          .itil-pill { display: inline-block; background: var(--pill-bg); color: var(--pill-color); border: 1px solid var(--pill-border); border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 900; text-transform: uppercase; white-space: nowrap; }
-          .itil-task-flags { color: #475569; font-size: 10px; line-height: 1.35; }
+          .itil-task-side { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; color: #475569; font-size: 11px; line-height: 1.35; border-left: 1px solid #e2e8f0; padding-left: 12px; }
           .itil-task-details > div { margin-top: 9px !important; background: #f8fafc !important; border: 1px solid #e2e8f0 !important; border-radius: 8px !important; padding: 8px 10px !important; }
           .impact-tasks-scroll { max-height: 800px; overflow-y: auto; padding-right: 8px; }
           .impact-tasks-scroll::-webkit-scrollbar { width: 8px; }
