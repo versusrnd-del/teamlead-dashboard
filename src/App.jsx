@@ -3197,6 +3197,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskComment, setNewTaskComment] = useState('в работе');
   const [newTaskColor, setNewTaskColor] = useState('#3b82f6'); // В работе по умолчанию
+  const [draggedProjectTaskId, setDraggedProjectTaskId] = useState(null);
 
   const reportRef = useRef(null);
 
@@ -3668,6 +3669,31 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     });
   };
 
+  const handleProjectTaskDragStart = (event, id) => {
+    setDraggedProjectTaskId(id);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleProjectTaskDrop = (event, targetId) => {
+    event.preventDefault();
+    const sourceId = draggedProjectTaskId || event.dataTransfer.getData('text/plain');
+    if (!sourceId || sourceId === targetId) {
+      setDraggedProjectTaskId(null);
+      return;
+    }
+    setProjectTasks(prev => {
+      const list = [...(prev || [])];
+      const sourceIndex = list.findIndex(t => t.id === sourceId);
+      const targetIndex = list.findIndex(t => t.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return prev;
+      const [movedTask] = list.splice(sourceIndex, 1);
+      list.splice(targetIndex, 0, movedTask);
+      return list.map((task, index) => ({ ...task, priority: index }));
+    });
+    setDraggedProjectTaskId(null);
+  };
+
   const getProjectTaskMatchWords = (title) => {
     const stopWords = new Set(['задач', 'задача', 'нужно', 'надо', 'сдела', 'работ', 'через', 'после', 'перед', 'данны', 'данные']);
     return safeString(title)
@@ -3811,7 +3837,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const agingMeta = getProjectTaskAgingMeta(weeksActive);
         const bgColor = isCompleted ? '#f0fdf4' : '#ffffff';
         const borderColor = isCompleted ? '#bbf7d0' : '#e2e8f0';
-        const leftBorderColor = isCompleted ? '#22c55e' : t.color;
         const titleColor = isCompleted ? '#166534' : '#0f172a';
         const titleText = isCompleted ? `<s>${safeString(t.title)}</s>` : safeString(t.title);
         
@@ -3824,7 +3849,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           : '';
 
         return `
-          <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-left: 4px solid ${leftBorderColor}; border-radius: 4px; margin-bottom: 12px; padding: 12px 16px;">
+          <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; margin-bottom: 10px; padding: 12px 16px;">
              <div style="font-weight: 700; font-size: 14px; color: ${titleColor}; margin-bottom: 6px;">
                  ${titleText}
              </div>
@@ -5827,7 +5852,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <FileText size={18} className="text-fuchsia-400" />
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">Портфель поручений руководства (Глобальный)</h2>
-              <p className="text-[11px] text-fuchsia-200/70 mt-0.5">Порядок сверху вниз задает важность в отчете; стрелками можно поднять или опустить поручение.</p>
+              <p className="text-[11px] text-fuchsia-200/70 mt-0.5">Порядок сверху вниз задает важность в отчете; перетащи поручение за ручку слева, чтобы изменить порядок.</p>
             </div>
           </div>
           
@@ -5839,21 +5864,29 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 const agingMeta = getProjectTaskAgingMeta(weeksActive);
                 
                 return (
-                  <div key={t.id} className={`p-4 rounded-lg border ${isCompleted ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-slate-900/50 border-slate-700/50'} flex flex-col gap-3 relative transition-all`}>
+                  <div
+                    key={t.id}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => handleProjectTaskDrop(event, t.id)}
+                    className={`p-4 rounded-lg border ${isCompleted ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-slate-900/50 border-slate-700/50'} ${draggedProjectTaskId === t.id ? 'opacity-50 border-fuchsia-400' : ''} flex flex-col gap-3 relative transition-all`}
+                  >
                     
                     <div className="absolute top-3 right-3 flex items-center gap-1">
-                      <button onClick={() => handleMoveProjectTask(t.id, -1)} className="w-7 h-7 rounded border border-slate-700 bg-slate-950/60 text-slate-300 hover:text-white hover:border-fuchsia-400 transition-colors text-xs font-black" title="Поднять выше в отчете">
-                        ↑
-                      </button>
-                      <button onClick={() => handleMoveProjectTask(t.id, 1)} className="w-7 h-7 rounded border border-slate-700 bg-slate-950/60 text-slate-300 hover:text-white hover:border-fuchsia-400 transition-colors text-xs font-black" title="Опустить ниже в отчете">
-                        ↓
-                      </button>
                       <button onClick={() => handleDeleteProjectTask(t.id)} className="w-7 h-7 rounded border border-slate-700 bg-slate-950/60 text-slate-500 hover:text-red-400 hover:border-red-500/50 transition-colors flex items-center justify-center" title="Удалить навсегда">
                         <Trash2 size={15} />
                       </button>
                     </div>
 
-                    <div className="flex gap-4 items-start pr-28">
+                    <div className="flex gap-4 items-start pr-10">
+                       <div
+                         draggable
+                         onDragStart={(event) => handleProjectTaskDragStart(event, t.id)}
+                         onDragEnd={() => setDraggedProjectTaskId(null)}
+                         className="mt-1 flex-shrink-0 w-6 h-10 rounded border border-slate-700 bg-slate-950/70 text-slate-500 hover:text-fuchsia-300 hover:border-fuchsia-500 cursor-grab active:cursor-grabbing flex items-center justify-center text-sm leading-none select-none"
+                         title="Зажми и перетащи для изменения важности"
+                       >
+                         ⋮⋮
+                       </div>
                        {/* Чекбокс */}
                        <button onClick={() => handleCompleteProjectTask(t.id)} className={`mt-1 flex-shrink-0 w-6 h-6 rounded border flex items-center justify-center transition-colors ${isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-800 border-slate-600 text-transparent hover:border-emerald-500'}`}>
                          <Check size={14} />
