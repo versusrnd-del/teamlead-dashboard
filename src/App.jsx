@@ -3196,7 +3196,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   // Состояния для формы новой задачи руководства
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskComment, setNewTaskComment] = useState('в работе');
-  const [newTaskColor, setNewTaskColor] = useState('#10b981'); // Зеленый по умолчанию
+  const [newTaskColor, setNewTaskColor] = useState('#3b82f6'); // В работе по умолчанию
 
   const reportRef = useRef(null);
 
@@ -3626,7 +3626,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       color: newTaskColor,
       status: 'active',
       createdWeekKey: selectedKey,
-      completedWeekKey: null
+      completedWeekKey: null,
+      priority: (projectTasks || []).length
     };
     setProjectTasks([...(projectTasks || []), newTask]);
     setNewTaskTitle('');
@@ -3652,8 +3653,19 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
   const handleDeleteProjectTask = (id) => {
     if (window.confirm("Удалить поручение навсегда?")) {
-      setProjectTasks((projectTasks || []).filter(t => t.id !== id));
+      setProjectTasks((projectTasks || []).filter(t => t.id !== id).map((task, index) => ({ ...task, priority: index })));
     }
+  };
+
+  const handleMoveProjectTask = (id, direction) => {
+    setProjectTasks(prev => {
+      const list = [...(prev || [])];
+      const currentIndex = list.findIndex(t => t.id === id);
+      const targetIndex = currentIndex + direction;
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= list.length) return prev;
+      [list[currentIndex], list[targetIndex]] = [list[targetIndex], list[currentIndex]];
+      return list.map((task, index) => ({ ...task, priority: index }));
+    });
   };
 
   const getProjectTaskMatchWords = (title) => {
@@ -3780,8 +3792,20 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       if (tasksForThisWeek.length === 0) {
         return `<p style="font-size: 13px; color: #64748b; font-style: italic;">На этой неделе нет активных поручений.</p>`;
       }
+
+      const getProjectTaskGroupMeta = (task, isCompleted) => {
+        if (isCompleted) {
+          return { key: 'done', title: 'Выполнено и подтверждено', note: 'Поручения, закрытые по Jira или вручную', accent: '#22c55e', bg: '#f0fdf4', text: '#166534' };
+        }
+        const color = safeString(task.color).toLowerCase();
+        if (color === '#3b82f6') return { key: 'blue', title: 'В работе', note: 'Активные поручения с нормальным ходом выполнения', accent: '#3b82f6', bg: '#eff6ff', text: '#1d4ed8' };
+        if (color === '#10b981') return { key: 'green', title: 'В рабочем режиме', note: 'Поручения без явного риска, которые остаются на контроле', accent: '#10b981', bg: '#ecfdf5', text: '#047857' };
+        if (color === '#f59e0b') return { key: 'yellow', title: 'На контроле срока', note: 'Нужен следующий шаг, дата или проверка блокера', accent: '#f59e0b', bg: '#fffbeb', text: '#b45309' };
+        if (color === '#ef4444') return { key: 'red', title: 'Риски и эскалация', note: 'Поручения, требующие управленческого внимания', accent: '#ef4444', bg: '#fef2f2', text: '#b91c1c' };
+        return { key: 'dark', title: 'Пауза или ожидание', note: 'Отложенные поручения или ожидание внешнего действия', accent: '#64748b', bg: '#f8fafc', text: '#334155' };
+      };
       
-      return tasksForThisWeek.map(t => {
+      const taskCards = tasksForThisWeek.map(t => {
         const weeksActive = getWeeksDiff(t.createdWeekKey, selectedKey);
         const isCompleted = isProjectTaskCompletedInWeek(t, selectedKey);
         const agingMeta = getProjectTaskAgingMeta(weeksActive);
@@ -3818,7 +3842,34 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
              `}
           </div>
         `;
-      }).join('');
+      });
+
+      const groupedTasks = [];
+      tasksForThisWeek.forEach((task, index) => {
+        const isCompleted = isProjectTaskCompletedInWeek(task, selectedKey);
+        const groupMeta = getProjectTaskGroupMeta(task, isCompleted);
+        let group = groupedTasks.find(item => item.key === groupMeta.key);
+        if (!group) {
+          group = { ...groupMeta, cards: [] };
+          groupedTasks.push(group);
+        }
+        group.cards.push(taskCards[index]);
+      });
+
+      return groupedTasks.map(group => `
+        <div style="border: 1px solid #e2e8f0; border-left: 4px solid ${group.accent}; border-radius: 8px; overflow: hidden; margin-bottom: 18px; background: #ffffff;">
+          <div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 12px 16px; background: ${group.bg}; border-bottom: 1px solid #e2e8f0;">
+            <div>
+              <div style="font-size: 13px; font-weight: 900; color: ${group.text}; text-transform: uppercase; letter-spacing: 0.02em;">${group.title}</div>
+              <div style="font-size: 12px; color: #64748b; margin-top: 3px;">${group.note}</div>
+            </div>
+            <span style="min-width: 28px; height: 24px; border-radius: 999px; border: 1px solid ${group.accent}; color: ${group.text}; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; background: #ffffff;">${group.cards.length}</span>
+          </div>
+          <div style="padding: 12px 14px 4px 14px;">
+            ${group.cards.join('')}
+          </div>
+        </div>
+      `).join('');
     } catch (e) {
       return `<p style="color: red;">Ошибка отрисовки задач: ${e.message}</p>`;
     }
@@ -5774,7 +5825,10 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         <div className="w-full max-w-4xl bg-slate-800 rounded-xl border border-slate-700/50 shadow-sm mb-6 overflow-hidden">
           <div className="bg-fuchsia-500/10 py-3 px-6 border-b border-fuchsia-500/20 flex items-center gap-2">
             <FileText size={18} className="text-fuchsia-400" />
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider">Портфель поручений руководства (Глобальный)</h2>
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Портфель поручений руководства (Глобальный)</h2>
+              <p className="text-[11px] text-fuchsia-200/70 mt-0.5">Порядок сверху вниз задает важность в отчете; стрелками можно поднять или опустить поручение.</p>
+            </div>
           </div>
           
           <div className="p-6">
@@ -5787,12 +5841,19 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                 return (
                   <div key={t.id} className={`p-4 rounded-lg border ${isCompleted ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-slate-900/50 border-slate-700/50'} flex flex-col gap-3 relative transition-all`}>
                     
-                    {/* Кнопка удаления */}
-                    <button onClick={() => handleDeleteProjectTask(t.id)} className="absolute top-3 right-3 text-slate-500 hover:text-red-400 transition-colors p-1" title="Удалить навсегда">
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="absolute top-3 right-3 flex items-center gap-1">
+                      <button onClick={() => handleMoveProjectTask(t.id, -1)} className="w-7 h-7 rounded border border-slate-700 bg-slate-950/60 text-slate-300 hover:text-white hover:border-fuchsia-400 transition-colors text-xs font-black" title="Поднять выше в отчете">
+                        ↑
+                      </button>
+                      <button onClick={() => handleMoveProjectTask(t.id, 1)} className="w-7 h-7 rounded border border-slate-700 bg-slate-950/60 text-slate-300 hover:text-white hover:border-fuchsia-400 transition-colors text-xs font-black" title="Опустить ниже в отчете">
+                        ↓
+                      </button>
+                      <button onClick={() => handleDeleteProjectTask(t.id)} className="w-7 h-7 rounded border border-slate-700 bg-slate-950/60 text-slate-500 hover:text-red-400 hover:border-red-500/50 transition-colors flex items-center justify-center" title="Удалить навсегда">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
 
-                    <div className="flex gap-4 items-start pr-8">
+                    <div className="flex gap-4 items-start pr-28">
                        {/* Чекбокс */}
                        <button onClick={() => handleCompleteProjectTask(t.id)} className={`mt-1 flex-shrink-0 w-6 h-6 rounded border flex items-center justify-center transition-colors ${isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-800 border-slate-600 text-transparent hover:border-emerald-500'}`}>
                          <Check size={14} />
@@ -5814,11 +5875,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                                 onChange={(e) => handleUpdateProjectTask(t.id, 'color', e.target.value)}
                                 className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white outline-none cursor-pointer"
                               >
-                                <option value="#10b981">🟢 Зеленый</option>
-                                <option value="#f59e0b">🟡 Желтый</option>
-                                <option value="#ef4444">🔴 Красный</option>
-                                <option value="#3b82f6">🔵 Синий</option>
-                                <option value="#0f172a">⚫ Черный</option>
+                                <option value="#3b82f6">🔵 В работе</option>
+                                <option value="#10b981">🟢 В рабочем режиме</option>
+                                <option value="#f59e0b">🟡 На контроле срока</option>
+                                <option value="#ef4444">🔴 Риск / эскалация</option>
+                                <option value="#0f172a">⚫ Пауза / ожидание</option>
                               </select>
                             )}
                             
@@ -5861,11 +5922,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                <div className="w-full md:w-48">
                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">Цвет (Статус)</label>
                  <select value={newTaskColor} onChange={e=>setNewTaskColor(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none">
-                    <option value="#10b981">🟢 Зеленый</option>
-                    <option value="#f59e0b">🟡 Желтый</option>
-                    <option value="#ef4444">🔴 Красный</option>
-                    <option value="#3b82f6">🔵 Синий</option>
-                    <option value="#0f172a">⚫ Черный</option>
+                    <option value="#3b82f6">🔵 В работе</option>
+                    <option value="#10b981">🟢 В рабочем режиме</option>
+                    <option value="#f59e0b">🟡 На контроле срока</option>
+                    <option value="#ef4444">🔴 Риск / эскалация</option>
+                    <option value="#0f172a">⚫ Пауза / ожидание</option>
                  </select>
                </div>
                <button onClick={handleAddProjectTask} disabled={!newTaskTitle.trim()} className="w-full md:w-auto bg-fuchsia-600 hover:bg-fuchsia-500 disabled:bg-slate-700 text-white px-6 py-2 rounded font-bold text-sm transition-colors shadow-lg flex items-center justify-center gap-2 h-[38px]">
