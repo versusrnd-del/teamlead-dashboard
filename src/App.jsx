@@ -1903,100 +1903,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         </div>
       )}
 
-      {skillMatrixRows.length > 0 && (
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
-            <div>
-              <h2 className="text-lg font-medium text-white flex items-center gap-2"><Users size={20} className="text-cyan-400" /> Матрица компетенций</h2>
-              <p className="text-xs text-slate-500 mt-1">T-shape по закрытым задачам недели: категории ценности и доля сложных задач.</p>
-            </div>
-            <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">На базе detailedTasks</span>
-          </div>
-          <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 mb-4 text-xs text-slate-400 leading-relaxed">
-            Считается по сохраненным закрытым задачам недели из `detailedTasks`; отдельная память компетенций не ведется. Сложность берется из поля `size` или ручной AI-памяти задач, домены - из поля `domain` или темы/комментария. При 1-2 задачах вывод помечается как `мало данных`.
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {skillMatrixRows.slice(0, 9).map(row => (
-              <div key={row.assignee} className="group relative bg-slate-900/50 rounded-lg border border-slate-700/50 p-4 hover:border-cyan-500/40 transition-colors">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div>
-                    <div className="font-bold text-slate-100">{row.assignee}</div>
-                    <div className="text-xs text-cyan-300 mt-1">{row.profile}</div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-xs font-bold text-slate-300 bg-slate-950/70 border border-slate-700 rounded px-2 py-1">{row.total} задач</span>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold ${row.confidence === 'достаточно данных' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : row.confidence === 'средне' ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-slate-700/40 text-slate-400 border-slate-600'}`}>{row.confidence}</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 gap-1.5 mb-3">
-                  {['S', 'M', 'L', 'XL'].map(size => (
-                    <div key={size} className="bg-slate-950/60 rounded border border-slate-700/50 px-2 py-1 text-center">
-                      <div className="text-[9px] text-slate-500 font-bold">{getTaskSizeLabel(size)}</div>
-                      <div className="text-sm text-white font-black">{row.sizes[size] || 0}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Сложные</span>
-                  <span className={row.heavyShare >= 45 ? 'text-orange-300 font-bold' : 'text-slate-300 font-bold'}>{row.heavyShare}%</span>
-                </div>
-                <div className="mt-3 pt-3 border-t border-slate-700/50">
-                  <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Домены</div>
-                  <div className="space-y-2">
-                    {row.topDomains.map(([domain, count]) => (
-                      <div key={`${row.assignee}-${domain}`}>
-                        <div className="flex justify-between text-[10px] mb-1">
-                          <span className="text-cyan-200">{domain}</span>
-                          <span className="text-slate-400">{count}</span>
-                        </div>
-                        <div className="h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                          <div className="h-full bg-cyan-500/70" style={{ width: `${Math.max(10, Math.round((count / row.total) * 100))}%` }}></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {row.keyTasks.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-slate-700/50">
-                    <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Опорные задачи</div>
-                    <div className="space-y-1.5">
-                      {row.keyTasks.slice(0, 2).map(task => (
-                        <div key={`${row.assignee}-${task.id}`} className="text-[11px] text-slate-300 bg-slate-950/50 border border-slate-700/50 rounded px-2 py-1.5 leading-snug">
-                          <span className="text-cyan-300 font-bold">{task.id}</span> · {safeString(task.title).slice(0, 90)}{safeString(task.title).length > 90 ? '...' : ''}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="absolute left-1/2 top-full -translate-x-1/2 pt-3 w-[420px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-4 text-left cursor-auto pointer-events-auto">
-                    <div className="text-sm font-bold text-white mb-2">{row.assignee}: расшифровка компетенций</div>
-                    <div className="text-xs text-slate-400 leading-relaxed mb-3">
-                      Профиль рассчитан по {row.total} закрытым задачам недели. Уверенность: <span className="text-cyan-300 font-bold">{row.confidence}</span>. Домены показывают, с какими типами работ сотрудник реально соприкасался в этой выборке.
-                    </div>
-                    <div className="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-1">
-                      {row.keyTasks.map(task => (
-                        <div key={`tooltip-${row.assignee}-${task.id}`} className="bg-slate-900/70 border border-slate-700 rounded-lg p-3">
-                          <div className="flex justify-between gap-2 mb-1">
-                            <span className="text-cyan-300 font-bold text-xs">{task.id}</span>
-                            <span className="text-[10px] text-slate-400">{getTaskSize(task) || 'M'} · {getTaskDomain(task)}</span>
-                          </div>
-                          <div className="text-xs text-slate-200 leading-snug">{safeString(task.title)}</div>
-                          {safeString(task.comments).trim().length > 20 && (
-                            <div className="text-[11px] text-slate-500 mt-1 leading-snug">{safeString(task.comments).slice(0, 160)}{safeString(task.comments).length > 160 ? '...' : ''}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-600"></div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <h2 className="text-lg font-medium text-white mb-4 mt-8 flex items-center gap-2"><Sparkles size={20} className="text-indigo-400" />Глубокая аналитика потока</h2>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-8">
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
@@ -2428,6 +2334,147 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const WeeklyCompetenciesBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, aiTaskMemory }) => {
+  const normalizeAnalysisText = (value) => safeString(value)
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^а-яa-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const getTaskDomain = (task) => {
+    const explicitDomain = safeString(task?.domain || task?.competenceDomain || task?.serviceDomain).trim();
+    const text = normalizeAnalysisText(`${task?.title || ''} ${task?.comments || ''} ${task?.tags || ''} ${task?.workType || ''}`);
+    return normalizeMetricDomain(explicitDomain, text);
+  };
+
+  const isClosedTask = (task) => task && (task.status === 'Закрыт' || task.status === 'Готово' || task.status === 'Resolved' || task.status === 'Завершен' || task.resolved);
+  const getTaskSize = (task) => {
+    const taskId = safeString(task?.id).trim();
+    const memorySize = taskId ? aiTaskMemory?.[taskId]?.complexity : null;
+    return normalizeTaskSize(memorySize || task?.size || task?.complexity || task?.name);
+  };
+
+  const closedDetailedTasks = (weekData.detailedTasks || []).filter(task => isClosedTask(task) && !isNonDeliveryTask(task));
+  const skillMatrixRows = Object.values(closedDetailedTasks.reduce((acc, task) => {
+    const assignee = getFullName(task.assignee);
+    if (!assignee || assignee === 'Неизвестно' || assignee === TEAM_LEAD_NAME || isExcludedUser(task.assignee)) return acc;
+    if (!acc[assignee]) acc[assignee] = { assignee, total: 0, sizes: { S: 0, M: 0, L: 0, XL: 0 }, categories: {}, domains: {}, heavy: 0, samples: [] };
+    const size = getTaskSize(task) || 'M';
+    const category = safeString(task.valueCategory || task.category || 'standard') || 'standard';
+    const domain = getTaskDomain(task);
+    acc[assignee].total += 1;
+    acc[assignee].sizes[size] = (acc[assignee].sizes[size] || 0) + 1;
+    acc[assignee].categories[category] = (acc[assignee].categories[category] || 0) + 1;
+    acc[assignee].domains[domain] = (acc[assignee].domains[domain] || 0) + 1;
+    if (acc[assignee].samples.length < 5) acc[assignee].samples.push(task);
+    if (['L', 'XL'].includes(size)) acc[assignee].heavy += 1;
+    return acc;
+  }, {})).map(row => {
+    const topCategory = Object.entries(row.categories).sort((a, b) => b[1] - a[1])[0]?.[0] || 'standard';
+    const topSize = Object.entries(row.sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 'M';
+    const topDomains = Object.entries(row.domains).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const heavyShare = row.total > 0 ? Math.round((row.heavy / row.total) * 100) : 0;
+    const confidence = row.total >= 5 ? 'достаточно данных' : (row.total >= 3 ? 'средне' : 'мало данных');
+    let profile = 'Универсал';
+    if (heavyShare >= 45) profile = 'Тяжелые задачи';
+    else if (topCategory === 'stability') profile = 'Стабильность';
+    else if (topCategory === 'optimization') profile = 'Оптимизация';
+    else if (topCategory === 'business') profile = 'Бизнес-проекты';
+    else if (topSize === 'S') profile = 'Быстрая рутина';
+    const keyTasks = [...row.samples]
+      .sort((a, b) => {
+        const sizeRank = { XL: 4, L: 3, M: 2, S: 1 };
+        return (sizeRank[getTaskSize(b)] || 0) - (sizeRank[getTaskSize(a)] || 0);
+      })
+      .slice(0, 3);
+    return { ...row, topCategory, topSize, topDomains, heavyShare, confidence, profile, keyTasks };
+  }).sort((a, b) => b.total - a.total);
+
+  const totalClosed = skillMatrixRows.reduce((sum, row) => sum + row.total, 0);
+  const totalHeavy = skillMatrixRows.reduce((sum, row) => sum + row.heavy, 0);
+  const topDomains = Object.entries(skillMatrixRows.reduce((acc, row) => {
+    Object.entries(row.domains).forEach(([domain, count]) => {
+      acc[domain] = (acc[domain] || 0) + count;
+    });
+    return acc;
+  }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  return (
+    <div className="animate-in fade-in duration-500 max-w-7xl pb-10">
+      <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Компетенции недели</h1>
+          <p className="text-slate-400 text-sm">Оперативный срез по закрытым задачам периода: сложность, домены и опорные работы админов.</p>
+        </div>
+        <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50"><div className="text-xs text-slate-500 uppercase font-bold mb-2">Закрытые задачи</div><div className="text-3xl font-black text-white">{totalClosed}</div><div className="text-xs text-slate-400 mt-1">учтены только задачи команды</div></div>
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50"><div className="text-xs text-slate-500 uppercase font-bold mb-2">Сложные+</div><div className="text-3xl font-black text-orange-300">{totalHeavy}</div><div className="text-xs text-slate-400 mt-1">Сложно и Очень сложно</div></div>
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700/50"><div className="text-xs text-slate-500 uppercase font-bold mb-2">Покрытые домены</div><div className="text-3xl font-black text-cyan-300">{topDomains.length}</div><div className="text-xs text-slate-400 mt-1">{topDomains.map(([domain]) => domain).slice(0, 2).join(', ') || 'нет данных'}</div></div>
+      </div>
+
+      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
+          <div>
+            <h2 className="text-lg font-medium text-white flex items-center gap-2"><Users size={20} className="text-cyan-400" /> Недельная матрица компетенций</h2>
+            <p className="text-xs text-slate-500 mt-1">T-shape по закрытым задачам недели: домены, трудоемкость и доля сложных задач.</p>
+          </div>
+          <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">На базе detailedTasks</span>
+        </div>
+        <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 mb-4 text-xs text-slate-400 leading-relaxed">
+          Это недельный срез, а не кадровая оценка. Сложность берется из поля `size` или ручной AI-памяти задач, домены - из поля `domain` или темы/комментария. Историческая оценка остается во вкладке `Команда`.
+        </div>
+
+        {skillMatrixRows.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {skillMatrixRows.map(row => (
+              <div key={row.assignee} className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-4 hover:border-cyan-500/40 transition-colors">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div><div className="font-bold text-slate-100">{row.assignee}</div><div className="text-xs text-cyan-300 mt-1">{row.profile}</div></div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-xs font-bold text-slate-300 bg-slate-950/70 border border-slate-700 rounded px-2 py-1">{row.total} задач</span>
+                    <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold ${row.confidence === 'достаточно данных' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : row.confidence === 'средне' ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-slate-700/40 text-slate-400 border-slate-600'}`}>{row.confidence}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5 mb-3">
+                  {['S', 'M', 'L', 'XL'].map(size => <div key={size} className="bg-slate-950/60 rounded border border-slate-700/50 px-2 py-1 text-center"><div className="text-[9px] text-slate-500 font-bold">{getTaskSizeLabel(size)}</div><div className="text-sm text-white font-black">{row.sizes[size] || 0}</div></div>)}
+                </div>
+                <div className="flex items-center justify-between text-xs"><span className="text-slate-400">Сложные</span><span className={row.heavyShare >= 45 ? 'text-orange-300 font-bold' : 'text-slate-300 font-bold'}>{row.heavyShare}%</span></div>
+                <div className="mt-3 pt-3 border-t border-slate-700/50">
+                  <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Домены</div>
+                  <div className="space-y-2">
+                    {row.topDomains.map(([domain, count]) => (
+                      <div key={`${row.assignee}-${domain}`}>
+                        <div className="flex justify-between text-[10px] mb-1"><span className="text-cyan-200">{domain}</span><span className="text-slate-400">{count}</span></div>
+                        <div className="h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800"><div className="h-full bg-cyan-500/70" style={{ width: `${Math.max(10, Math.round((count / row.total) * 100))}%` }}></div></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {row.keyTasks.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-700/50">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Опорные задачи</div>
+                    <div className="space-y-1.5">{row.keyTasks.slice(0, 2).map(task => <div key={`${row.assignee}-${task.id}`} className="text-[11px] text-slate-300 bg-slate-950/50 border border-slate-700/50 rounded px-2 py-1.5 leading-snug"><span className="text-cyan-300 font-bold">{task.id}</span> · {safeString(task.title).slice(0, 90)}{safeString(task.title).length > 90 ? '...' : ''}</div>)}</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-12 bg-slate-900/40 rounded-xl border border-slate-700/50 border-dashed">
+            <Users size={44} className="text-slate-600 mb-4" />
+            <p className="text-slate-300 text-sm font-bold">Нет данных для недельной матрицы</p>
+            <p className="text-slate-500 text-xs mt-1">Она появится после импорта задач с `detailedTasks` за выбранную неделю.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -6944,6 +6991,7 @@ const App = () => {
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} setTeamMetricsMemory={setTeamMetricsMemory} />;
       case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} tasksArchive={tasksArchive} teamMetricsMemory={teamMetricsMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
+      case 'weeklyCompetencies': return <WeeklyCompetenciesBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} aiTaskMemory={aiTaskMemory} />;
       case 'team': return <TeamAnalytics teamMetricsMemory={teamMetricsMemory} setTeamMetricsMemory={setTeamMetricsMemory} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
       case 'achievements': return <AchievementsBoard achievements={achievements} />;
@@ -6967,10 +7015,11 @@ const App = () => {
     { id: 'fill', icon: Pencil, label: 'Заполнить неделю', roles: ['admin'] },
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
     { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
+    { id: 'weeklyCompetencies', icon: Award, label: 'Компетенции недели', roles: ['admin', 'viewer'] },
     { id: 'team', icon: Users, label: 'Команда', roles: ['admin', 'viewer'] },
     { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
     { id: 'achievements', icon: Activity, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
-    { id: 'profiles', icon: Users, label: 'Матрица компетенций', roles: ['admin', 'viewer'] },
+    { id: 'profiles', icon: Users, label: 'Профили / Bus Factor', roles: ['admin', 'viewer'] },
     { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
   ].filter(item => item.roles.includes(currentUser.role));
 
