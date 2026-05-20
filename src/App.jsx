@@ -3909,7 +3909,6 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const titleColor = isCompleted ? '#166534' : '#0f172a';
         const titleText = isCompleted ? `<s>${safeString(t.title)}</s>` : safeString(t.title);
         const managementStamp = `<span style="display: inline-block; color: #1d4ed8; border: 1px solid #93c5fd; background: #eff6ff; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;">Поручение руководства</span>`;
-        const activeStamp = `<span style="display: inline-block; color: #334155; border: 1px solid #cbd5e1; background: #f8fafc; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;">Поручение</span>`;
         
         const statusBadge = isCompleted 
           ? `<span style="color: #16a34a; font-weight: 800; background: #dcfce3; padding: 1px 6px; border-radius: 999px; font-size: 10px; text-transform: uppercase;">Выполнено</span>`
@@ -3925,7 +3924,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                <div style="font-weight: 800; font-size: 13px; line-height: 1.32; color: ${titleColor};">
                    ${titleText}
                </div>
-               ${isCompleted ? managementStamp : activeStamp}
+               ${isCompleted ? managementStamp : ''}
              </div>
              ${!isCompleted ? `
                <div style="font-size: 10px; text-align: left; color: #64748b; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
