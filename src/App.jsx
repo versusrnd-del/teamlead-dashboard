@@ -4005,6 +4005,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   const getReportHtmlString = (options = {}) => {
     try {
       const exportMode = Boolean(options.exportMode);
+      const manualDetailsMap = options.manualDetailsMap || {};
       const reportData = weekData || {};
       const sortedIncidents = weekData.topIncidents ? [...weekData.topIncidents].sort((a,b)=>(Number(b.count)||0)-(Number(a.count)||0)) : [];
       const top3 = sortedIncidents.slice(0, 3);
@@ -5378,9 +5379,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             "решено"
         ];
         const taskId = safeString(t.id).trim();
-        const memoryDetails = taskId && Object.prototype.hasOwnProperty.call(aiTaskMemory?.[taskId] || {}, 'manualDetails')
+        const memoryDetails = taskId && Object.prototype.hasOwnProperty.call(manualDetailsMap, taskId)
+          ? manualDetailsMap[taskId]
+          : (taskId && Object.prototype.hasOwnProperty.call(aiTaskMemory?.[taskId] || {}, 'manualDetails')
           ? aiTaskMemory?.[taskId]?.manualDetails
-          : null;
+          : null);
         const cleanedDetails = cleanTaskDetailsText(memoryDetails !== null ? memoryDetails : (t.comments || t.description || t.summary || ''));
         const commentLower = cleanedDetails.toLowerCase();
         const isGeneric = genericPhrases.some(phrase => commentLower.includes(phrase));
@@ -5887,13 +5890,48 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     return () => reportEl.removeEventListener('focusout', handleManualDetailsBlur);
   }, [aiTaskMemory]);
 
+  const collectManualTaskDetailsFromPreview = () => {
+    if (!reportRef.current) return {};
+    const detailsMap = {};
+    reportRef.current.querySelectorAll('[data-manual-task-details]').forEach(detailsEl => {
+      const taskId = safeString(detailsEl.dataset.taskId).trim();
+      if (!taskId) return;
+      detailsMap[taskId] = safeString(detailsEl.innerText).trim();
+    });
+    return detailsMap;
+  };
+
+  const persistManualTaskDetailsFromPreview = () => {
+    const detailsMap = collectManualTaskDetailsFromPreview();
+    const entries = Object.entries(detailsMap);
+    if (!entries.length) return detailsMap;
+    setAiTaskMemory(prev => {
+      const next = { ...(prev || {}) };
+      entries.forEach(([taskId, detailsText]) => {
+        const existing = next[taskId] || {};
+        const detailsEl = reportRef.current?.querySelector(`[data-manual-task-details][data-task-id="${CSS.escape(taskId)}"]`);
+        next[taskId] = {
+          ...existing,
+          id: taskId,
+          title: safeString(detailsEl?.dataset?.taskTitle).trim() || existing.title || taskId,
+          manualDetails: detailsText,
+          updatedAt: new Date().toISOString()
+        };
+      });
+      return next;
+    });
+    setIsDirty(false);
+    return detailsMap;
+  };
+
   // Функция для очистки HTML перед экспортом
   const getCleanHtml = () => {
     if (!reportRef.current) return '';
+    const manualDetailsMap = persistManualTaskDetailsFromPreview();
     const clone = document.createElement('div');
     clone.innerHTML = weekData.isReportFrozen && weekData.customReportHtml
       ? reportRef.current.innerHTML
-      : getReportHtmlString({ exportMode: true });
+      : getReportHtmlString({ exportMode: true, manualDetailsMap });
     
     // Удаляем элементы, которые не должны попасть в экспорт (кнопки +, селекты цветов)
     const noPrints = clone.querySelectorAll('.no-print');
