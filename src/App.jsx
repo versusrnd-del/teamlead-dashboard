@@ -3446,7 +3446,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const nextEntry = { ...previous };
       delete nextEntry.workType;
       const next = { ...(prev || {}) };
-      if (nextEntry.priority || nextEntry.complexity) {
+      if (nextEntry.priority || nextEntry.complexity || Object.prototype.hasOwnProperty.call(nextEntry, 'manualDetails')) {
         next[cleanId] = nextEntry;
       } else {
         delete next[cleanId];
@@ -3463,6 +3463,25 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const next = { ...(prev || {}) };
       delete next[cleanId];
       return next;
+    });
+    setIsDirty(false);
+  };
+
+  const handleSaveManualTaskDetails = (taskId, title, detailsText) => {
+    const cleanId = safeString(taskId).trim();
+    if (!cleanId) return;
+    setAiTaskMemory(prev => {
+      const previous = (prev || {})[cleanId] || {};
+      return {
+        ...(prev || {}),
+        [cleanId]: {
+          ...previous,
+          id: cleanId,
+          title: safeString(title).trim() || previous.title || cleanId,
+          manualDetails: safeString(detailsText).trim(),
+          updatedAt: new Date().toISOString()
+        }
+      };
     });
     setIsDirty(false);
   };
@@ -3915,7 +3934,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           : `<span style="color: ${t.color}; font-weight: 700;">${safeString(t.comment)}</span>`;
 
         const delaySticker = !isCompleted
-          ? `<span style="display: inline-block; background-color: ${agingMeta.bg}; color: ${agingMeta.color}; border: 1px solid ${agingMeta.border}; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 800;">${agingMeta.label}</span>`
+          ? `<span style="display: inline-block; background-color: ${agingMeta.bg}; color: ${agingMeta.color}; border: 1px solid ${agingMeta.border}; padding: 1px 6px; border-radius: 999px; font-size: 9px; font-weight: 800; white-space: nowrap;">${agingMeta.label}</span>`
           : '';
 
         return `
@@ -3924,13 +3943,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
                <div style="font-weight: 800; font-size: 13px; line-height: 1.32; color: ${titleColor};">
                    ${titleText}
                </div>
-               ${isCompleted ? managementStamp : ''}
+               ${isCompleted ? managementStamp : delaySticker}
              </div>
              ${!isCompleted ? `
                <div style="font-size: 10px; text-align: left; color: #64748b; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
                    <span style="font-weight: 700; color: #64748b;">Статус:</span> 
                    ${statusBadge}
-                   ${delaySticker}
                </div>
                ${weeksActive >= 1 ? `<div style="font-size: 10px; color: #64748b; margin-top: 3px; line-height: 1.35;">${agingMeta.note}</div>` : ''}
              ` : `
@@ -5359,7 +5377,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             "готово",
             "решено"
         ];
-        const cleanedDetails = cleanTaskDetailsText(t.comments || t.description || t.summary || '');
+        const taskId = safeString(t.id).trim();
+        const memoryDetails = taskId && Object.prototype.hasOwnProperty.call(aiTaskMemory?.[taskId] || {}, 'manualDetails')
+          ? aiTaskMemory?.[taskId]?.manualDetails
+          : null;
+        const cleanedDetails = cleanTaskDetailsText(memoryDetails !== null ? memoryDetails : (t.comments || t.description || t.summary || ''));
         const commentLower = cleanedDetails.toLowerCase();
         const isGeneric = genericPhrases.some(phrase => commentLower.includes(phrase));
         
@@ -5367,7 +5389,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
            contextHtml = `
              <div style="font-size: 12px; color: #334155; margin-top: 8px; background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
                <span style="font-weight: 800; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">Детали решения:</span><br/>
-               <div style="margin-top: 4px; white-space: pre-wrap; line-height: 1.5;">${escapeHtml(cleanedDetails)}</div>
+               <div data-manual-task-details="true" data-task-id="${escapeHtml(taskId)}" data-task-title="${escapeHtml(t.title)}" style="margin-top: 4px; white-space: pre-wrap; line-height: 1.5;">${escapeHtml(cleanedDetails)}</div>
              </div>`;
         }
 
@@ -5851,6 +5873,18 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
     };
     reportEl.addEventListener('click', handleAiMemoryClick);
     return () => reportEl.removeEventListener('click', handleAiMemoryClick);
+  }, [aiTaskMemory]);
+
+  useEffect(() => {
+    const reportEl = reportRef.current;
+    if (!reportEl) return;
+    const handleManualDetailsBlur = (event) => {
+      const detailsEl = event.target.closest?.('[data-manual-task-details]');
+      if (!detailsEl || !reportEl.contains(detailsEl)) return;
+      handleSaveManualTaskDetails(detailsEl.dataset.taskId, detailsEl.dataset.taskTitle, detailsEl.innerText);
+    };
+    reportEl.addEventListener('focusout', handleManualDetailsBlur);
+    return () => reportEl.removeEventListener('focusout', handleManualDetailsBlur);
   }, [aiTaskMemory]);
 
   // Функция для очистки HTML перед экспортом
