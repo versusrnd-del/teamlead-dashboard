@@ -3886,30 +3886,34 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const borderColor = isCompleted ? '#bbf7d0' : '#e2e8f0';
         const titleColor = isCompleted ? '#166534' : '#0f172a';
         const titleText = isCompleted ? `<s>${safeString(t.title)}</s>` : safeString(t.title);
+        const managementStamp = `<span style="display: inline-block; color: #1d4ed8; border: 1px solid #93c5fd; background: #eff6ff; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;">Поручение руководства</span>`;
         
         const statusBadge = isCompleted 
-          ? `<span style="color: #16a34a; font-weight: bold; background: #dcfce3; padding: 2px 6px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">Выполнено</span>`
-          : `[ <span style="color: ${t.color}; font-weight: bold;">${safeString(t.comment)}</span> ]`;
+          ? `<span style="color: #16a34a; font-weight: 900; background: #dcfce3; padding: 1px 6px; border-radius: 999px; font-size: 10px; text-transform: uppercase;">Выполнено</span>`
+          : `<span style="color: ${t.color}; font-weight: 800;">${safeString(t.comment)}</span>`;
 
         const delaySticker = !isCompleted
-          ? `<span style="display: inline-block; margin-top: 6px; background-color: ${agingMeta.bg}; color: ${agingMeta.color}; border: 1px solid ${agingMeta.border}; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: bold;">${agingMeta.label}</span>`
+          ? `<span style="display: inline-block; background-color: ${agingMeta.bg}; color: ${agingMeta.color}; border: 1px solid ${agingMeta.border}; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 800;">${agingMeta.label}</span>`
           : '';
 
         return `
-          <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; margin-bottom: 10px; padding: 12px 16px;">
-             <div style="font-weight: 700; font-size: 14px; color: ${titleColor}; margin-bottom: 6px;">
-                 ${titleText}
+          <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; margin-bottom: 7px; padding: 8px 10px;">
+             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px;">
+               <div style="font-weight: 700; font-size: 12px; line-height: 1.35; color: ${titleColor};">
+                   ${titleText}
+               </div>
+               ${isCompleted ? managementStamp : ''}
              </div>
              ${!isCompleted ? `
-               <div style="font-size: 13px; text-align: left;">
+               <div style="font-size: 11px; text-align: left; color: #475569; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
                    <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
                    ${statusBadge}
+                   ${delaySticker}
                </div>
-               ${delaySticker}
-               ${weeksActive >= 1 ? `<div style="font-size: 12px; color: #64748b; margin-top: 5px;">${agingMeta.note}</div>` : ''}
+               ${weeksActive >= 1 ? `<div style="font-size: 10px; color: #64748b; margin-top: 3px; line-height: 1.35;">${agingMeta.note}</div>` : ''}
              ` : `
-               <div style="font-size: 13px; text-align: left; margin-top: 4px;">
-                   ${statusBadge} <span style="color: #475569; margin-left: 8px;">Итог: ${safeString(t.comment)}</span>
+               <div style="font-size: 11px; text-align: left; margin-top: 3px; color: #475569; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                   ${statusBadge} <span>Итог: ${safeString(t.comment)}</span>
                </div>
              `}
           </div>
@@ -3929,15 +3933,15 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       });
 
       return groupedTasks.map(group => `
-        <div style="border: 1px solid #e2e8f0; border-left: 4px solid ${group.accent}; border-radius: 8px; overflow: hidden; margin-bottom: 18px; background: #ffffff;">
-          <div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 12px 16px; background: ${group.bg}; border-bottom: 1px solid #e2e8f0;">
+        <div style="border: 1px solid #e2e8f0; border-left: 4px solid ${group.accent}; border-radius: 8px; overflow: hidden; margin-bottom: 12px; background: #ffffff;">
+          <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; padding: 8px 12px; background: ${group.bg}; border-bottom: 1px solid #e2e8f0;">
             <div>
-              <div style="font-size: 13px; font-weight: 900; color: ${group.text}; text-transform: uppercase; letter-spacing: 0.02em;">${group.title}</div>
-              <div style="font-size: 12px; color: #64748b; margin-top: 3px;">${group.note}</div>
+              <div style="font-size: 12px; font-weight: 900; color: ${group.text}; text-transform: uppercase; letter-spacing: 0.02em;">${group.title}</div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${group.note}</div>
             </div>
-            <span style="min-width: 28px; height: 24px; border-radius: 999px; border: 1px solid ${group.accent}; color: ${group.text}; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; background: #ffffff;">${group.cards.length}</span>
+            <span style="min-width: 24px; height: 20px; border-radius: 999px; border: 1px solid ${group.accent}; color: ${group.text}; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; background: #ffffff;">${group.cards.length}</span>
           </div>
-          <div style="padding: 12px 14px 4px 14px;">
+          <div style="padding: 8px 10px 2px 10px;">
             ${group.cards.join('')}
           </div>
         </div>
