@@ -574,11 +574,14 @@ const buildTeamMetricRows = (memory = {}, options = {}) => {
   const comparableWeeks = Math.max(0, weekKeys.length - (currentWeekKey && weekKeys.includes(currentWeekKey) ? 1 : 0));
   const historicalWeight = Math.max(0, totalWeight - weeklyWeight);
   const weeklyAverageWeight = comparableWeeks > 0 ? Math.round((historicalWeight / comparableWeeks) * 10) / 10 : weeklyWeight;
+  const weeklyWeightDelta = weeklyWeight - weeklyAverageWeight;
+  const hasMeaningfulWeeklyDrop = weeklyAverageWeight > 0 && weeklyWeightDelta <= -15 && weeklyWeight <= weeklyAverageWeight * 0.65;
+  const hasMeaningfulWeeklyGrowth = weeklyAverageWeight > 0 && weeklyWeightDelta >= 15 && weeklyWeight >= weeklyAverageWeight * 1.3;
   let weeklyTrend = { type: 'stable', label: 'неделя без резких изменений', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1', icon: '→' };
-  if (weeklyAverageWeight > 0 && weeklyWeight >= weeklyAverageWeight * 1.2) {
-    weeklyTrend = { type: 'up', label: 'неделя выше личной базы', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', icon: '↑' };
-  } else if (weeklyAverageWeight > 0 && weeklyWeight <= weeklyAverageWeight * 0.8) {
-    weeklyTrend = { type: 'down', label: 'неделя ниже личной базы', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', icon: '↓' };
+  if (hasMeaningfulWeeklyGrowth) {
+    weeklyTrend = { type: 'up', label: 'заметный рост недели', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', icon: '↑' };
+  } else if (hasMeaningfulWeeklyDrop) {
+    weeklyTrend = { type: 'down', label: 'существенная просадка недели', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', icon: '↓' };
   }
   const domainScores = canUseDetails
     ? taskDetails.reduce((acc, task) => {
@@ -952,6 +955,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   const prevWeekKey = currentIndex > 0 ? sortedKeys[currentIndex - 1] : null;
   const prevWeekData = prevWeekKey ? weeksHistory[prevWeekKey] : null;
   const backlogTrend = prevWeekData ? (Number(weekData.backlog) || 0) - (Number(prevWeekData.backlog) || 0) : 0;
+  const incidentTrend = prevWeekData ? (Number(weekData.incidentsClosed) || 0) - (Number(prevWeekData.incidentsClosed) || 0) : 0;
 
   const totalClosed = (Number(weekData.sprintCompleted) || 0) + (Number(weekData.urgentCompleted) || 0) + (Number(weekData.backlogCompleted) || 0);
   const loadPercentage = Math.min(Math.round((totalClosed / BASE_CAPACITY) * 100), 150);
@@ -1396,12 +1400,19 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
     const fcrBase = explicitFirstLineSolved !== null ? explicitFirstLineSolved : Math.min(closed, answered);
     const fcrProxy = answered > 0 ? Math.min(100, Math.round((fcrBase / answered) * 100)) : 0;
     const avgResolveMin = perf ? (Number(perf.avgTimeMin) || 0) : 0;
-    const riskLevel = (missed >= 10 || availability < 75) ? 'risk' : ((missed > 0 || availability < 90 || footballRate >= 60) ? 'watch' : 'ok');
+    const lowParticipation = answered <= 3 && closed === 0;
+    const riskLevel = (missed >= 10 || availability < 75) ? 'risk' : ((missed > 0 || availability < 90 || footballRate >= 60 || lowParticipation) ? 'watch' : 'ok');
     let label = 'Норма';
     let note = 'Линия и Jira выглядят сбалансированно.';
     if (riskLevel === 'risk') {
       label = 'Риск KPI линии';
       note = `Доступность ${availability}%, пропущено ${missed}. Проверить смену, АТС и фактическое участие.`;
+    } else if (lowParticipation) {
+      label = 'Низкое участие';
+      note = `Принято ${answered} из ${total}, Jira-закрытий 0. Даже для короткой смены это низкий фактический вклад; проверить график и роль на линии.`;
+    } else if (footballRate >= 60 && answered < 10) {
+      label = 'Передача без решения';
+      note = `Принятый поток малый, но прокси передачи дальше ${footballRate}%: личного закрытия в Jira не видно.`;
     } else if (footballRate >= 60 && answered >= 10) {
       label = 'Диспетчеризация';
       note = `Много принятых звонков без личного закрытия: прокси передачи дальше ${footballRate}%.`;
@@ -1594,7 +1605,18 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
         <div className="bg-slate-800 rounded-xl p-5 border-t-4 border-emerald-500 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> 1-я линия</h3>
-            <div className="flex items-baseline gap-2 mb-1"><span className="text-4xl font-bold text-white">{Number(weekData.incidentsClosed) || 0}</span><span className="text-slate-500 text-sm font-medium">закрыто</span></div>
+            <div className="flex flex-col gap-1 mb-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-bold text-white">{Number(weekData.incidentsClosed) || 0}</span>
+                <span className="text-slate-500 text-sm font-medium">закрыто</span>
+              </div>
+              {prevWeekData && (
+                <div className={`text-xs font-bold flex items-center gap-1 ${incidentTrend > 0 ? 'text-red-400' : incidentTrend < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                   {incidentTrend !== 0 && (incidentTrend > 0 ? <TrendingUp size={14} /> : <TrendingUp size={14} className="rotate-180" />)}
+                   {incidentTrend === 0 ? 'без изменений к прошлой нед.' : `${incidentTrend > 0 ? '+' : '-'}${Math.abs(incidentTrend)} к прошлой нед.`}
+                </div>
+              )}
+            </div>
             <p className="text-xs text-slate-500 mt-1">Инциденты за неделю</p>
           </div>
           <div className="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center"><span className="text-slate-400 text-xs">В очереди:</span><span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-sm border border-emerald-500/20">{Number(weekData.incidentsQueue) || 0}</span></div>
@@ -3887,10 +3909,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const titleColor = isCompleted ? '#166534' : '#0f172a';
         const titleText = isCompleted ? `<s>${safeString(t.title)}</s>` : safeString(t.title);
         const managementStamp = `<span style="display: inline-block; color: #1d4ed8; border: 1px solid #93c5fd; background: #eff6ff; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;">Поручение руководства</span>`;
+        const activeStamp = `<span style="display: inline-block; color: #334155; border: 1px solid #cbd5e1; background: #f8fafc; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;">Поручение</span>`;
         
         const statusBadge = isCompleted 
-          ? `<span style="color: #16a34a; font-weight: 900; background: #dcfce3; padding: 1px 6px; border-radius: 999px; font-size: 10px; text-transform: uppercase;">Выполнено</span>`
-          : `<span style="color: ${t.color}; font-weight: 800;">${safeString(t.comment)}</span>`;
+          ? `<span style="color: #16a34a; font-weight: 800; background: #dcfce3; padding: 1px 6px; border-radius: 999px; font-size: 10px; text-transform: uppercase;">Выполнено</span>`
+          : `<span style="color: ${t.color}; font-weight: 700;">${safeString(t.comment)}</span>`;
 
         const delaySticker = !isCompleted
           ? `<span style="display: inline-block; background-color: ${agingMeta.bg}; color: ${agingMeta.color}; border: 1px solid ${agingMeta.border}; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 800;">${agingMeta.label}</span>`
@@ -3899,20 +3922,20 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         return `
           <div style="background-color: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; margin-bottom: 7px; padding: 8px 10px;">
              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px;">
-               <div style="font-weight: 700; font-size: 12px; line-height: 1.35; color: ${titleColor};">
+               <div style="font-weight: 800; font-size: 13px; line-height: 1.32; color: ${titleColor};">
                    ${titleText}
                </div>
-               ${isCompleted ? managementStamp : ''}
+               ${isCompleted ? managementStamp : activeStamp}
              </div>
              ${!isCompleted ? `
-               <div style="font-size: 11px; text-align: left; color: #475569; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
-                   <span style="font-weight: bold; color: #0f172a;">Статус:</span> 
+               <div style="font-size: 10px; text-align: left; color: #64748b; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+                   <span style="font-weight: 700; color: #64748b;">Статус:</span> 
                    ${statusBadge}
                    ${delaySticker}
                </div>
                ${weeksActive >= 1 ? `<div style="font-size: 10px; color: #64748b; margin-top: 3px; line-height: 1.35;">${agingMeta.note}</div>` : ''}
              ` : `
-               <div style="font-size: 11px; text-align: left; margin-top: 3px; color: #475569; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+               <div style="font-size: 10px; text-align: left; margin-top: 3px; color: #64748b; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
                    ${statusBadge} <span>Итог: ${safeString(t.comment)}</span>
                </div>
              `}
@@ -3970,9 +3993,17 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       const top3 = sortedIncidents.slice(0, 3);
       const top3Text = top3.map(i => `${safeString(i.name)} (${Number(i.count)||0})`).join(', ');
 
+      const sortedReportKeys = [...(historyKeys || [])].sort();
+      const reportWeekIndex = sortedReportKeys.indexOf(selectedKey);
+      const prevReportWeekKey = reportWeekIndex > 0 ? sortedReportKeys[reportWeekIndex - 1] : null;
+      const prevReportWeekData = prevReportWeekKey ? weeksHistory?.[prevReportWeekKey] : null;
       const totalIncidentsFromList = (weekData.topIncidents || []).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
       const totalClosedCount = (Number(weekData.sprintCompleted)||0) + (Number(weekData.urgentCompleted)||0) + (Number(weekData.backlogCompleted)||0);
       const totalIncidents = Number(weekData.incidentsClosed) || 0;
+      const incidentTrend = prevReportWeekData ? totalIncidents - (Number(prevReportWeekData.incidentsClosed) || 0) : 0;
+      const incidentTrendHtml = prevReportWeekData
+        ? `<span style="display: inline-block; margin-left: 6px; color: ${incidentTrend > 0 ? '#dc2626' : incidentTrend < 0 ? '#059669' : '#64748b'}; font-size: 12px; font-weight: 800;">${incidentTrend === 0 ? 'без изменений' : `${incidentTrend > 0 ? '+' : '-'}${Math.abs(incidentTrend)} к прошлой нед.`}</span>`
+        : '';
       const managementIndex = Number(weekData.managementIndex) || 0;
       const slaViolationsTotal = (weekData.slaMetrics || []).reduce((sum, item) => sum + (Number(item.violations) || 0), 0);
       const flowSituationText = [
@@ -4134,7 +4165,8 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
           const fcrProxy = answeredCalls > 0 ? Math.min(100, Math.round((fcrBase / answeredCalls) * 100)) : 0;
           const footballRate = answeredCalls > 0 ? Math.round((dispatchGap / answeredCalls) * 100) : 0;
           const hasKpiRisk = missedCalls >= 10 || availability < 75;
-          const hasKpiWarning = missedCalls > 0 || availability < 90 || footballRate >= 60;
+          const lowParticipation = answeredCalls <= 3 && closedTickets === 0;
+          const hasKpiWarning = missedCalls > 0 || availability < 90 || footballRate >= 60 || lowParticipation;
           const hasShortTalkRisk = avgLineTalk > 0 && avgTalkSeconds > 0 && talkDiffPct <= -30;
           if (totalCalls >= 15 && missedCalls === 0) {
             corporateAchievements.push({
@@ -4168,6 +4200,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             workloadColor = '#b91c1c';
             workloadBg = '#fef2f2';
             workloadText = `Доступность ${availability}%, пропущено ${missedCalls} из ${totalCalls} вызовов. Закрыто ${closedTickets} инцидентов: это зона риска по KPI линии, а не сбалансированная работа.`;
+          } else if (lowParticipation) {
+            workloadLabel = 'Низкое участие';
+            workloadColor = '#b45309';
+            workloadBg = '#fffbeb';
+            workloadText = `Принято ${answeredCalls} из ${totalCalls}, закрытий в Jira 0. Даже для короткой смены это низкий фактический вклад; проверить график и роль на линии.`;
           } else if (closedTickets >= 65 && avgResolveMin > 20) {
             workloadLabel = 'Сложная нагрузка';
             workloadColor = '#c2410c';
@@ -4188,6 +4225,11 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             workloadColor = '#b45309';
             workloadBg = '#fffbeb';
             workloadText = `Прокси передачи дальше ${footballRate}%: много принятых звонков без личного закрытия в Jira.`;
+          } else if (footballRate >= 60 && answeredCalls > 0) {
+            workloadLabel = 'Передача без решения';
+            workloadColor = '#b45309';
+            workloadBg = '#fffbeb';
+            workloadText = `Принятый поток малый, но прокси передачи дальше ${footballRate}%: личного закрытия в Jira не видно.`;
           } else if (closedTickets < 35 && answeredCalls >= 25) {
             workloadLabel = 'Фокус на линии';
             workloadColor = '#475569';
@@ -4649,7 +4691,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
         const domainRankMap = buildDomainRankMap(rows);
         const renderTrendBadge = (trend) => {
           const trendType = trend?.type || 'stable';
-          const title = trendType === 'up' ? 'Неделя выше личной базы' : (trendType === 'down' ? 'Неделя ниже личной базы' : 'Неделя на уровне личной базы');
+          const title = trend?.label || (trendType === 'up' ? 'Заметный рост недели' : (trendType === 'down' ? 'Существенная просадка недели' : 'Неделя без резких изменений'));
           if (trendType === 'down') {
             return `
               <span class="trend-kpi-drop" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">
@@ -5670,7 +5712,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
             <div class="kpi-grid">
               <div class="kpi-card" style="border-top: 4px solid ${incColor};">
                 <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Инциденты (1 линия)</div>
-                <div style="font-size: 24px; font-weight: bold; color: ${incColor}; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span></div>
+                <div style="font-size: 24px; font-weight: bold; color: ${incColor}; margin-bottom: 5px;">${totalIncidents} <span style="font-size: 14px; font-weight: normal; color: #64748b;">решено</span>${incidentTrendHtml}</div>
                 <div style="font-size: 12px; color: #64748b;">Очередь: ${weekData.incidentsQueue || 0}</div>
                 ${renderProgressBar(totalIncidents, 400, incColor)}
                 <div class="kpi-hint">Реально закрытые инциденты 1-й линии без задач, закрытых по бездействию. Очередь показывает текущий незакрытый остаток.</div>
