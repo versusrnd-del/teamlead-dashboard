@@ -6737,6 +6737,53 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     return '#64748b';
   };
 
+  const getWordSystemProblems = () => {
+    const total = Number(weekData?.incidentsClosed) || 0;
+    const colors = ['#ef4444', '#f97316', '#f59e0b'];
+    return (Array.isArray(weekData?.topIncidents) ? weekData.topIncidents : [])
+      .slice(0, 3)
+      .map((item, index) => {
+        const count = Number(item.count || item.total || item.value || 0) || 0;
+        return {
+          title: cleanWordReportText(item.name || item.title || item.category || `Проблема ${index + 1}`),
+          count,
+          percent: total > 0 ? Math.round((count / total) * 100) : 0,
+          description: cleanWordReportText(item.analysis || item.summary || item.recommendation || item.recommendedAction || ''),
+          color: colors[index] || '#64748b'
+        };
+      })
+      .filter(item => item.title);
+  };
+
+  const getWordSlaSnapshot = () => {
+    const details = Array.isArray(weekData?.slaBreachDetails) ? weekData.slaBreachDetails : [];
+    const metrics = Array.isArray(weekData?.slaMetrics) ? weekData.slaMetrics : [];
+    const isPrimary = (value) => /создан|момента|взят|реакц|15/i.test(safeString(value));
+    const isResolution = (value) => /решен|решени|resolution/i.test(safeString(value));
+    const primaryDetails = details.filter(item => isPrimary(item.slaType || item.metric || item.type || item.name));
+    const resolutionDetails = details.filter(item => isResolution(item.slaType || item.metric || item.type || item.name));
+    const primaryMetric = metrics.find(item => isPrimary(item.name || item.metric || item.type || item.slaType));
+    const resolutionMetric = metrics.find(item => isResolution(item.name || item.metric || item.type || item.slaType));
+    const primaryCount = primaryDetails.length || Number(primaryMetric?.violations || primaryMetric?.count || primaryMetric?.value || 0) || 0;
+    const resolutionCount = resolutionDetails.length || Number(resolutionMetric?.violations || resolutionMetric?.count || resolutionMetric?.value || 0) || 0;
+    const primaryAvg = Number(primaryMetric?.avgOverdue || primaryMetric?.avgDelay || primaryMetric?.avgMinutes || primaryMetric?.average || 0) || 0;
+    const resolutionAvg = Number(resolutionMetric?.avgOverdue || resolutionMetric?.avgDelay || resolutionMetric?.avgMinutes || resolutionMetric?.average || 0) || 0;
+    const simpleShare = primaryDetails.length
+      ? Math.round((primaryDetails.filter(item => /прост/i.test(safeString(item.complexity || item.size || item.classification))).length / primaryDetails.length) * 100)
+      : 0;
+    const complexShare = primaryDetails.length
+      ? Math.round((primaryDetails.filter(item => /слож/i.test(safeString(item.complexity || item.size || item.classification))).length / primaryDetails.length) * 100)
+      : 0;
+    const heat = primaryCount >= 30 || simpleShare >= 30 ? { label: 'Риск', color: '#f59e0b', bg: '#fffbeb', border: '#fbbf24', width: 70 } :
+      (primaryCount > 0 ? { label: 'Контроль', color: '#0284c7', bg: '#f0f9ff', border: '#7dd3fc', width: 45 } : { label: 'Норма', color: '#059669', bg: '#ecfdf5', border: '#6ee7b7', width: 20 });
+    const diagnosis = primaryCount > 0
+      ? (simpleShare >= 30
+        ? `Высокая доля простых первичных просрочек (${simpleShare}%). Это похоже на проблему реакции линии: обращения не брали в работу, а не были сложными.`
+        : 'Просрочки смешанные: нужно смотреть домены и смены, без вывода только по одному человеку.')
+      : 'Нарушений основного SLA не выявлено.';
+    return { primaryCount, resolutionCount, primaryAvg, resolutionAvg, simpleShare, complexShare, heat, diagnosis };
+  };
+
   const getWordReportHtmlString = (options = {}) => {
     const exportMode = Boolean(options.exportMode);
     const overrides = options.memoryOverrides || {};
@@ -6754,6 +6801,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const telephony = getTelephonySummary();
     const csatComments = getWordCsatComments();
     const badCsatComments = csatComments.filter(item => item.rating !== null && item.rating < 4);
+    const systemProblems = getWordSystemProblems();
+    const slaSnapshot = getWordSlaSnapshot();
     const weekTitle = `Неделя ${weekData?.weekNumber || ''}${weekData?.dates ? ` (${weekData.dates})` : ''}`;
     const kpiCards = getWordKpiCards();
 
@@ -6848,6 +6897,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               <th style="text-align:left; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Администратор</th>
               <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Инциденты</th>
               <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Звонки</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Пропущено</th>
               <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Доступность</th>
               <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">CSAT</th>
             </tr>
@@ -6856,9 +6906,55 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 <td style="padding:7px; border-bottom:1px solid #f1f5f9; font-size:12px; font-weight:800;">${escapeHtml(row.name)}</td>
                 <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.closed}</td>
                 <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.calls || 'нет'}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.missed || 0}</td>
                 <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.availability !== null ? `${row.availability}%` : '-'}</td>
                 <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:900;">${row.csat ? row.csat.toFixed(1) : '-'}</td>
               </tr>`).join('')}
+          </table>
+        </div>`;
+    };
+
+    const renderFlowControlAppendix = () => {
+      if (!systemProblems.length && !slaSnapshot.primaryCount && !slaSnapshot.resolutionCount) return '';
+      return `
+        <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">6. Контроль потока инцидентов</h2>
+        ${systemProblems.length ? `
+          <div style="margin-bottom:14px;">
+            <div style="font-size:13px; color:#334155; font-weight:900; margin-bottom:8px;">Ключевые системные проблемы (Топ-3)</div>
+            ${systemProblems.map((item, index) => `
+              <div style="border-left:4px solid ${item.color}; background:#f8fafc; border-radius:5px; padding:9px 10px; margin-bottom:8px;">
+                <div style="font-size:13px; font-weight:900; color:#0f172a;">
+                  ${index + 1}. ${escapeHtml(item.title)}
+                  <span style="float:right; color:${item.color}; font-size:12px;">${item.count} шт. (${item.percent}%)</span>
+                </div>
+                <div style="height:4px; background:#e2e8f0; border-radius:999px; margin:7px 0 8px 0;">
+                  <div style="height:4px; width:${Math.min(100, Math.max(4, item.percent))}%; background:${item.color}; border-radius:999px;"></div>
+                </div>
+                ${item.description ? `<div style="font-size:12px; color:#475569;">${escapeHtml(item.description)}</div>` : ''}
+              </div>`).join('')}
+          </div>` : ''}
+        <div style="border:1px solid ${slaSnapshot.heat.border}; border-left:5px solid ${slaSnapshot.heat.color}; background:${slaSnapshot.heat.bg}; border-radius:8px; padding:10px 12px;">
+          <div style="font-size:13px; color:${slaSnapshot.heat.color}; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Температура SLA: ${slaSnapshot.heat.label}</div>
+          <table style="width:100%; border-collapse:collapse;">
+            <tr>
+              <td style="width:60%; vertical-align:top; padding-right:12px;">
+                <div style="height:5px; background:#fef3c7; border:1px solid #fde68a; border-radius:999px; margin-bottom:8px;">
+                  <div style="height:5px; width:${slaSnapshot.heat.width}%; background:${slaSnapshot.heat.color}; border-radius:999px;"></div>
+                </div>
+                <div style="font-size:12px; color:#334155; line-height:1.45;">${escapeHtml(slaSnapshot.diagnosis)}</div>
+                <div style="font-size:11px; color:#64748b; margin-top:6px;">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
+              </td>
+              <td style="width:40%; vertical-align:top;">
+                <table style="width:100%; border-collapse:separate; border-spacing:6px 0;">
+                  <tr>
+                    <td style="border:1px solid #dbeafe; border-radius:6px; background:#fff; padding:7px;"><div style="font-size:9px; color:#64748b; font-weight:900; text-transform:uppercase;">Основной SLA</div><div style="font-size:18px; font-weight:900;">${slaSnapshot.primaryCount}</div>${slaSnapshot.primaryAvg ? `<div style="font-size:10px; color:#64748b;">+${Math.round(slaSnapshot.primaryAvg)} мин</div>` : ''}</td>
+                    <td style="border:1px solid #dbeafe; border-radius:6px; background:#fff; padding:7px;"><div style="font-size:9px; color:#64748b; font-weight:900; text-transform:uppercase;">До решения</div><div style="font-size:18px; font-weight:900;">${slaSnapshot.resolutionCount}</div>${slaSnapshot.resolutionAvg ? `<div style="font-size:10px; color:#64748b;">+${Math.round(slaSnapshot.resolutionAvg)} мин</div>` : ''}</td>
+                    <td style="border:1px solid #dbeafe; border-radius:6px; background:#fff; padding:7px;"><div style="font-size:9px; color:#64748b; font-weight:900; text-transform:uppercase;">Простые</div><div style="font-size:18px; font-weight:900;">${slaSnapshot.simpleShare}%</div></td>
+                    <td style="border:1px solid #dbeafe; border-radius:6px; background:#fff; padding:7px;"><div style="font-size:9px; color:#64748b; font-weight:900; text-transform:uppercase;">Сложные</div><div style="font-size:18px; font-weight:900;">${slaSnapshot.complexShare}%</div></td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
           </table>
         </div>`;
     };
@@ -6898,6 +6994,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${renderTeamMetrics()}
         ${renderFirstLine()}
         ${renderCsatComments()}
+        ${renderFlowControlAppendix()}
       </div>`;
   };
 
@@ -6947,6 +7044,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const managementGroups = getManagementTaskGroups();
   const wordCsatComments = getWordCsatComments();
   const badWordCsatComments = wordCsatComments.filter(item => item.rating !== null && item.rating < 4);
+  const wordSystemProblems = getWordSystemProblems();
+  const wordSlaSnapshot = getWordSlaSnapshot();
 
   return (
     <div className="animate-in fade-in duration-500 pb-10 max-w-7xl">
@@ -6966,7 +7065,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-[460px_1fr] gap-6">
         <div className="space-y-4">
           <div className="bg-slate-800 rounded-xl border border-slate-700/50 p-4">
             <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Разделы отчета</h2>
@@ -7033,13 +7132,14 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 <button onClick={handleAddWordProjectTask} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-black">Добавить</button>
               </div>
             </div>
-            <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+            <div className="space-y-2 max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
               {getManagementTasks().map(task => {
                 const isDone = task.status === 'completed';
                 return (
                   <div key={`side-${task.id}`} className="bg-slate-900/60 border border-slate-700 rounded-lg p-2">
-                    <div className="text-xs font-bold text-slate-100 line-clamp-2 mb-2">{task.title}</div>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="text-xs font-bold text-slate-100 mb-2">{task.title}</div>
+                    {task.comment && <div className="text-[11px] text-slate-400 mb-2 line-clamp-2">{task.comment}</div>}
+                    <div className="flex flex-wrap gap-1.5">
                       <button onClick={() => handleMoveProjectTaskPriority(task.id, -1)} className="px-2 py-1 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-300">↑</button>
                       <button onClick={() => handleMoveProjectTaskPriority(task.id, 1)} className="px-2 py-1 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-300">↓</button>
                       <button onClick={() => handleUpdateProjectTaskStatus(task.id, isDone ? 'active' : 'completed')} className={`px-2 py-1 rounded border text-[11px] font-bold ${isDone ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'}`}>
@@ -7243,6 +7343,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                         <th className="text-left p-2">Администратор</th>
                         <th className="text-right p-2">Инциденты</th>
                         <th className="text-right p-2">Звонки</th>
+                        <th className="text-right p-2">Пропущено</th>
                         <th className="text-right p-2">Доступность</th>
                         <th className="text-right p-2">CSAT</th>
                       </tr>
@@ -7253,6 +7354,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                           <td className="p-2 font-bold">{row.name}</td>
                           <td className="p-2 text-right">{row.closed}</td>
                           <td className="p-2 text-right">{row.calls || 'нет'}</td>
+                          <td className="p-2 text-right">{row.missed || 0}</td>
                           <td className="p-2 text-right">{row.availability !== null ? `${row.availability}%` : '-'}</td>
                           <td className="p-2 text-right font-black">{row.csat ? row.csat.toFixed(1) : '-'}</td>
                         </tr>
@@ -7289,6 +7391,57 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                       </div>
                     </div>
                   )}
+                </div>
+              </section>
+            )}
+
+            {(wordSystemProblems.length > 0 || wordSlaSnapshot.primaryCount > 0 || wordSlaSnapshot.resolutionCount > 0) && (
+              <section className="mt-6" style={{ fontFamily: wordFontFamily }}>
+                <h3 className="text-lg font-black mb-3">6. Контроль потока инцидентов</h3>
+                {wordSystemProblems.length > 0 && (
+                  <div className="mb-5">
+                    <div className="text-sm font-black text-slate-700 mb-2">Ключевые системные проблемы (Топ-3)</div>
+                    <div className="space-y-2">
+                      {wordSystemProblems.map((item, index) => (
+                        <div key={`${item.title}-${index}`} className="rounded-md bg-slate-50 p-3" style={{ borderLeft: `4px solid ${item.color}` }}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="font-black text-sm">{index + 1}. {item.title}</div>
+                            <div className="text-xs font-black" style={{ color: item.color }}>{item.count} шт. ({item.percent}%)</div>
+                          </div>
+                          <div className="h-1 bg-slate-200 rounded-full overflow-hidden my-2">
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(4, item.percent))}%`, background: item.color }} />
+                          </div>
+                          {item.description && <div className="text-xs text-slate-600">{item.description}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="rounded-lg p-4" style={{ border: `1px solid ${wordSlaSnapshot.heat.border}`, borderLeft: `5px solid ${wordSlaSnapshot.heat.color}`, background: wordSlaSnapshot.heat.bg }}>
+                  <div className="text-sm font-black uppercase mb-2" style={{ color: wordSlaSnapshot.heat.color }}>Температура SLA: {wordSlaSnapshot.heat.label}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-4">
+                    <div>
+                      <div className="h-1.5 rounded-full bg-amber-100 border border-amber-200 overflow-hidden mb-3">
+                        <div className="h-full rounded-full" style={{ width: `${wordSlaSnapshot.heat.width}%`, background: wordSlaSnapshot.heat.color }} />
+                      </div>
+                      <div className="text-sm text-slate-700">{wordSlaSnapshot.diagnosis}</div>
+                      <div className="text-xs text-slate-500 mt-2">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        ['Основной SLA', wordSlaSnapshot.primaryCount, wordSlaSnapshot.primaryAvg ? `+${Math.round(wordSlaSnapshot.primaryAvg)} мин` : ''],
+                        ['До решения', wordSlaSnapshot.resolutionCount, wordSlaSnapshot.resolutionAvg ? `+${Math.round(wordSlaSnapshot.resolutionAvg)} мин` : ''],
+                        ['Простые', `${wordSlaSnapshot.simpleShare}%`, ''],
+                        ['Сложные', `${wordSlaSnapshot.complexShare}%`, '']
+                      ].map(([label, value, hint]) => (
+                        <div key={label} className="rounded-md border border-blue-100 bg-white p-2">
+                          <div className="text-[10px] font-black uppercase text-slate-500">{label}</div>
+                          <div className="text-xl font-black">{value}</div>
+                          {hint && <div className="text-[10px] text-slate-500">{hint}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </section>
             )}
