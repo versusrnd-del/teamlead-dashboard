@@ -253,6 +253,25 @@ const TEAM_DOMAIN_OPTIONS = [
   'Прочее'
 ];
 
+const DEFAULT_WORD_REPORT_SECTIONS = [
+  { id: 'pci-dss', title: 'PCI DSS', color: '#2563eb', hidden: false, order: 0 },
+  { id: 'hrdwr', title: 'HRDWR', color: '#64748b', hidden: false, order: 1 },
+  { id: 'zabbix', title: 'ZABBIX', color: '#f59e0b', hidden: false, order: 2 },
+  { id: 'windows', title: 'WINDOWS', color: '#0ea5e9', hidden: false, order: 3 },
+  { id: 'idm', title: 'IDM', color: '#7c3aed', hidden: false, order: 4 },
+  { id: 'server', title: 'Серверная инфраструктура', color: '#0891b2', hidden: false, order: 5 },
+  { id: 'workplace', title: 'Рабочие места / ПО', color: '#10b981', hidden: false, order: 6 },
+  { id: 'network', title: 'Сеть / BinkD', color: '#1d4ed8', hidden: false, order: 7 },
+  { id: 'lotus', title: 'Lotus', color: '#4f46e5', hidden: false, order: 8 },
+  { id: 'mail', title: 'Почта / Мессенджеры', color: '#db2777', hidden: false, order: 9 },
+  { id: 'other', title: 'Прочее', color: '#475569', hidden: false, order: 10 }
+];
+
+const createDefaultWordReportConfig = () => ({
+  sections: DEFAULT_WORD_REPORT_SECTIONS,
+  updatedAt: new Date().toISOString()
+});
+
 const normalizeMetricText = (value) => safeString(value)
   .toLowerCase()
   .replace(/ё/g, 'е')
@@ -6197,6 +6216,643 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
   );
 };
 
+// --- WORD-ОРИЕНТИРОВАННЫЙ ОТЧЕТ ДЛЯ КОПИРОВАНИЯ РУКОВОДСТВУ ---
+
+const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, projectTasks, aiTaskMemory, setAiTaskMemory, wordReportConfig, setWordReportConfig, teamMetricsMemory }) => {
+  const [copiedId, setCopiedId] = useState(null);
+  const [newSectionTitle, setNewSectionTitle] = useState('');
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const previewRef = useRef(null);
+
+  const getSections = () => {
+    const savedSections = Array.isArray(wordReportConfig?.sections) ? wordReportConfig.sections : [];
+    const savedById = savedSections.reduce((acc, section) => {
+      if (section?.id) acc[section.id] = section;
+      return acc;
+    }, {});
+    const mergedDefaults = DEFAULT_WORD_REPORT_SECTIONS.map(section => ({ ...section, ...(savedById[section.id] || {}) }));
+    const customSections = savedSections.filter(section => section?.id && !DEFAULT_WORD_REPORT_SECTIONS.some(defaultSection => defaultSection.id === section.id));
+    return [...mergedDefaults, ...customSections].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+  };
+
+  const updateSections = (updater) => {
+    const currentSections = getSections();
+    const nextSections = updater(currentSections).map((section, index) => ({ ...section, order: index }));
+    setWordReportConfig({
+      ...(wordReportConfig || {}),
+      sections: nextSections,
+      updatedAt: new Date().toISOString()
+    });
+  };
+
+  const cleanWordReportText = (value) => safeString(value)
+    .replace(/\[(HOST|PATH|DOMAIN|PHONE|IP|LOGIN|USER|EMAIL)\]/gi, '')
+    .replace(/\bu\d{3,}\b/gi, '')
+    .replace(/\bСНИЛС\b\s*[:№#-]?\s*/gi, '')
+    .replace(/\b\d{3}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{2}\b/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .trim();
+
+  const inferWordSectionId = (task) => {
+    const text = normalizeMetricText(`${task?.title || ''} ${task?.comments || ''} ${task?.description || ''} ${task?.domain || ''}`);
+    const domain = normalizeMetricDomain(task?.domain || task?.competenceDomain || task?.serviceDomain || '', text);
+    if (text.includes('pci') || text.includes('pcidss') || text.includes('аудит')) return 'pci-dss';
+    if (text.includes('hrdwr') || text.includes('hardware') || text.includes('оборудован') || text.includes('ноутбук') || text.includes('пк ')) return 'hrdwr';
+    if (domain === 'Zabbix / мониторинг') return 'zabbix';
+    if (text.includes('windows') || text.includes('винд') || text.includes('ос ') || text.includes('обновлен')) return 'windows';
+    if (domain === 'IDM') return 'idm';
+    if (domain === 'Серверная инфраструктура' || domain === 'Citrix / фермы') return 'server';
+    if (domain === 'Рабочие места / ПО' || domain === 'Принтера') return 'workplace';
+    if (domain === 'Сеть / BinkD') return 'network';
+    if (domain === 'Работы по Лотус') return 'lotus';
+    if (domain === 'Почта / Мессенджеры') return 'mail';
+    return 'other';
+  };
+
+  const getTaskMemory = (task, overrides = {}) => {
+    const taskId = safeString(task?.id).trim();
+    return { ...(taskId ? aiTaskMemory?.[taskId] || {} : {}), ...(taskId ? overrides[taskId] || {} : {}) };
+  };
+
+  const getWordTaskSectionId = (task, overrides = {}) => {
+    const taskId = safeString(task?.id).trim();
+    const memory = getTaskMemory(task, overrides);
+    return safeString(memory.wordSection || '').trim() || inferWordSectionId(task) || 'other';
+  };
+
+  const getWordTaskTitle = (task, overrides = {}) => {
+    const memory = getTaskMemory(task, overrides);
+    return cleanWordReportText(memory.wordTitle || task?.title || task?.summary || task?.id || 'Задача');
+  };
+
+  const getWordTaskDetails = (task, overrides = {}) => {
+    const memory = getTaskMemory(task, overrides);
+    const source = memory.wordDetails ?? task?.comments ?? task?.description ?? task?.summary ?? '';
+    const cleaned = cleanWordReportText(source);
+    return cleaned && cleaned.length > 6 ? cleaned : '';
+  };
+
+  const getWordTaskOrder = (task, overrides = {}) => {
+    const memory = getTaskMemory(task, overrides);
+    const order = Number(memory.wordOrder);
+    return Number.isFinite(order) ? order : 9999;
+  };
+
+  const isClosedTask = (task) => {
+    const status = safeString(task?.status).toLowerCase();
+    return Boolean(task?.resolved) || ['закрыт', 'готово', 'resolved', 'завершен', 'done'].some(word => status.includes(word));
+  };
+
+  const isDisplayableTask = (task) => {
+    if (!task) return false;
+    const assignee = getFullName(task.assignee);
+    if (!assignee || assignee === 'Не назначен' || assignee === 'Без автора' || assignee === 'Без исполнителя') return false;
+    return isClosedTask(task);
+  };
+
+  const getWordTasks = (overrides = {}) => {
+    const sections = getSections();
+    const sectionIds = new Set(sections.map(section => section.id));
+    return (weekData?.detailedTasks || [])
+      .filter(isDisplayableTask)
+      .map((task, index) => {
+        const taskId = safeString(task.id || task.key || task.issueKey || `task-${index}`).trim();
+        const sectionId = sectionIds.has(getWordTaskSectionId(task, overrides)) ? getWordTaskSectionId(task, overrides) : 'other';
+        return {
+          ...task,
+          id: taskId,
+          wordTitle: getWordTaskTitle(task, overrides),
+          wordDetails: getWordTaskDetails(task, overrides),
+          wordSectionId: sectionId,
+          wordOrder: getWordTaskOrder(task, overrides),
+          originalIndex: index
+        };
+      })
+      .sort((a, b) => {
+        if (a.wordSectionId !== b.wordSectionId) return 0;
+        if (a.wordOrder !== b.wordOrder) return a.wordOrder - b.wordOrder;
+        return a.originalIndex - b.originalIndex;
+      });
+  };
+
+  const handleSaveWordTaskField = (taskId, title, field, value) => {
+    const cleanId = safeString(taskId).trim();
+    if (!cleanId) return;
+    setAiTaskMemory(prev => {
+      const previous = (prev || {})[cleanId] || {};
+      return {
+        ...(prev || {}),
+        [cleanId]: {
+          ...previous,
+          id: cleanId,
+          title: safeString(title).trim() || previous.title || cleanId,
+          [field]: field === 'wordDetails' || field === 'wordTitle' ? cleanWordReportText(value) : value,
+          updatedAt: new Date().toISOString()
+        }
+      };
+    });
+  };
+
+  const persistWordPreviewEdits = () => {
+    const overrides = {};
+    if (!previewRef.current) return overrides;
+    previewRef.current.querySelectorAll('[data-word-task-id]').forEach(taskEl => {
+      const taskId = safeString(taskEl.dataset.wordTaskId).trim();
+      if (!taskId) return;
+      const titleEl = taskEl.querySelector('[data-word-task-title]');
+      const detailsEl = taskEl.querySelector('[data-word-task-details]');
+      const sectionSelect = taskEl.querySelector('[data-word-task-section]');
+      overrides[taskId] = {
+        wordTitle: cleanWordReportText(titleEl?.innerText || ''),
+        wordDetails: cleanWordReportText(detailsEl?.innerText || ''),
+        wordSection: safeString(sectionSelect?.value).trim(),
+        updatedAt: new Date().toISOString()
+      };
+    });
+    const entries = Object.entries(overrides);
+    if (entries.length) {
+      setAiTaskMemory(prev => {
+        const next = { ...(prev || {}) };
+        entries.forEach(([taskId, patch]) => {
+          next[taskId] = { ...(next[taskId] || {}), id: taskId, title: patch.wordTitle || next[taskId]?.title || taskId, ...patch };
+        });
+        return next;
+      });
+    }
+    return overrides;
+  };
+
+  const handleMoveTaskToSection = (task, sectionId) => {
+    const sectionTasksCount = getWordTasks().filter(item => item.wordSectionId === sectionId).length;
+    handleSaveWordTaskField(task.id, task.wordTitle || task.title, 'wordSection', sectionId);
+    handleSaveWordTaskField(task.id, task.wordTitle || task.title, 'wordOrder', sectionTasksCount);
+  };
+
+  const handleTaskDragStart = (event, taskId) => {
+    setDraggedTaskId(taskId);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', taskId);
+  };
+
+  const handleTaskDrop = (event, sectionId, targetTaskId = null) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const sourceId = draggedTaskId || event.dataTransfer.getData('text/plain');
+    if (!sourceId) return;
+    const tasks = getWordTasks();
+    const sourceTask = tasks.find(task => task.id === sourceId);
+    if (!sourceTask) return;
+    const sectionTasks = tasks.filter(task => task.wordSectionId === sectionId && task.id !== sourceId);
+    const targetIndex = targetTaskId ? Math.max(0, sectionTasks.findIndex(task => task.id === targetTaskId)) : sectionTasks.length;
+    sectionTasks.splice(targetIndex < 0 ? sectionTasks.length : targetIndex, 0, { ...sourceTask, wordSectionId: sectionId });
+    setAiTaskMemory(prev => {
+      const next = { ...(prev || {}) };
+      sectionTasks.forEach((task, index) => {
+        next[task.id] = {
+          ...(next[task.id] || {}),
+          id: task.id,
+          title: task.wordTitle || task.title || task.id,
+          wordSection: sectionId,
+          wordOrder: index,
+          updatedAt: new Date().toISOString()
+        };
+      });
+      return next;
+    });
+    setDraggedTaskId(null);
+  };
+
+  const handleAddSection = () => {
+    const title = safeString(newSectionTitle).trim();
+    if (!title) return;
+    const id = `custom-${Date.now()}`;
+    updateSections(sections => [...sections, { id, title, color: '#334155', hidden: false, order: sections.length }]);
+    setNewSectionTitle('');
+  };
+
+  const moveSection = (sectionId, direction) => {
+    updateSections(sections => {
+      const list = [...sections];
+      const index = list.findIndex(section => section.id === sectionId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= list.length) return sections;
+      [list[index], list[target]] = [list[target], list[index]];
+      return list;
+    });
+  };
+
+  const getProjectTaskStatusMeta = (task, isCompleted) => {
+    if (isCompleted || task?.status === 'completed') return { label: 'Готово', color: '#166534', bg: '#dcfce7', border: '#86efac' };
+    const color = safeString(task?.color).toLowerCase();
+    if (color === '#ef4444') return { label: 'Риск / эскалация', color: '#991b1b', bg: '#fee2e2', border: '#fecaca' };
+    if (color === '#f59e0b') return { label: 'На контроле срока', color: '#92400e', bg: '#fef3c7', border: '#fde68a' };
+    if (color === '#10b981') return { label: 'В рабочем режиме', color: '#047857', bg: '#d1fae5', border: '#a7f3d0' };
+    return { label: 'В работе', color: '#1d4ed8', bg: '#dbeafe', border: '#bfdbfe' };
+  };
+
+  const compareWeekKeysLocal = (leftKey, rightKey) => {
+    const [leftYear, leftWeek] = safeString(leftKey).split('-').map(Number);
+    const [rightYear, rightWeek] = safeString(rightKey).split('-').map(Number);
+    if (!leftYear || !leftWeek || !rightYear || !rightWeek) return 0;
+    if (leftYear !== rightYear) return leftYear - rightYear;
+    return leftWeek - rightWeek;
+  };
+
+  const isProjectTaskVisible = (task) => {
+    const createdKey = task?.createdWeekKey || selectedKey;
+    if (compareWeekKeysLocal(createdKey, selectedKey) > 0) return false;
+    if (task?.completedWeekKey) return compareWeekKeysLocal(selectedKey, task.completedWeekKey) <= 0;
+    return task?.status === 'active';
+  };
+
+  const getManagementTasks = () => (projectTasks || [])
+    .filter(isProjectTaskVisible)
+    .sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0));
+
+  const getTeamTaskLeaders = () => {
+    const rows = Object.values((weekData?.taskPerformers || {})).length
+      ? Object.entries(weekData.taskPerformers || {}).map(([name, row]) => ({
+          name: getFullName(name),
+          closed: Number(row.closed || row.count || row.total || 0)
+        }))
+      : getWordTasks().reduce((acc, task) => {
+          const name = getFullName(task.assignee);
+          if (!acc[name]) acc[name] = { name, closed: 0 };
+          acc[name].closed += 1;
+          return acc;
+        }, {});
+    return (Array.isArray(rows) ? rows : Object.values(rows))
+      .filter(row => row.name && row.name !== TEAM_LEAD_NAME && !EXCLUDED_USER_IDS.includes(row.name))
+      .sort((a, b) => b.closed - a.closed)
+      .slice(0, 5);
+  };
+
+  const getIncidentLeaders = () => (weekData?.topPerformers || [])
+    .map(item => ({ name: getFullName(item.name || item.assignee), closed: Number(item.closed || item.count || item.total || 0) }))
+    .filter(item => item.name)
+    .sort((a, b) => b.closed - a.closed)
+    .slice(0, 5);
+
+  const getTelephonySummary = () => {
+    const rows = Array.isArray(weekData?.telephonyData) ? weekData.telephonyData : [];
+    const total = rows.reduce((sum, row) => sum + (Number(row.total || row.calls || row.all || row.answered || 0) || 0), 0);
+    const missed = rows.reduce((sum, row) => sum + (Number(row.missed || row.lost || row.notAnswered || 0) || 0), 0);
+    return { total, missed, availability: total > 0 ? Math.round(((total - missed) / total) * 100) : null };
+  };
+
+  const getCsatValue = () => {
+    const direct = Number(weekData?.csatAverage || weekData?.csat || weekData?.avgCsat);
+    if (Number.isFinite(direct) && direct > 0) return direct.toFixed(1);
+    const details = Array.isArray(weekData?.csatDetails) ? weekData.csatDetails : [];
+    const values = details.map(item => Number(item.rating || item.score || item.value)).filter(Number.isFinite);
+    if (!values.length) return '5.0';
+    return (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1);
+  };
+
+  const getWordReportHtmlString = (options = {}) => {
+    const exportMode = Boolean(options.exportMode);
+    const overrides = options.memoryOverrides || {};
+    const sections = getSections().filter(section => !section.hidden);
+    const tasks = getWordTasks(overrides);
+    const tasksBySection = sections.map(section => ({
+      ...section,
+      tasks: tasks.filter(task => task.wordSectionId === section.id)
+    })).filter(section => section.tasks.length > 0 || !exportMode);
+    const managementTasks = getManagementTasks();
+    const taskLeaders = getTeamTaskLeaders();
+    const incidentLeaders = getIncidentLeaders();
+    const telephony = getTelephonySummary();
+    const totalTasks = tasks.length;
+    const incidentsClosed = Number(weekData?.incidentsClosed) || 0;
+    const urgentCompleted = Number(weekData?.urgentCompleted) || 0;
+    const backlogTotal = Number(weekData?.backlogTotal || weekData?.backlog || 0) || 0;
+    const weekTitle = `Неделя ${weekData?.weekNumber || ''}${weekData?.dates ? ` (${weekData.dates})` : ''}`;
+
+    const kpiCards = [
+      ['Инциденты 1-й линии', incidentsClosed],
+      ['Задачи недели', totalTasks],
+      ['Срочные задачи', urgentCompleted],
+      ['Бэклог', backlogTotal],
+      ['CSAT', getCsatValue()],
+      ['Телефония', telephony.total ? `${telephony.availability}%` : 'нет данных']
+    ];
+
+    const renderKpi = () => `
+      <table style="width:100%; border-collapse:separate; border-spacing:8px; margin: 12px 0 18px 0;">
+        <tr>
+          ${kpiCards.map(([label, value]) => `
+            <td style="width:16.66%; border:1px solid #dbeafe; border-radius:8px; padding:10px; background:#f8fafc; vertical-align:top;">
+              <div style="font-size:10px; color:#64748b; text-transform:uppercase; font-weight:800;">${escapeHtml(label)}</div>
+              <div style="font-size:20px; color:#0f172a; font-weight:900; margin-top:4px;">${escapeHtml(value)}</div>
+            </td>
+          `).join('')}
+        </tr>
+      </table>`;
+
+    const renderTask = (task) => `
+      <tr>
+        <td style="width:100px; color:#2563eb; font-weight:800; padding:8px 10px; border-bottom:1px solid #e2e8f0; vertical-align:top;">${escapeHtml(task.id)}</td>
+        <td style="padding:8px 10px; border-bottom:1px solid #e2e8f0; vertical-align:top;">
+          <div style="font-weight:800; color:#0f172a;">${escapeHtml(task.wordTitle)}</div>
+          ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:4px; line-height:1.45;">${escapeHtml(task.wordDetails)}</div>` : ''}
+          <div style="font-size:11px; color:#64748b; margin-top:5px;">Исполнитель: <b>${escapeHtml(getFullName(task.assignee))}</b>${task.cycleTime ? ` · Cycle Time: ${escapeHtml(task.cycleTime)} дн.` : ''}</div>
+        </td>
+      </tr>`;
+
+    const renderTaskSections = () => tasksBySection.map(section => `
+      <div style="border:1px solid #dbeafe; border-left:5px solid ${section.color}; border-radius:8px; overflow:hidden; margin:0 0 14px 0;">
+        <div style="background:#f8fafc; padding:9px 12px; border-bottom:1px solid #e2e8f0;">
+          <span style="font-size:15px; font-weight:900; color:#0f172a;">${escapeHtml(section.title)}</span>
+          <span style="float:right; font-size:11px; color:#64748b;">${section.tasks.length}</span>
+        </div>
+        ${section.tasks.length ? `<table style="width:100%; border-collapse:collapse;">${section.tasks.map(renderTask).join('')}</table>` : `<div style="padding:10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
+      </div>
+    `).join('');
+
+    const renderManagementTasks = () => {
+      if (!managementTasks.length) return '<div style="font-size:12px; color:#64748b;">Нет активных поручений руководства.</div>';
+      return managementTasks.map(task => {
+        const isDone = task.status === 'completed';
+        const meta = getProjectTaskStatusMeta(task, isDone);
+        return `
+          <div style="border:1px solid ${meta.border}; border-left:5px solid ${isDone ? '#22c55e' : '#3b82f6'}; background:${isDone ? '#f0fdf4' : '#ffffff'}; border-radius:8px; padding:10px 12px; margin-bottom:8px;">
+            <div style="font-weight:900; color:#0f172a;">${escapeHtml(task.title)}</div>
+            <div style="font-size:12px; color:#475569; margin-top:4px;">Статус: <span style="display:inline-block; background:${meta.bg}; color:${meta.color}; border:1px solid ${meta.border}; border-radius:999px; padding:2px 7px; font-size:10px; font-weight:900;">${escapeHtml(meta.label)}</span>${task.comment ? ` · ${escapeHtml(task.comment)}` : ''}</div>
+          </div>`;
+      }).join('');
+    };
+
+    const renderTeamMetrics = () => `
+      <table style="width:100%; border-collapse:collapse; margin-top:8px;">
+        <tr style="background:#f8fafc;">
+          <th style="text-align:left; padding:8px; border:1px solid #e2e8f0; color:#334155;">Задачи</th>
+          <th style="text-align:left; padding:8px; border:1px solid #e2e8f0; color:#334155;">Инциденты</th>
+          <th style="text-align:left; padding:8px; border:1px solid #e2e8f0; color:#334155;">Телефония и CSAT</th>
+        </tr>
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; vertical-align:top;">${taskLeaders.map((row, index) => `<div>${index + 1}. <b>${escapeHtml(row.name)}</b> — ${row.closed}</div>`).join('') || 'Нет данных'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; vertical-align:top;">${incidentLeaders.map((row, index) => `<div>${index + 1}. <b>${escapeHtml(row.name)}</b> — ${row.closed}</div>`).join('') || 'Нет данных'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; vertical-align:top;">
+            <div>CSAT: <b>${escapeHtml(getCsatValue())}</b></div>
+            <div>Звонков: <b>${telephony.total || 'нет данных'}</b></div>
+            <div>Пропущено: <b>${telephony.missed || 0}</b>${telephony.availability !== null ? ` · доступность ${telephony.availability}%` : ''}</div>
+          </td>
+        </tr>
+      </table>`;
+
+    return `
+      <div style="font-family: Arial, Helvetica, sans-serif; color:#0f172a; line-height:1.35;">
+        <div style="border-bottom:3px solid #2563eb; padding-bottom:10px; margin-bottom:12px;">
+          <div style="font-size:22px; font-weight:900; letter-spacing:0.02em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
+          <div style="font-size:12px; color:#64748b;">${escapeHtml(weekTitle)}</div>
+        </div>
+        <h2 style="font-size:16px; margin:12px 0 6px 0; color:#0f172a;">1. Операционная сводка</h2>
+        ${renderKpi()}
+        <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">2. Решенные задачи за неделю</h2>
+        ${renderTaskSections()}
+        <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">3. Поручения руководства</h2>
+        ${renderManagementTasks()}
+        <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">4. Показатели команды</h2>
+        ${renderTeamMetrics()}
+      </div>`;
+  };
+
+  const handleCopyWordReport = async () => {
+    const overrides = persistWordPreviewEdits();
+    const htmlContent = getWordReportHtmlString({ exportMode: true, memoryOverrides: overrides });
+    try {
+      const blobHtml = new Blob([htmlContent], { type: 'text/html' });
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlContent;
+      const blobText = new Blob([tempDiv.innerText], { type: 'text/plain' });
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })]);
+      setCopiedId('word');
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      const textArea = document.createElement('textarea');
+      textArea.value = htmlContent.replace(/<[^>]+>/g, ' ');
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedId('word');
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
+
+  const handleDownloadWordReport = () => {
+    const overrides = persistWordPreviewEdits();
+    const htmlContent = getWordReportHtmlString({ exportMode: true, memoryOverrides: overrides });
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Word Report Week ${weekData?.weekNumber || ''}</title></head><body>${htmlContent}</body></html>`;
+    const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Word_Report_Week_${weekData?.weekNumber || 'current'}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const sections = getSections();
+  const visibleSections = sections.filter(section => !section.hidden);
+  const wordTasks = getWordTasks();
+  const tasksBySection = visibleSections.map(section => ({
+    ...section,
+    tasks: wordTasks.filter(task => task.wordSectionId === section.id)
+  }));
+
+  return (
+    <div className="animate-in fade-in duration-500 pb-10 max-w-7xl">
+      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Word-отчет</h1>
+          <p className="text-slate-400 text-sm">Лаконичный отчет для Word, письма и копирования руководителю выше</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
+          <button onClick={handleCopyWordReport} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg transition-colors shadow-lg flex items-center gap-2">
+            {copiedId === 'word' ? <Check size={18} /> : <Copy size={18} />} {copiedId === 'word' ? 'Скопировано' : 'Копировать в Word'}
+          </button>
+          <button onClick={handleDownloadWordReport} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg transition-colors shadow-lg flex items-center gap-2">
+            <Download size={18} /> Скачать Word
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
+        <div className="space-y-4">
+          <div className="bg-slate-800 rounded-xl border border-slate-700/50 p-4">
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Разделы отчета</h2>
+            <div className="space-y-2">
+              {sections.map((section) => (
+                <div key={section.id} className="bg-slate-900/60 border border-slate-700 rounded-lg p-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: section.color }} />
+                    <input
+                      value={section.title}
+                      onChange={(event) => updateSections(list => list.map(item => item.id === section.id ? { ...item, title: event.target.value } : item))}
+                      className="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 mt-2">
+                    <label className="flex items-center gap-1 text-[11px] text-slate-400">
+                      <input type="checkbox" checked={!section.hidden} onChange={(event) => updateSections(list => list.map(item => item.id === section.id ? { ...item, hidden: !event.target.checked } : item))} />
+                      показывать
+                    </label>
+                    <div className="flex gap-1">
+                      <button onClick={() => moveSection(section.id, -1)} className="px-2 py-1 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-300">↑</button>
+                      <button onClick={() => moveSection(section.id, 1)} className="px-2 py-1 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-300">↓</button>
+                      {section.id.startsWith('custom-') && (
+                        <button onClick={() => updateSections(list => list.filter(item => item.id !== section.id))} className="px-2 py-1 rounded bg-red-500/10 border border-red-500/30 text-[11px] text-red-300">Удалить</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-3">
+              <input value={newSectionTitle} onChange={(event) => setNewSectionTitle(event.target.value)} placeholder="Новый раздел..." className="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
+              <button onClick={handleAddSection} className="bg-sky-600 hover:bg-sky-500 text-white px-3 py-2 rounded-lg"><Plus size={16} /></button>
+            </div>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl border border-slate-700/50 p-4 text-xs text-slate-400 leading-relaxed">
+            <div className="font-bold text-slate-200 mb-1">Как пользоваться</div>
+            <p>Задачи раскладываются автоматически. Заголовок и детали можно править прямо в карточке; раздел меняется выпадающим списком или перетаскиванием задачи.</p>
+          </div>
+        </div>
+
+        <div ref={previewRef} className="bg-slate-300 rounded-xl p-6 overflow-auto custom-scrollbar" style={{ maxHeight: '78vh' }}>
+          <div className="bg-white text-slate-900 shadow-2xl mx-auto p-8" style={{ maxWidth: 900 }}>
+            <div className="border-b-4 border-blue-600 pb-3 mb-4">
+              <h2 className="text-2xl font-black tracking-tight">ОТЧЕТ РУКОВОДИТЕЛЮ</h2>
+              <p className="text-sm text-slate-500">Неделя {weekData?.weekNumber || ''}{weekData?.dates ? ` (${weekData.dates})` : ''}</p>
+            </div>
+
+            <section className="mb-6">
+              <h3 className="text-lg font-black mb-3">1. Операционная сводка</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {[
+                  ['Инциденты 1-й линии', Number(weekData?.incidentsClosed) || 0],
+                  ['Задачи недели', wordTasks.length],
+                  ['Срочные задачи', Number(weekData?.urgentCompleted) || 0],
+                  ['Бэклог', Number(weekData?.backlogTotal || weekData?.backlog || 0) || 0],
+                  ['CSAT', getCsatValue()],
+                  ['Телефония', getTelephonySummary().total ? `${getTelephonySummary().availability}%` : 'нет данных']
+                ].map(([label, value]) => (
+                  <div key={label} className="border border-blue-100 rounded-lg bg-slate-50 p-3">
+                    <div className="text-[10px] uppercase font-black text-slate-500">{label}</div>
+                    <div className="text-2xl font-black text-slate-950 mt-1">{value}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="mb-6">
+              <h3 className="text-lg font-black mb-3">2. Решенные задачи за неделю</h3>
+              <div className="space-y-4">
+                {tasksBySection.map(section => (
+                  <div key={section.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleTaskDrop(event, section.id)} className="border rounded-lg overflow-hidden" style={{ borderColor: '#dbeafe', borderLeft: `5px solid ${section.color}` }}>
+                    <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex justify-between items-center">
+                      <h4 className="font-black text-slate-950">{section.title}</h4>
+                      <span className="text-xs font-bold text-slate-500">{section.tasks.length}</span>
+                    </div>
+                    <div className="divide-y divide-slate-200">
+                      {section.tasks.length ? section.tasks.map(task => (
+                        <div
+                          key={task.id}
+                          data-word-task-id={task.id}
+                          draggable
+                          onDragStart={(event) => handleTaskDragStart(event, task.id)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => handleTaskDrop(event, section.id, task.id)}
+                          className={`p-3 hover:bg-slate-50 transition-colors ${draggedTaskId === task.id ? 'opacity-50' : ''}`}
+                        >
+                          <div className="flex flex-col md:flex-row md:items-start gap-3">
+                            <div className="w-24 flex-shrink-0 text-sm font-black text-blue-600">{task.id}</div>
+                            <div className="flex-1 min-w-0">
+                              <div
+                                data-word-task-title="true"
+                                contentEditable
+                                suppressContentEditableWarning
+                                onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordTitle', event.currentTarget.innerText)}
+                                className="font-black text-slate-950 outline-none border-b border-transparent focus:border-blue-300"
+                              >
+                                {task.wordTitle}
+                              </div>
+                              <div className="text-xs text-slate-500 mt-1">Исполнитель: <b>{getFullName(task.assignee)}</b>{task.cycleTime ? ` · Cycle Time: ${task.cycleTime} дн.` : ''}</div>
+                              <div
+                                data-word-task-details="true"
+                                contentEditable
+                                suppressContentEditableWarning
+                                onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordDetails', event.currentTarget.innerText)}
+                                className="mt-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-md p-2 min-h-[38px] outline-none focus:border-blue-300 whitespace-pre-wrap"
+                              >
+                                {task.wordDetails || 'Добавьте короткое описание результата...'}
+                              </div>
+                            </div>
+                            <select
+                              data-word-task-section="true"
+                              value={task.wordSectionId}
+                              onChange={(event) => handleMoveTaskToSection(task, event.target.value)}
+                              className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-700"
+                            >
+                              {sections.filter(item => !item.hidden).map(sectionOption => <option key={`${task.id}-${sectionOption.id}`} value={sectionOption.id}>{sectionOption.title}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="p-3 text-sm text-slate-400">Перетащите сюда задачи или скройте пустой раздел.</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="mb-6">
+              <h3 className="text-lg font-black mb-3">3. Поручения руководства</h3>
+              <div className="space-y-2">
+                {getManagementTasks().length ? getManagementTasks().map(task => {
+                  const isDone = task.status === 'completed';
+                  const meta = getProjectTaskStatusMeta(task, isDone);
+                  return (
+                    <div key={task.id} className={`rounded-lg border p-3 ${isDone ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
+                      <div className="font-black text-slate-950">{task.title}</div>
+                      <div className="text-xs text-slate-600 mt-1">Статус: <span className="px-2 py-0.5 rounded-full border font-black" style={{ background: meta.bg, color: meta.color, borderColor: meta.border }}>{meta.label}</span>{task.comment ? ` · ${task.comment}` : ''}</div>
+                    </div>
+                  );
+                }) : <div className="text-sm text-slate-500">Нет активных поручений руководства.</div>}
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-black mb-3">4. Показатели команды</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="border border-slate-200 rounded-lg p-3">
+                  <div className="text-xs font-black uppercase text-slate-500 mb-2">Задачи</div>
+                  {getTeamTaskLeaders().map((row, index) => <div key={`${row.name}-${index}`} className="text-sm">{index + 1}. <b>{row.name}</b> — {row.closed}</div>)}
+                </div>
+                <div className="border border-slate-200 rounded-lg p-3">
+                  <div className="text-xs font-black uppercase text-slate-500 mb-2">Инциденты</div>
+                  {getIncidentLeaders().length ? getIncidentLeaders().map((row, index) => <div key={`${row.name}-${index}`} className="text-sm">{index + 1}. <b>{row.name}</b> — {row.closed}</div>) : <div className="text-sm text-slate-500">Нет данных</div>}
+                </div>
+                <div className="border border-slate-200 rounded-lg p-3">
+                  <div className="text-xs font-black uppercase text-slate-500 mb-2">Телефония и CSAT</div>
+                  <div className="text-sm">CSAT: <b>{getCsatValue()}</b></div>
+                  <div className="text-sm">Звонков: <b>{getTelephonySummary().total || 'нет данных'}</b></div>
+                  <div className="text-sm">Пропущено: <b>{getTelephonySummary().missed || 0}</b></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- ПРОЦЕССЫ, КАЙДЗЕН, ПРОФИЛИ И АДМИНКА ---
 
 const ProcessesMap = ({ processes }) => {
@@ -6931,6 +7587,7 @@ const App = () => {
   const [csatReviews, setCsatReviews] = useState(() => { try { const saved = localStorage.getItem('teamlead_csat_reviews_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return {}; });
   const [aiTaskMemory, setAiTaskMemory] = useState(() => { try { const saved = localStorage.getItem('teamlead_ai_memory_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return {}; });
   const [teamMetricsMemory, setTeamMetricsMemory] = useState(() => { try { const saved = localStorage.getItem('teamlead_metrics_v1'); if (saved) return JSON.parse(saved); } catch (e) {} return {}; });
+  const [wordReportConfig, setWordReportConfig] = useState(() => { try { const saved = localStorage.getItem('teamlead_word_report_config_v1'); if (saved) return JSON.parse(saved); } catch (e) {} return createDefaultWordReportConfig(); });
   
   // НОВЫЙ ГЛОБАЛЬНЫЙ СТЕЙТ ПРОЕКТНЫХ ПОРУЧЕНИЙ РУКОВОДСТВА
   const [projectTasks, setProjectTasks] = useState(() => { try { const saved = localStorage.getItem('teamlead_project_tasks_v8'); if (saved) return JSON.parse(saved); } catch (e) {} return []; });
@@ -6962,6 +7619,7 @@ const App = () => {
         const csatRow = cloudData.find(r => r.key_name === 'csat_reviews'); if (csatRow) setCsatReviews(csatRow.value_data || {});
         const aiMemoryRow = cloudData.find(r => r.key_name === 'ai_task_memory'); if (aiMemoryRow) setAiTaskMemory(aiMemoryRow.value_data || {});
         const teamMetricsRow = cloudData.find(r => r.key_name === 'team_metrics_memory'); if (teamMetricsRow) setTeamMetricsMemory(teamMetricsRow.value_data || {});
+        const wordReportRow = cloudData.find(r => r.key_name === 'word_report_config'); if (wordReportRow) setWordReportConfig(wordReportRow.value_data || createDefaultWordReportConfig());
       }
 
       // 2. ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ (АВТОРИЗАЦИЯ)
@@ -7053,6 +7711,7 @@ const App = () => {
   useEffect(() => { saveToDb('csat_reviews', csatReviews, 'teamlead_csat_reviews_v8'); }, [csatReviews]);
   useEffect(() => { saveToDb('ai_task_memory', aiTaskMemory, 'teamlead_ai_memory_v8'); }, [aiTaskMemory]);
   useEffect(() => { saveToDb('team_metrics_memory', teamMetricsMemory, 'teamlead_metrics_v1'); }, [teamMetricsMemory]);
+  useEffect(() => { saveToDb('word_report_config', wordReportConfig, 'teamlead_word_report_config_v1'); }, [wordReportConfig]);
 
   // ФУНКЦИИ АВТОРИЗАЦИИ
   const handleLogin = async (username, password) => {
@@ -7107,6 +7766,7 @@ const App = () => {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} projectTasks={projectTasks} tasksArchive={tasksArchive} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} setTeamMetricsMemory={setTeamMetricsMemory} />;
       case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} tasksArchive={tasksArchive} teamMetricsMemory={teamMetricsMemory} />;
+      case 'wordReport': return <WordReportGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'weeklyCompetencies': return <WeeklyCompetenciesBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} aiTaskMemory={aiTaskMemory} />;
       case 'team': return <TeamAnalytics teamMetricsMemory={teamMetricsMemory} setTeamMetricsMemory={setTeamMetricsMemory} />;
@@ -7131,6 +7791,7 @@ const App = () => {
     { id: 'pulse', icon: Activity, label: 'Пульс команды', roles: ['admin', 'viewer'] },
     { id: 'fill', icon: Pencil, label: 'Заполнить неделю', roles: ['admin'] },
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
+    { id: 'wordReport', icon: BookOpen, label: 'Word-отчет', roles: ['admin', 'viewer'] },
     { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
     { id: 'weeklyCompetencies', icon: Award, label: 'Компетенции недели', roles: ['admin', 'viewer'] },
     { id: 'team', icon: Users, label: 'Команда', roles: ['admin', 'viewer'] },
