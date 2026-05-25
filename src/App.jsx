@@ -6221,8 +6221,12 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, projectTasks, setProjectTasks, csatReviews, aiTaskMemory, setAiTaskMemory, wordReportConfig, setWordReportConfig, teamMetricsMemory }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [newSectionTitle, setNewSectionTitle] = useState('');
+  const [newProjectTaskTitle, setNewProjectTaskTitle] = useState('');
+  const [newProjectTaskComment, setNewProjectTaskComment] = useState('');
+  const [newProjectTaskColor, setNewProjectTaskColor] = useState('#3b82f6');
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const previewRef = useRef(null);
+  const wordFontFamily = "'Aptos', 'Calibri', 'Segoe UI', Arial, sans-serif";
 
   const getSections = () => {
     const savedSections = Array.isArray(wordReportConfig?.sections) ? wordReportConfig.sections : [];
@@ -6515,19 +6519,58 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     setProjectTasks(prev => (prev || []).map(task => orderMap.has(task.id) ? { ...task, priority: orderMap.get(task.id) } : task));
   };
 
+  const handleUpdateProjectTaskStatus = (taskId, status) => {
+    if (!setProjectTasks) return;
+    const cleanStatus = status === 'completed' ? 'completed' : 'active';
+    setProjectTasks(prev => (prev || []).map(task => {
+      if (task.id !== taskId) return task;
+      return {
+        ...task,
+        status: cleanStatus,
+        completedWeekKey: cleanStatus === 'completed' ? (task.completedWeekKey || selectedKey) : null
+      };
+    }));
+  };
+
+  const handleDeleteProjectTask = (taskId) => {
+    if (!setProjectTasks) return;
+    setProjectTasks(prev => (prev || []).filter(task => task.id !== taskId).map((task, index) => ({ ...task, priority: index })));
+  };
+
+  const handleAddWordProjectTask = () => {
+    if (!setProjectTasks) return;
+    const title = cleanWordReportText(newProjectTaskTitle);
+    if (!title) return;
+    const nextTask = {
+      id: `pt-${Date.now()}`,
+      title,
+      comment: cleanWordReportText(newProjectTaskComment),
+      color: newProjectTaskColor,
+      status: 'active',
+      createdWeekKey: selectedKey,
+      priority: (projectTasks || []).length,
+      createdAt: new Date().toISOString()
+    };
+    setProjectTasks(prev => [...(prev || []), nextTask]);
+    setNewProjectTaskTitle('');
+    setNewProjectTaskComment('');
+    setNewProjectTaskColor('#3b82f6');
+  };
+
   const getTeamTaskLeaders = () => {
-    const rows = Object.values((weekData?.taskPerformers || {})).length
-      ? Object.entries(weekData.taskPerformers || {}).map(([name, row]) => ({
-          name: getFullName(name),
-          closed: Number(row.closed || row.count || row.total || 0)
-        }))
-      : getWordTasks().reduce((acc, task) => {
-          const name = getFullName(task.assignee);
-          if (!acc[name]) acc[name] = { name, closed: 0 };
-          acc[name].closed += 1;
-          return acc;
-        }, {});
-    return (Array.isArray(rows) ? rows : Object.values(rows))
+    const fromTasks = getWordTasks().reduce((acc, task) => {
+      const name = getFullName(task.assignee);
+      if (!acc[name]) acc[name] = { name, closed: 0 };
+      acc[name].closed += 1;
+      return acc;
+    }, {});
+    const taskRows = Object.values(fromTasks);
+    const performerRows = Object.entries(weekData?.taskPerformers || {}).map(([name, row]) => ({
+      name: getFullName(row?.name || row?.assignee || name),
+      closed: Number(row?.closed || row?.count || row?.total || 0)
+    }));
+    const rows = taskRows.length ? taskRows : performerRows;
+    return rows
       .filter(row => row.name && row.name !== TEAM_LEAD_NAME && !EXCLUDED_USER_IDS.includes(row.name))
       .sort((a, b) => b.closed - a.closed)
       .slice(0, 5);
@@ -6544,6 +6587,34 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const total = rows.reduce((sum, row) => sum + (Number(row.total || row.calls || row.all || row.answered || 0) || 0), 0);
     const missed = rows.reduce((sum, row) => sum + (Number(row.missed || row.lost || row.notAnswered || 0) || 0), 0);
     return { total, missed, availability: total > 0 ? Math.round(((total - missed) / total) * 100) : null };
+  };
+
+  const getFirstLineRows = () => {
+    const telephonyByName = (Array.isArray(weekData?.telephonyData) ? weekData.telephonyData : []).reduce((acc, row) => {
+      const name = getFullName(row.name || row.employee || row.operator || row.assignee);
+      if (name) acc[name] = row;
+      return acc;
+    }, {});
+    return (weekData?.topPerformers || [])
+      .map(item => {
+        const name = getFullName(item.name || item.assignee);
+        const phone = telephonyByName[name] || {};
+        const totalCalls = Number(phone.total || phone.calls || phone.all || phone.answered || 0) || 0;
+        const missed = Number(phone.missed || phone.lost || phone.notAnswered || 0) || 0;
+        const availability = totalCalls > 0 ? Math.round(((totalCalls - missed) / totalCalls) * 100) : null;
+        return {
+          name,
+          closed: Number(item.closed || item.count || item.total || 0) || 0,
+          avgTime: Number(item.avgTime || item.avgResolution || item.averageTime || item.time || 0) || 0,
+          csat: Number(item.csat || item.csatAverage || item.avgCsat || 0) || null,
+          calls: totalCalls,
+          missed,
+          availability
+        };
+      })
+      .filter(item => item.name && !THIRD_LINE_NAMES.includes(item.name))
+      .sort((a, b) => b.closed - a.closed)
+      .slice(0, 6);
   };
 
   const getCsatValue = () => {
@@ -6566,6 +6637,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const rows = details.map((item, index) => {
       const id = safeString(item.id || item.key || item.issueKey || item.incidentId || item.ticket || item.taskId || `csat-${index}`).trim();
       const reviewText = cleanWordReportText(csatReviews?.[id] || item.comment || item.review || item.feedback || item.text || item.message || item.csatComment || '');
+      if (/Комментарий\s+Оценка\s+Ключ\s+Агенты\s+Получено/i.test(reviewText)) return null;
       const rating = Number(item.rating || item.score || item.value || item.csat || item.mark);
       const title = cleanWordReportText(item.theme || item.title || item.summary || item.taskTitle || item.subject || id);
       const assignee = getFullName(item.assignee || item.executor || item.admin || item.performer || item.name || item.owner || '');
@@ -6576,7 +6648,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         assignee: assignee || 'Не указан',
         comment: reviewText
       };
-    }).filter(item => item.comment);
+    }).filter(item => item?.comment);
     const seen = new Set();
     return rows.filter(item => {
       const key = `${item.id}-${item.comment}`;
@@ -6678,6 +6750,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const managementGroups = getManagementTaskGroups(projectOverrides);
     const taskLeaders = getTeamTaskLeaders();
     const incidentLeaders = getIncidentLeaders();
+    const firstLineRows = getFirstLineRows();
     const telephony = getTelephonySummary();
     const csatComments = getWordCsatComments();
     const badCsatComments = csatComments.filter(item => item.rating !== null && item.rating < 4);
@@ -6733,20 +6806,16 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           <div style="border:1px solid ${isDoneGroup ? '#a7f3d0' : '#bfdbfe'}; border-left:5px solid ${isDoneGroup ? '#14b8a6' : '#3b82f6'}; border-radius:8px; margin-bottom:12px; overflow:hidden;">
             <div style="background:${isDoneGroup ? '#ecfdf5' : '#eff6ff'}; padding:7px 10px; font-weight:900; color:${isDoneGroup ? '#0f766e' : '#1d4ed8'}; text-transform:uppercase; font-size:12px; letter-spacing:0.03em;">${escapeHtml(title)}</div>
             ${tasks.map(task => {
-              const meta = getProjectTaskStatusMeta(task, isDoneGroup);
               return `
                 <div style="padding:9px 10px; border-top:1px solid ${isDoneGroup ? '#ccfbf1' : '#dbeafe'}; background:${isDoneGroup ? '#f8fffc' : '#ffffff'};">
                   <div style="font-weight:900; color:#0f172a; font-size:13px;">${escapeHtml(task.title)}</div>
-                  <div style="font-size:12px; color:#475569; margin-top:3px;">
-                    <span style="display:inline-block; background:${meta.bg}; color:${meta.color}; border:1px solid ${meta.border}; border-radius:999px; padding:1px 6px; font-size:10px; font-weight:900;">${escapeHtml(meta.label)}</span>
-                    ${task.comment ? `<span style="margin-left:6px;">${escapeHtml(task.comment)}</span>` : ''}
-                  </div>
+                  ${task.comment ? `<div style="font-size:12px; color:#475569; margin-top:3px;">${escapeHtml(task.comment)}</div>` : ''}
                 </div>`;
             }).join('')}
           </div>`;
       };
       if (!managementGroups.done.length && !managementGroups.active.length) return '<div style="font-size:12px; color:#64748b;">Нет активных поручений руководства.</div>';
-      return `${renderGroup('Выполнено и подтверждено', managementGroups.done, true)}${renderGroup('В работе по приоритету', managementGroups.active, false)}`;
+      return `${renderGroup('Выполнено', managementGroups.done, true)}${renderGroup('В работе по приоритету', managementGroups.active, false)}`;
     };
 
     const renderTeamMetrics = () => `
@@ -6754,11 +6823,11 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         <tr>
           <td style="width:33%; padding:12px; border:1px solid #bfdbfe; border-top:4px solid #3b82f6; border-radius:8px; vertical-align:top; background:#f8fbff;">
             <div style="font-size:11px; color:#1d4ed8; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по задачам</div>
-            ${taskLeaders.map((row, index) => `<div style="font-size:12px; margin-bottom:5px;"><span style="display:inline-block; width:18px; color:#64748b;">${index + 1}.</span><b>${escapeHtml(row.name)}</b><span style="float:right; font-weight:900; color:#0f172a;">${row.closed}</span></div>`).join('') || '<div style="font-size:12px; color:#64748b;">Нет данных</div>'}
+            ${taskLeaders.length ? `<table style="width:100%; border-collapse:collapse;">${taskLeaders.map((row, index) => `<tr><td style="font-size:12px; color:#64748b; width:20px; padding:2px 0;">${index + 1}.</td><td style="font-size:12px; font-weight:800; padding:2px 4px;">${escapeHtml(row.name)}</td><td style="font-size:12px; font-weight:900; text-align:right; padding:2px 0;">${row.closed}</td></tr>`).join('')}</table>` : '<div style="font-size:12px; color:#64748b;">Нет данных</div>'}
           </td>
           <td style="width:33%; padding:12px; border:1px solid #a7f3d0; border-top:4px solid #10b981; border-radius:8px; vertical-align:top; background:#f8fffc;">
             <div style="font-size:11px; color:#047857; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по инцидентам</div>
-            ${incidentLeaders.map((row, index) => `<div style="font-size:12px; margin-bottom:5px;"><span style="display:inline-block; width:18px; color:#64748b;">${index + 1}.</span><b>${escapeHtml(row.name)}</b><span style="float:right; font-weight:900; color:#0f172a;">${row.closed}</span></div>`).join('') || '<div style="font-size:12px; color:#64748b;">Нет данных</div>'}
+            ${incidentLeaders.length ? `<table style="width:100%; border-collapse:collapse;">${incidentLeaders.map((row, index) => `<tr><td style="font-size:12px; color:#64748b; width:20px; padding:2px 0;">${index + 1}.</td><td style="font-size:12px; font-weight:800; padding:2px 4px;">${escapeHtml(row.name)}</td><td style="font-size:12px; font-weight:900; text-align:right; padding:2px 0;">${row.closed}</td></tr>`).join('')}</table>` : '<div style="font-size:12px; color:#64748b;">Нет данных</div>'}
           </td>
           <td style="width:33%; padding:12px; border:1px solid #fde68a; border-top:4px solid #f59e0b; border-radius:8px; vertical-align:top; background:#fffdf5;">
             <div style="font-size:11px; color:#92400e; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Качество и линия</div>
@@ -6768,6 +6837,31 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           </td>
         </tr>
       </table>`;
+
+    const renderFirstLine = () => {
+      if (!firstLineRows.length) return '';
+      return `
+        <div style="margin-top:12px; border:1px solid #dbeafe; border-radius:8px; overflow:hidden;">
+          <div style="background:#f8fafc; padding:8px 10px; font-size:12px; color:#334155; font-weight:900; text-transform:uppercase;">Первая линия: основные показатели</div>
+          <table style="width:100%; border-collapse:collapse;">
+            <tr style="background:#ffffff;">
+              <th style="text-align:left; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Администратор</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Инциденты</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Звонки</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Доступность</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">CSAT</th>
+            </tr>
+            ${firstLineRows.map(row => `
+              <tr>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; font-size:12px; font-weight:800;">${escapeHtml(row.name)}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.closed}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.calls || 'нет'}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.availability !== null ? `${row.availability}%` : '-'}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:900;">${row.csat ? row.csat.toFixed(1) : '-'}</td>
+              </tr>`).join('')}
+          </table>
+        </div>`;
+    };
 
     const renderCsatComments = () => {
       if (!csatComments.length) return '';
@@ -6790,7 +6884,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     };
 
     return `
-      <div style="font-family: Arial, Helvetica, sans-serif; color:#0f172a; line-height:1.35;">
+      <div style="font-family: ${wordFontFamily}; color:#0f172a; line-height:1.35;">
         <div style="border-bottom:3px solid #2563eb; padding-bottom:10px; margin-bottom:12px;">
           <div style="font-size:22px; font-weight:900; letter-spacing:0.02em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
           <div style="font-size:12px; color:#64748b;">${escapeHtml(weekTitle)}</div>
@@ -6802,6 +6896,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${renderManagementTasks()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">4. Показатели команды</h2>
         ${renderTeamMetrics()}
+        ${renderFirstLine()}
         ${renderCsatComments()}
       </div>`;
   };
@@ -6832,7 +6927,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const handleDownloadWordReport = () => {
     const persisted = persistWordPreviewEdits();
     const htmlContent = getWordReportHtmlString({ exportMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Word Report Week ${weekData?.weekNumber || ''}</title></head><body>${htmlContent}</body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Word Report Week ${weekData?.weekNumber || ''}</title><style>body{font-family:${wordFontFamily};}</style></head><body>${htmlContent}</body></html>`;
     const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -6912,6 +7007,51 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
             <div className="font-bold text-slate-200 mb-1">Как пользоваться</div>
             <p>Задачи раскладываются автоматически. Заголовок и детали можно править прямо в карточке; раздел меняется выпадающим списком или перетаскиванием задачи.</p>
           </div>
+
+          <div className="bg-slate-800 rounded-xl border border-slate-700/50 p-4">
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Поручения руководства</h2>
+            <div className="space-y-2 mb-3">
+              <input
+                value={newProjectTaskTitle}
+                onChange={(event) => setNewProjectTaskTitle(event.target.value)}
+                placeholder="Новое поручение..."
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+              />
+              <input
+                value={newProjectTaskComment}
+                onChange={(event) => setNewProjectTaskComment(event.target.value)}
+                placeholder="Краткий статус..."
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+              />
+              <div className="flex gap-2">
+                <select value={newProjectTaskColor} onChange={(event) => setNewProjectTaskColor(event.target.value)} className="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                  <option value="#3b82f6">В работе</option>
+                  <option value="#10b981">Рабочий режим</option>
+                  <option value="#f59e0b">Контроль срока</option>
+                  <option value="#ef4444">Риск / эскалация</option>
+                </select>
+                <button onClick={handleAddWordProjectTask} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-black">Добавить</button>
+              </div>
+            </div>
+            <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+              {getManagementTasks().map(task => {
+                const isDone = task.status === 'completed';
+                return (
+                  <div key={`side-${task.id}`} className="bg-slate-900/60 border border-slate-700 rounded-lg p-2">
+                    <div className="text-xs font-bold text-slate-100 line-clamp-2 mb-2">{task.title}</div>
+                    <div className="flex flex-wrap gap-1">
+                      <button onClick={() => handleMoveProjectTaskPriority(task.id, -1)} className="px-2 py-1 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-300">↑</button>
+                      <button onClick={() => handleMoveProjectTaskPriority(task.id, 1)} className="px-2 py-1 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-300">↓</button>
+                      <button onClick={() => handleUpdateProjectTaskStatus(task.id, isDone ? 'active' : 'completed')} className={`px-2 py-1 rounded border text-[11px] font-bold ${isDone ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'}`}>
+                        {isDone ? 'В работу' : 'Выполнено'}
+                      </button>
+                      <button onClick={() => handleDeleteProjectTask(task.id)} className="px-2 py-1 rounded bg-red-500/10 border border-red-500/30 text-[11px] text-red-300">Удалить</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         <div ref={previewRef} className="bg-slate-300 rounded-xl p-6 overflow-auto custom-scrollbar" style={{ maxHeight: '78vh' }}>
@@ -6921,7 +7061,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               <p className="text-sm text-slate-500">Неделя {weekData?.weekNumber || ''}{weekData?.dates ? ` (${weekData.dates})` : ''}</p>
             </div>
 
-            <section className="mb-6">
+            <section className="mb-6" style={{ fontFamily: wordFontFamily }}>
               <div className="border border-blue-100 border-l-4 border-l-blue-500 rounded-lg bg-slate-50 px-4 py-3 mb-5">
                 <h3 className="text-lg font-black uppercase tracking-tight">Операционная сводка (KPI)</h3>
               </div>
@@ -6943,7 +7083,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               </div>
             </section>
 
-            <section className="mb-6">
+            <section className="mb-6" style={{ fontFamily: wordFontFamily }}>
               <h3 className="text-lg font-black mb-3">2. Решенные задачи за неделю</h3>
               <div className="space-y-4">
                 {tasksBySection.map(section => (
@@ -7004,21 +7144,20 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               </div>
             </section>
 
-            <section className="mb-6">
+            <section className="mb-6" style={{ fontFamily: wordFontFamily }}>
               <h3 className="text-lg font-black mb-3">3. Поручения руководства</h3>
               <div className="space-y-2">
                 {(!managementGroups.done.length && !managementGroups.active.length) && <div className="text-sm text-slate-500">Нет активных поручений руководства.</div>}
                 {[
-                  { title: 'Выполнено и подтверждено', tasks: managementGroups.done, done: true },
+                  { title: 'Выполнено', tasks: managementGroups.done, done: true },
                   { title: 'В работе по приоритету', tasks: managementGroups.active, done: false }
                 ].filter(group => group.tasks.length).map(group => (
                   <div key={group.title} className={`rounded-lg border overflow-hidden ${group.done ? 'border-emerald-200 bg-emerald-50/60' : 'border-blue-200 bg-blue-50/50'}`}>
-                    <div className={`px-3 py-2 text-xs font-black uppercase tracking-wide ${group.done ? 'text-teal-700 bg-emerald-50' : 'text-blue-700 bg-blue-50'}`}>
-                      {group.title}
-                    </div>
+                      <div className={`px-3 py-2 text-xs font-black uppercase tracking-wide ${group.done ? 'text-teal-700 bg-emerald-50' : 'text-blue-700 bg-blue-50'}`}>
+                        {group.title}
+                      </div>
                     <div className="divide-y divide-slate-200">
                       {group.tasks.map(task => {
-                        const meta = getProjectTaskStatusMeta(task, group.done);
                         return (
                           <div key={task.id} data-word-project-id={task.id} className="bg-white/80 px-3 py-2.5">
                             <div className="flex items-start gap-2">
@@ -7037,7 +7176,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                                   {task.title}
                                 </div>
                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                                  <span className="px-2 py-0.5 rounded-full border font-black" style={{ background: meta.bg, color: meta.color, borderColor: meta.border }}>{meta.label}</span>
                                   <span
                                     data-word-project-comment="true"
                                     contentEditable
@@ -7049,6 +7187,12 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                                   </span>
                                 </div>
                               </div>
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                <button onClick={() => handleUpdateProjectTaskStatus(task.id, group.done ? 'active' : 'completed')} className={`px-2 py-1 rounded border text-[11px] font-bold ${group.done ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                                  {group.done ? 'Вернуть в работу' : 'Отметить выполненным'}
+                                </button>
+                                <button onClick={() => handleDeleteProjectTask(task.id)} className="px-2 py-1 rounded border border-red-200 bg-red-50 text-[11px] font-bold text-red-700">Удалить</button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -7059,7 +7203,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               </div>
             </section>
 
-            <section>
+            <section style={{ fontFamily: wordFontFamily }}>
               <h3 className="text-lg font-black mb-3">4. Показатели команды</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="border border-blue-200 border-t-4 border-t-blue-500 rounded-lg p-3 bg-blue-50/30">
@@ -7088,6 +7232,36 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 </div>
               </div>
             </section>
+
+            {getFirstLineRows().length > 0 && (
+              <section className="mt-5" style={{ fontFamily: wordFontFamily }}>
+                <h3 className="text-base font-black mb-2">Первая линия: основные показатели</h3>
+                <div className="overflow-hidden rounded-lg border border-blue-100">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-[11px] uppercase text-slate-500">
+                      <tr>
+                        <th className="text-left p-2">Администратор</th>
+                        <th className="text-right p-2">Инциденты</th>
+                        <th className="text-right p-2">Звонки</th>
+                        <th className="text-right p-2">Доступность</th>
+                        <th className="text-right p-2">CSAT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getFirstLineRows().map(row => (
+                        <tr key={`fl-${row.name}`} className="border-t border-slate-100">
+                          <td className="p-2 font-bold">{row.name}</td>
+                          <td className="p-2 text-right">{row.closed}</td>
+                          <td className="p-2 text-right">{row.calls || 'нет'}</td>
+                          <td className="p-2 text-right">{row.availability !== null ? `${row.availability}%` : '-'}</td>
+                          <td className="p-2 text-right font-black">{row.csat ? row.csat.toFixed(1) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
 
             {wordCsatComments.length > 0 && (
               <section className="mt-6">
