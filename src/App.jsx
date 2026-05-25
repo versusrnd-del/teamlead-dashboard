@@ -6510,6 +6510,85 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     return (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1);
   };
 
+  const getPreviousWeekData = () => {
+    const sortedKeys = [...(historyKeys || [])].sort();
+    const currentIndex = sortedKeys.indexOf(selectedKey);
+    const previousKey = currentIndex > 0 ? sortedKeys[currentIndex - 1] : null;
+    return previousKey ? weeksHistory?.[previousKey] : null;
+  };
+
+  const getWordKpiSummary = () => {
+    const previousWeekData = getPreviousWeekData();
+    const incidentsClosed = Number(weekData?.incidentsClosed) || 0;
+    const previousIncidents = Number(previousWeekData?.incidentsClosed) || 0;
+    const incidentTrend = previousWeekData ? incidentsClosed - previousIncidents : 0;
+    const tasksClosed = (Number(weekData?.sprintCompleted) || 0) + (Number(weekData?.urgentCompleted) || 0) + (Number(weekData?.backlogCompleted) || 0);
+    const slaIndex = Number(weekData?.managementIndex) || 0;
+    const returnsRate = Number(weekData?.reopenRate || weekData?.returnRate || weekData?.returnsRate || 0) || 0;
+    const backlog = Number(weekData?.backlog || weekData?.backlogTotal || 0) || 0;
+    const backlogOld30 = Number(weekData?.backlogOld30) || 0;
+    const inflow = Number(weekData?.inflowThisWeek) || 0;
+    return {
+      incidentsClosed,
+      incidentTrend,
+      tasksClosed,
+      slaIndex,
+      returnsRate,
+      queue: Number(weekData?.incidentsQueue) || 0,
+      inflow,
+      backlog,
+      backlogOld30
+    };
+  };
+
+  const getWordKpiCards = () => {
+    const summary = getWordKpiSummary();
+    const incidentTrendText = summary.incidentTrend === 0
+      ? 'без изменений'
+      : `${summary.incidentTrend > 0 ? '+' : '-'}${Math.abs(summary.incidentTrend)} к прошлой нед.`;
+    return [
+      {
+        key: 'incidents',
+        title: 'Инциденты (1 линия)',
+        value: summary.incidentsClosed,
+        suffix: 'решено',
+        accent: '#10b981',
+        progress: Math.min(100, Math.max(8, Math.round((summary.incidentsClosed / Math.max(summary.incidentsClosed + summary.queue, 1)) * 100))),
+        hint: `Очередь: ${summary.queue}`,
+        trend: incidentTrendText,
+        trendTone: summary.incidentTrend > 0 ? 'red' : (summary.incidentTrend < 0 ? 'green' : 'slate')
+      },
+      {
+        key: 'tasks',
+        title: 'Задачи (инфра)',
+        value: summary.tasksClosed,
+        suffix: 'закрыто',
+        accent: '#3b82f6',
+        progress: Math.min(100, Math.max(8, Math.round((summary.tasksClosed / Math.max(summary.tasksClosed + summary.backlog, 1)) * 100))),
+        hint: `Приток: ${summary.inflow} новых | Бэклог: ${summary.backlog} (>30д: ${summary.backlogOld30})`,
+        trend: '',
+        trendTone: 'slate'
+      },
+      {
+        key: 'sla',
+        title: 'Индекс SLA',
+        value: summary.slaIndex,
+        suffix: '/100',
+        accent: summary.slaIndex >= 70 ? '#10b981' : (summary.slaIndex <= 0 ? '#ef4444' : '#f59e0b'),
+        progress: Math.min(100, Math.max(0, summary.slaIndex)),
+        hint: `Возвраты: ${summary.returnsRate}%`,
+        trend: '',
+        trendTone: 'slate'
+      }
+    ];
+  };
+
+  const getTrendColor = (tone) => {
+    if (tone === 'red') return '#dc2626';
+    if (tone === 'green') return '#059669';
+    return '#64748b';
+  };
+
   const getWordReportHtmlString = (options = {}) => {
     const exportMode = Boolean(options.exportMode);
     const overrides = options.memoryOverrides || {};
@@ -6523,28 +6602,27 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const taskLeaders = getTeamTaskLeaders();
     const incidentLeaders = getIncidentLeaders();
     const telephony = getTelephonySummary();
-    const totalTasks = tasks.length;
-    const incidentsClosed = Number(weekData?.incidentsClosed) || 0;
-    const urgentCompleted = Number(weekData?.urgentCompleted) || 0;
-    const backlogTotal = Number(weekData?.backlogTotal || weekData?.backlog || 0) || 0;
     const weekTitle = `Неделя ${weekData?.weekNumber || ''}${weekData?.dates ? ` (${weekData.dates})` : ''}`;
-
-    const kpiCards = [
-      ['Инциденты 1-й линии', incidentsClosed],
-      ['Задачи недели', totalTasks],
-      ['Срочные задачи', urgentCompleted],
-      ['Бэклог', backlogTotal],
-      ['CSAT', getCsatValue()],
-      ['Телефония', telephony.total ? `${telephony.availability}%` : 'нет данных']
-    ];
+    const kpiCards = getWordKpiCards();
 
     const renderKpi = () => `
-      <table style="width:100%; border-collapse:separate; border-spacing:8px; margin: 12px 0 18px 0;">
+      <div style="border:1px solid #dbeafe; border-left:5px solid #3b82f6; border-radius:7px; padding:10px 12px; margin: 12px 0 14px 0; background:#f8fafc;">
+        <div style="font-size:16px; font-weight:900; color:#0f172a; text-transform:uppercase; letter-spacing:0.02em;">Операционная сводка (KPI)</div>
+      </div>
+      <table style="width:100%; border-collapse:separate; border-spacing:12px 0; margin: 0 0 20px 0;">
         <tr>
-          ${kpiCards.map(([label, value]) => `
-            <td style="width:16.66%; border:1px solid #dbeafe; border-radius:8px; padding:10px; background:#f8fafc; vertical-align:top;">
-              <div style="font-size:10px; color:#64748b; text-transform:uppercase; font-weight:800;">${escapeHtml(label)}</div>
-              <div style="font-size:20px; color:#0f172a; font-weight:900; margin-top:4px;">${escapeHtml(value)}</div>
+          ${kpiCards.map(card => `
+            <td style="width:33.33%; border:1px solid #dbeafe; border-top:4px solid ${card.accent}; border-radius:8px; padding:14px; background:#ffffff; vertical-align:top; box-shadow:0 2px 6px rgba(15,23,42,0.08);">
+              <div style="font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px;">${escapeHtml(card.title)}</div>
+              <div style="margin-bottom:8px;">
+                <span style="font-size:24px; color:${card.accent}; font-weight:900;">${escapeHtml(card.value)}</span>
+                <span style="font-size:12px; color:#475569;"> ${escapeHtml(card.suffix)}</span>
+                ${card.trend ? `<span style="font-size:11px; color:${getTrendColor(card.trendTone)}; font-weight:800; margin-left:4px;">${escapeHtml(card.trend)}</span>` : ''}
+              </div>
+              <div style="font-size:12px; color:#475569; margin-bottom:10px;">${escapeHtml(card.hint)}</div>
+              <div style="height:5px; background:#e2e8f0; border-radius:99px; overflow:hidden;">
+                <div style="height:5px; width:${card.progress}%; background:${card.accent}; border-radius:99px;"></div>
+              </div>
             </td>
           `).join('')}
         </tr>
@@ -6552,21 +6630,20 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
     const renderTask = (task) => `
       <tr>
-        <td style="width:100px; color:#2563eb; font-weight:800; padding:8px 10px; border-bottom:1px solid #e2e8f0; vertical-align:top;">${escapeHtml(task.id)}</td>
-        <td style="padding:8px 10px; border-bottom:1px solid #e2e8f0; vertical-align:top;">
-          <div style="font-weight:800; color:#0f172a;">${escapeHtml(task.wordTitle)}</div>
-          ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:4px; line-height:1.45;">${escapeHtml(task.wordDetails)}</div>` : ''}
-          <div style="font-size:11px; color:#64748b; margin-top:5px;">Исполнитель: <b>${escapeHtml(getFullName(task.assignee))}</b>${task.cycleTime ? ` · Cycle Time: ${escapeHtml(task.cycleTime)} дн.` : ''}</div>
+        <td style="width:92px; color:#2563eb; font-weight:800; padding:7px 8px 9px 0; border-bottom:1px solid #e5e7eb; vertical-align:top; white-space:nowrap;">${escapeHtml(task.id)}</td>
+        <td style="padding:7px 0 9px 0; border-bottom:1px solid #e5e7eb; vertical-align:top;">
+          <div style="font-weight:800; color:#0f172a; font-size:13px;">${escapeHtml(task.wordTitle)}</div>
+          ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:4px; line-height:1.45; padding-left:10px; border-left:2px solid #cbd5e1;">${escapeHtml(task.wordDetails)}</div>` : ''}
         </td>
       </tr>`;
 
     const renderTaskSections = () => tasksBySection.map(section => `
-      <div style="border:1px solid #dbeafe; border-left:5px solid ${section.color}; border-radius:8px; overflow:hidden; margin:0 0 14px 0;">
-        <div style="background:#f8fafc; padding:9px 12px; border-bottom:1px solid #e2e8f0;">
-          <span style="font-size:15px; font-weight:900; color:#0f172a;">${escapeHtml(section.title)}</span>
+      <div style="margin:0 0 16px 0;">
+        <div style="border-left:5px solid ${section.color}; border-bottom:1px solid #dbeafe; background:#f8fafc; padding:8px 10px; margin-bottom:2px;">
+          <span style="font-size:14px; font-weight:900; color:#0f172a; text-transform:uppercase; letter-spacing:0.02em;">${escapeHtml(section.title)}</span>
           <span style="float:right; font-size:11px; color:#64748b;">${section.tasks.length}</span>
         </div>
-        ${section.tasks.length ? `<table style="width:100%; border-collapse:collapse;">${section.tasks.map(renderTask).join('')}</table>` : `<div style="padding:10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
+        ${section.tasks.length ? `<table style="width:100%; border-collapse:collapse; margin-left:10px;">${section.tasks.map(renderTask).join('')}</table>` : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
       </div>
     `).join('');
 
@@ -6607,7 +6684,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           <div style="font-size:22px; font-weight:900; letter-spacing:0.02em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
           <div style="font-size:12px; color:#64748b;">${escapeHtml(weekTitle)}</div>
         </div>
-        <h2 style="font-size:16px; margin:12px 0 6px 0; color:#0f172a;">1. Операционная сводка</h2>
         ${renderKpi()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">2. Решенные задачи за неделю</h2>
         ${renderTaskSections()}
@@ -6731,19 +6807,22 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
             </div>
 
             <section className="mb-6">
-              <h3 className="text-lg font-black mb-3">1. Операционная сводка</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {[
-                  ['Инциденты 1-й линии', Number(weekData?.incidentsClosed) || 0],
-                  ['Задачи недели', wordTasks.length],
-                  ['Срочные задачи', Number(weekData?.urgentCompleted) || 0],
-                  ['Бэклог', Number(weekData?.backlogTotal || weekData?.backlog || 0) || 0],
-                  ['CSAT', getCsatValue()],
-                  ['Телефония', getTelephonySummary().total ? `${getTelephonySummary().availability}%` : 'нет данных']
-                ].map(([label, value]) => (
-                  <div key={label} className="border border-blue-100 rounded-lg bg-slate-50 p-3">
-                    <div className="text-[10px] uppercase font-black text-slate-500">{label}</div>
-                    <div className="text-2xl font-black text-slate-950 mt-1">{value}</div>
+              <div className="border border-blue-100 border-l-4 border-l-blue-500 rounded-lg bg-slate-50 px-4 py-3 mb-5">
+                <h3 className="text-lg font-black uppercase tracking-tight">Операционная сводка (KPI)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {getWordKpiCards().map(card => (
+                  <div key={card.key} className="border border-blue-100 rounded-lg bg-white p-4 shadow-sm border-t-4" style={{ borderTopColor: card.accent }}>
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-3">{card.title}</div>
+                    <div className="flex items-baseline gap-1 mb-2">
+                      <span className="text-3xl font-black" style={{ color: card.accent }}>{card.value}</span>
+                      <span className="text-sm text-slate-600">{card.suffix}</span>
+                      {card.trend && <span className="text-xs font-black ml-1" style={{ color: getTrendColor(card.trendTone) }}>{card.trend}</span>}
+                    </div>
+                    <div className="text-sm text-slate-600 mb-3">{card.hint}</div>
+                    <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${card.progress}%`, background: card.accent }} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -6753,12 +6832,12 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               <h3 className="text-lg font-black mb-3">2. Решенные задачи за неделю</h3>
               <div className="space-y-4">
                 {tasksBySection.map(section => (
-                  <div key={section.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleTaskDrop(event, section.id)} className="border rounded-lg overflow-hidden" style={{ borderColor: '#dbeafe', borderLeft: `5px solid ${section.color}` }}>
-                    <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex justify-between items-center">
-                      <h4 className="font-black text-slate-950">{section.title}</h4>
+                  <div key={section.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleTaskDrop(event, section.id)} className="overflow-hidden">
+                    <div className="bg-slate-50 border-b border-blue-100 px-3 py-2 flex justify-between items-center" style={{ borderLeft: `5px solid ${section.color}` }}>
+                      <h4 className="font-black text-slate-950 uppercase tracking-tight text-sm">{section.title}</h4>
                       <span className="text-xs font-bold text-slate-500">{section.tasks.length}</span>
                     </div>
-                    <div className="divide-y divide-slate-200">
+                    <div className="divide-y divide-slate-200 pl-3">
                       {section.tasks.length ? section.tasks.map(task => (
                         <div
                           key={task.id}
@@ -6767,10 +6846,10 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                           onDragStart={(event) => handleTaskDragStart(event, task.id)}
                           onDragOver={(event) => event.preventDefault()}
                           onDrop={(event) => handleTaskDrop(event, section.id, task.id)}
-                          className={`p-3 hover:bg-slate-50 transition-colors ${draggedTaskId === task.id ? 'opacity-50' : ''}`}
+                          className={`py-2.5 pr-2 hover:bg-slate-50/70 transition-colors ${draggedTaskId === task.id ? 'opacity-50' : ''}`}
                         >
                           <div className="flex flex-col md:flex-row md:items-start gap-3">
-                            <div className="w-24 flex-shrink-0 text-sm font-black text-blue-600">{task.id}</div>
+                            <div className="w-24 flex-shrink-0 text-sm font-black text-blue-600 pt-0.5">{task.id}</div>
                             <div className="flex-1 min-w-0">
                               <div
                                 data-word-task-title="true"
@@ -6781,13 +6860,12 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                               >
                                 {task.wordTitle}
                               </div>
-                              <div className="text-xs text-slate-500 mt-1">Исполнитель: <b>{getFullName(task.assignee)}</b>{task.cycleTime ? ` · Cycle Time: ${task.cycleTime} дн.` : ''}</div>
                               <div
                                 data-word-task-details="true"
                                 contentEditable
                                 suppressContentEditableWarning
                                 onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordDetails', event.currentTarget.innerText)}
-                                className="mt-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-md p-2 min-h-[38px] outline-none focus:border-blue-300 whitespace-pre-wrap"
+                                className="mt-1.5 text-sm text-slate-600 border-l-2 border-slate-300 pl-3 py-1 min-h-[30px] outline-none focus:border-blue-400 whitespace-pre-wrap"
                               >
                                 {task.wordDetails || 'Добавьте короткое описание результата...'}
                               </div>
@@ -6796,7 +6874,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                               data-word-task-section="true"
                               value={task.wordSectionId}
                               onChange={(event) => handleMoveTaskToSection(task, event.target.value)}
-                              className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-700"
+                              className="bg-white border border-slate-200 rounded-md px-2 py-1 text-[11px] font-bold text-slate-500"
                             >
                               {sections.filter(item => !item.hidden).map(sectionOption => <option key={`${task.id}-${sectionOption.id}`} value={sectionOption.id}>{sectionOption.title}</option>)}
                             </select>
