@@ -6218,7 +6218,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
 // --- WORD-ОРИЕНТИРОВАННЫЙ ОТЧЕТ ДЛЯ КОПИРОВАНИЯ РУКОВОДСТВУ ---
 
-const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, projectTasks, aiTaskMemory, setAiTaskMemory, wordReportConfig, setWordReportConfig, teamMetricsMemory }) => {
+const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, projectTasks, setProjectTasks, csatReviews, aiTaskMemory, setAiTaskMemory, wordReportConfig, setWordReportConfig, teamMetricsMemory }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [draggedTaskId, setDraggedTaskId] = useState(null);
@@ -6356,7 +6356,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
   const persistWordPreviewEdits = () => {
     const overrides = {};
-    if (!previewRef.current) return overrides;
+    const projectOverrides = {};
+    if (!previewRef.current) return { taskOverrides: overrides, projectOverrides };
     previewRef.current.querySelectorAll('[data-word-task-id]').forEach(taskEl => {
       const taskId = safeString(taskEl.dataset.wordTaskId).trim();
       if (!taskId) return;
@@ -6370,6 +6371,16 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         updatedAt: new Date().toISOString()
       };
     });
+    previewRef.current.querySelectorAll('[data-word-project-id]').forEach(taskEl => {
+      const taskId = safeString(taskEl.dataset.wordProjectId).trim();
+      if (!taskId) return;
+      const titleEl = taskEl.querySelector('[data-word-project-title]');
+      const commentEl = taskEl.querySelector('[data-word-project-comment]');
+      projectOverrides[taskId] = {
+        title: cleanWordReportText(titleEl?.innerText || ''),
+        comment: cleanWordReportText(commentEl?.innerText || '')
+      };
+    });
     const entries = Object.entries(overrides);
     if (entries.length) {
       setAiTaskMemory(prev => {
@@ -6380,7 +6391,14 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         return next;
       });
     }
-    return overrides;
+    const projectEntries = Object.entries(projectOverrides);
+    if (projectEntries.length && setProjectTasks) {
+      setProjectTasks(prev => (prev || []).map(task => {
+        const patch = projectOverrides[task.id];
+        return patch ? { ...task, ...patch } : task;
+      }));
+    }
+    return { taskOverrides: overrides, projectOverrides };
   };
 
   const handleMoveTaskToSection = (task, sectionId) => {
@@ -6466,9 +6484,36 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     return task?.status === 'active';
   };
 
-  const getManagementTasks = () => (projectTasks || [])
+  const getManagementTasks = (projectOverrides = {}) => (projectTasks || [])
     .filter(isProjectTaskVisible)
+    .map(task => ({ ...task, ...(projectOverrides?.[task.id] || {}) }))
     .sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0));
+
+  const getManagementTaskGroups = (projectOverrides = {}) => {
+    const tasks = getManagementTasks(projectOverrides);
+    return {
+      done: tasks.filter(task => task.status === 'completed'),
+      active: tasks.filter(task => task.status !== 'completed')
+    };
+  };
+
+  const handleUpdateProjectTaskField = (taskId, field, value) => {
+    if (!setProjectTasks) return;
+    const cleanId = safeString(taskId).trim();
+    setProjectTasks(prev => (prev || []).map(task => task.id === cleanId ? { ...task, [field]: cleanWordReportText(value) } : task));
+  };
+
+  const handleMoveProjectTaskPriority = (taskId, direction) => {
+    if (!setProjectTasks) return;
+    const visibleTasks = getManagementTasks();
+    const currentIndex = visibleTasks.findIndex(task => task.id === taskId);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= visibleTasks.length) return;
+    const reordered = [...visibleTasks];
+    [reordered[currentIndex], reordered[targetIndex]] = [reordered[targetIndex], reordered[currentIndex]];
+    const orderMap = new Map(reordered.map((task, index) => [task.id, index]));
+    setProjectTasks(prev => (prev || []).map(task => orderMap.has(task.id) ? { ...task, priority: orderMap.get(task.id) } : task));
+  };
 
   const getTeamTaskLeaders = () => {
     const rows = Object.values((weekData?.taskPerformers || {})).length
@@ -6508,6 +6553,37 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const values = details.map(item => Number(item.rating || item.score || item.value)).filter(Number.isFinite);
     if (!values.length) return '5.0';
     return (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1);
+  };
+
+  const getWordCsatComments = () => {
+    const directDetails = Array.isArray(weekData?.csatDetails) ? weekData.csatDetails : [];
+    const performerDetails = (weekData?.topPerformers || []).flatMap(performer => (
+      Array.isArray(performer?.csatDetails)
+        ? performer.csatDetails.map(item => ({ ...item, assignee: item.assignee || item.name || performer.name || performer.assignee }))
+        : []
+    ));
+    const details = [...directDetails, ...performerDetails];
+    const rows = details.map((item, index) => {
+      const id = safeString(item.id || item.key || item.issueKey || item.incidentId || item.ticket || item.taskId || `csat-${index}`).trim();
+      const reviewText = cleanWordReportText(csatReviews?.[id] || item.comment || item.review || item.feedback || item.text || item.message || item.csatComment || '');
+      const rating = Number(item.rating || item.score || item.value || item.csat || item.mark);
+      const title = cleanWordReportText(item.theme || item.title || item.summary || item.taskTitle || item.subject || id);
+      const assignee = getFullName(item.assignee || item.executor || item.admin || item.performer || item.name || item.owner || '');
+      return {
+        id,
+        rating: Number.isFinite(rating) ? rating : null,
+        title,
+        assignee: assignee || 'Не указан',
+        comment: reviewText
+      };
+    }).filter(item => item.comment);
+    const seen = new Set();
+    return rows.filter(item => {
+      const key = `${item.id}-${item.comment}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   };
 
   const getPreviousWeekData = () => {
@@ -6592,16 +6668,19 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const getWordReportHtmlString = (options = {}) => {
     const exportMode = Boolean(options.exportMode);
     const overrides = options.memoryOverrides || {};
+    const projectOverrides = options.projectOverrides || {};
     const sections = getSections().filter(section => !section.hidden);
     const tasks = getWordTasks(overrides);
     const tasksBySection = sections.map(section => ({
       ...section,
       tasks: tasks.filter(task => task.wordSectionId === section.id)
     })).filter(section => section.tasks.length > 0 || !exportMode);
-    const managementTasks = getManagementTasks();
+    const managementGroups = getManagementTaskGroups(projectOverrides);
     const taskLeaders = getTeamTaskLeaders();
     const incidentLeaders = getIncidentLeaders();
     const telephony = getTelephonySummary();
+    const csatComments = getWordCsatComments();
+    const badCsatComments = csatComments.filter(item => item.rating !== null && item.rating < 4);
     const weekTitle = `Неделя ${weekData?.weekNumber || ''}${weekData?.dates ? ` (${weekData.dates})` : ''}`;
     const kpiCards = getWordKpiCards();
 
@@ -6628,11 +6707,11 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         </tr>
       </table>`;
 
-    const renderTask = (task) => `
+    const renderTask = (task, section) => `
       <tr>
-        <td style="width:92px; color:#2563eb; font-weight:800; padding:7px 8px 9px 0; border-bottom:1px solid #e5e7eb; vertical-align:top; white-space:nowrap;">${escapeHtml(task.id)}</td>
+        <td style="width:78px; color:${section.color}; font-weight:800; padding:8px 8px 10px 0; border-bottom:1px solid #e5e7eb; vertical-align:top; white-space:nowrap; font-size:11px; letter-spacing:0.02em;">${escapeHtml(task.id)}</td>
         <td style="padding:7px 0 9px 0; border-bottom:1px solid #e5e7eb; vertical-align:top;">
-          <div style="font-weight:800; color:#0f172a; font-size:13px;">${escapeHtml(task.wordTitle)}</div>
+          <div style="font-weight:900; color:#0f172a; font-size:13px;">${escapeHtml(task.wordTitle)}</div>
           ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:4px; line-height:1.45; padding-left:10px; border-left:2px solid #cbd5e1;">${escapeHtml(task.wordDetails)}</div>` : ''}
         </td>
       </tr>`;
@@ -6643,40 +6722,72 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           <span style="font-size:14px; font-weight:900; color:#0f172a; text-transform:uppercase; letter-spacing:0.02em;">${escapeHtml(section.title)}</span>
           <span style="float:right; font-size:11px; color:#64748b;">${section.tasks.length}</span>
         </div>
-        ${section.tasks.length ? `<table style="width:100%; border-collapse:collapse; margin-left:10px;">${section.tasks.map(renderTask).join('')}</table>` : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
+        ${section.tasks.length ? `<table style="width:100%; border-collapse:collapse; margin-left:10px;">${section.tasks.map(task => renderTask(task, section)).join('')}</table>` : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
       </div>
     `).join('');
 
     const renderManagementTasks = () => {
-      if (!managementTasks.length) return '<div style="font-size:12px; color:#64748b;">Нет активных поручений руководства.</div>';
-      return managementTasks.map(task => {
-        const isDone = task.status === 'completed';
-        const meta = getProjectTaskStatusMeta(task, isDone);
+      const renderGroup = (title, tasks, isDoneGroup) => {
+        if (!tasks.length) return '';
         return `
-          <div style="border:1px solid ${meta.border}; border-left:5px solid ${isDone ? '#22c55e' : '#3b82f6'}; background:${isDone ? '#f0fdf4' : '#ffffff'}; border-radius:8px; padding:10px 12px; margin-bottom:8px;">
-            <div style="font-weight:900; color:#0f172a;">${escapeHtml(task.title)}</div>
-            <div style="font-size:12px; color:#475569; margin-top:4px;">Статус: <span style="display:inline-block; background:${meta.bg}; color:${meta.color}; border:1px solid ${meta.border}; border-radius:999px; padding:2px 7px; font-size:10px; font-weight:900;">${escapeHtml(meta.label)}</span>${task.comment ? ` · ${escapeHtml(task.comment)}` : ''}</div>
+          <div style="border:1px solid ${isDoneGroup ? '#a7f3d0' : '#bfdbfe'}; border-left:5px solid ${isDoneGroup ? '#14b8a6' : '#3b82f6'}; border-radius:8px; margin-bottom:12px; overflow:hidden;">
+            <div style="background:${isDoneGroup ? '#ecfdf5' : '#eff6ff'}; padding:7px 10px; font-weight:900; color:${isDoneGroup ? '#0f766e' : '#1d4ed8'}; text-transform:uppercase; font-size:12px; letter-spacing:0.03em;">${escapeHtml(title)}</div>
+            ${tasks.map(task => {
+              const meta = getProjectTaskStatusMeta(task, isDoneGroup);
+              return `
+                <div style="padding:9px 10px; border-top:1px solid ${isDoneGroup ? '#ccfbf1' : '#dbeafe'}; background:${isDoneGroup ? '#f8fffc' : '#ffffff'};">
+                  <div style="font-weight:900; color:#0f172a; font-size:13px;">${escapeHtml(task.title)}</div>
+                  <div style="font-size:12px; color:#475569; margin-top:3px;">
+                    <span style="display:inline-block; background:${meta.bg}; color:${meta.color}; border:1px solid ${meta.border}; border-radius:999px; padding:1px 6px; font-size:10px; font-weight:900;">${escapeHtml(meta.label)}</span>
+                    ${task.comment ? `<span style="margin-left:6px;">${escapeHtml(task.comment)}</span>` : ''}
+                  </div>
+                </div>`;
+            }).join('')}
           </div>`;
-      }).join('');
+      };
+      if (!managementGroups.done.length && !managementGroups.active.length) return '<div style="font-size:12px; color:#64748b;">Нет активных поручений руководства.</div>';
+      return `${renderGroup('Выполнено и подтверждено', managementGroups.done, true)}${renderGroup('В работе по приоритету', managementGroups.active, false)}`;
     };
 
     const renderTeamMetrics = () => `
-      <table style="width:100%; border-collapse:collapse; margin-top:8px;">
-        <tr style="background:#f8fafc;">
-          <th style="text-align:left; padding:8px; border:1px solid #e2e8f0; color:#334155;">Задачи</th>
-          <th style="text-align:left; padding:8px; border:1px solid #e2e8f0; color:#334155;">Инциденты</th>
-          <th style="text-align:left; padding:8px; border:1px solid #e2e8f0; color:#334155;">Телефония и CSAT</th>
-        </tr>
+      <table style="width:100%; border-collapse:separate; border-spacing:10px 0; margin-top:8px;">
         <tr>
-          <td style="padding:10px; border:1px solid #e2e8f0; vertical-align:top;">${taskLeaders.map((row, index) => `<div>${index + 1}. <b>${escapeHtml(row.name)}</b> — ${row.closed}</div>`).join('') || 'Нет данных'}</td>
-          <td style="padding:10px; border:1px solid #e2e8f0; vertical-align:top;">${incidentLeaders.map((row, index) => `<div>${index + 1}. <b>${escapeHtml(row.name)}</b> — ${row.closed}</div>`).join('') || 'Нет данных'}</td>
-          <td style="padding:10px; border:1px solid #e2e8f0; vertical-align:top;">
-            <div>CSAT: <b>${escapeHtml(getCsatValue())}</b></div>
-            <div>Звонков: <b>${telephony.total || 'нет данных'}</b></div>
-            <div>Пропущено: <b>${telephony.missed || 0}</b>${telephony.availability !== null ? ` · доступность ${telephony.availability}%` : ''}</div>
+          <td style="width:33%; padding:12px; border:1px solid #bfdbfe; border-top:4px solid #3b82f6; border-radius:8px; vertical-align:top; background:#f8fbff;">
+            <div style="font-size:11px; color:#1d4ed8; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по задачам</div>
+            ${taskLeaders.map((row, index) => `<div style="font-size:12px; margin-bottom:5px;"><span style="display:inline-block; width:18px; color:#64748b;">${index + 1}.</span><b>${escapeHtml(row.name)}</b><span style="float:right; font-weight:900; color:#0f172a;">${row.closed}</span></div>`).join('') || '<div style="font-size:12px; color:#64748b;">Нет данных</div>'}
+          </td>
+          <td style="width:33%; padding:12px; border:1px solid #a7f3d0; border-top:4px solid #10b981; border-radius:8px; vertical-align:top; background:#f8fffc;">
+            <div style="font-size:11px; color:#047857; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по инцидентам</div>
+            ${incidentLeaders.map((row, index) => `<div style="font-size:12px; margin-bottom:5px;"><span style="display:inline-block; width:18px; color:#64748b;">${index + 1}.</span><b>${escapeHtml(row.name)}</b><span style="float:right; font-weight:900; color:#0f172a;">${row.closed}</span></div>`).join('') || '<div style="font-size:12px; color:#64748b;">Нет данных</div>'}
+          </td>
+          <td style="width:33%; padding:12px; border:1px solid #fde68a; border-top:4px solid #f59e0b; border-radius:8px; vertical-align:top; background:#fffdf5;">
+            <div style="font-size:11px; color:#92400e; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Качество и линия</div>
+            <div style="font-size:12px; margin-bottom:5px;">CSAT <b style="font-size:16px; color:#0f172a;">${escapeHtml(getCsatValue())}</b></div>
+            <div style="font-size:12px; margin-bottom:5px;">Звонков <b>${telephony.total || 'нет данных'}</b></div>
+            <div style="font-size:12px;">Пропущено <b>${telephony.missed || 0}</b>${telephony.availability !== null ? ` · доступность ${telephony.availability}%` : ''}</div>
           </td>
         </tr>
       </table>`;
+
+    const renderCsatComments = () => {
+      if (!csatComments.length) return '';
+      const renderComment = (item, tone = 'neutral') => `
+        <div style="border:1px solid ${tone === 'bad' ? '#fecaca' : '#dbeafe'}; border-left:4px solid ${tone === 'bad' ? '#ef4444' : '#38bdf8'}; border-radius:8px; padding:9px 10px; margin-bottom:8px; background:${tone === 'bad' ? '#fff7f7' : '#f8fbff'};">
+          <div style="font-size:12px; color:#334155; margin-bottom:4px;"><b>${escapeHtml(item.assignee)}</b>${item.rating !== null ? ` · оценка ${escapeHtml(item.rating)}` : ''}${item.title ? ` · ${escapeHtml(item.title)}` : ''}</div>
+          <div style="font-size:13px; color:#0f172a; line-height:1.45;">“${escapeHtml(item.comment)}”</div>
+        </div>`;
+      return `
+        <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">5. Комментарии пользователей</h2>
+        <div style="border:1px solid #dbeafe; border-radius:8px; padding:10px; background:#ffffff;">
+          <div style="font-size:12px; color:#64748b; margin-bottom:8px;">Живые комментарии за период из CSAT-выгрузки.</div>
+          ${csatComments.slice(0, 8).map(item => renderComment(item)).join('')}
+          ${badCsatComments.length ? `
+            <div style="margin-top:12px; padding-top:10px; border-top:1px solid #fecaca;">
+              <div style="font-size:12px; color:#991b1b; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Оценки ниже 4</div>
+              ${badCsatComments.map(item => renderComment(item, 'bad')).join('')}
+            </div>` : ''}
+        </div>`;
+    };
 
     return `
       <div style="font-family: Arial, Helvetica, sans-serif; color:#0f172a; line-height:1.35;">
@@ -6691,12 +6802,13 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${renderManagementTasks()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">4. Показатели команды</h2>
         ${renderTeamMetrics()}
+        ${renderCsatComments()}
       </div>`;
   };
 
   const handleCopyWordReport = async () => {
-    const overrides = persistWordPreviewEdits();
-    const htmlContent = getWordReportHtmlString({ exportMode: true, memoryOverrides: overrides });
+    const persisted = persistWordPreviewEdits();
+    const htmlContent = getWordReportHtmlString({ exportMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
     try {
       const blobHtml = new Blob([htmlContent], { type: 'text/html' });
       const tempDiv = document.createElement('div');
@@ -6718,8 +6830,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   };
 
   const handleDownloadWordReport = () => {
-    const overrides = persistWordPreviewEdits();
-    const htmlContent = getWordReportHtmlString({ exportMode: true, memoryOverrides: overrides });
+    const persisted = persistWordPreviewEdits();
+    const htmlContent = getWordReportHtmlString({ exportMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Word Report Week ${weekData?.weekNumber || ''}</title></head><body>${htmlContent}</body></html>`;
     const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -6737,6 +6849,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     ...section,
     tasks: wordTasks.filter(task => task.wordSectionId === section.id)
   }));
+  const managementGroups = getManagementTaskGroups();
+  const wordCsatComments = getWordCsatComments();
+  const badWordCsatComments = wordCsatComments.filter(item => item.rating !== null && item.rating < 4);
 
   return (
     <div className="animate-in fade-in duration-500 pb-10 max-w-7xl">
@@ -6849,7 +6964,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                           className={`py-2.5 pr-2 hover:bg-slate-50/70 transition-colors ${draggedTaskId === task.id ? 'opacity-50' : ''}`}
                         >
                           <div className="flex flex-col md:flex-row md:items-start gap-3">
-                            <div className="w-24 flex-shrink-0 text-sm font-black text-blue-600 pt-0.5">{task.id}</div>
+                            <div className="w-20 flex-shrink-0 text-[11px] font-black pt-1 tracking-wide" style={{ color: section.color }}>{task.id}</div>
                             <div className="flex-1 min-w-0">
                               <div
                                 data-word-task-title="true"
@@ -6892,38 +7007,117 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
             <section className="mb-6">
               <h3 className="text-lg font-black mb-3">3. Поручения руководства</h3>
               <div className="space-y-2">
-                {getManagementTasks().length ? getManagementTasks().map(task => {
-                  const isDone = task.status === 'completed';
-                  const meta = getProjectTaskStatusMeta(task, isDone);
-                  return (
-                    <div key={task.id} className={`rounded-lg border p-3 ${isDone ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
-                      <div className="font-black text-slate-950">{task.title}</div>
-                      <div className="text-xs text-slate-600 mt-1">Статус: <span className="px-2 py-0.5 rounded-full border font-black" style={{ background: meta.bg, color: meta.color, borderColor: meta.border }}>{meta.label}</span>{task.comment ? ` · ${task.comment}` : ''}</div>
+                {(!managementGroups.done.length && !managementGroups.active.length) && <div className="text-sm text-slate-500">Нет активных поручений руководства.</div>}
+                {[
+                  { title: 'Выполнено и подтверждено', tasks: managementGroups.done, done: true },
+                  { title: 'В работе по приоритету', tasks: managementGroups.active, done: false }
+                ].filter(group => group.tasks.length).map(group => (
+                  <div key={group.title} className={`rounded-lg border overflow-hidden ${group.done ? 'border-emerald-200 bg-emerald-50/60' : 'border-blue-200 bg-blue-50/50'}`}>
+                    <div className={`px-3 py-2 text-xs font-black uppercase tracking-wide ${group.done ? 'text-teal-700 bg-emerald-50' : 'text-blue-700 bg-blue-50'}`}>
+                      {group.title}
                     </div>
-                  );
-                }) : <div className="text-sm text-slate-500">Нет активных поручений руководства.</div>}
+                    <div className="divide-y divide-slate-200">
+                      {group.tasks.map(task => {
+                        const meta = getProjectTaskStatusMeta(task, group.done);
+                        return (
+                          <div key={task.id} data-word-project-id={task.id} className="bg-white/80 px-3 py-2.5">
+                            <div className="flex items-start gap-2">
+                              <div className="flex flex-col gap-1 pt-0.5">
+                                <button onClick={() => handleMoveProjectTaskPriority(task.id, -1)} className="w-6 h-5 rounded border border-slate-200 text-[11px] font-black text-slate-500 hover:bg-slate-100">↑</button>
+                                <button onClick={() => handleMoveProjectTaskPriority(task.id, 1)} className="w-6 h-5 rounded border border-slate-200 text-[11px] font-black text-slate-500 hover:bg-slate-100">↓</button>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div
+                                  data-word-project-title="true"
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onBlur={(event) => handleUpdateProjectTaskField(task.id, 'title', event.currentTarget.innerText)}
+                                  className="font-black text-slate-950 outline-none border-b border-transparent focus:border-blue-300"
+                                >
+                                  {task.title}
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                                  <span className="px-2 py-0.5 rounded-full border font-black" style={{ background: meta.bg, color: meta.color, borderColor: meta.border }}>{meta.label}</span>
+                                  <span
+                                    data-word-project-comment="true"
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    onBlur={(event) => handleUpdateProjectTaskField(task.id, 'comment', event.currentTarget.innerText)}
+                                    className="min-w-[180px] outline-none border-b border-transparent focus:border-blue-300"
+                                  >
+                                    {task.comment || 'Добавьте краткий статус...'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
 
             <section>
               <h3 className="text-lg font-black mb-3">4. Показатели команды</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="border border-slate-200 rounded-lg p-3">
-                  <div className="text-xs font-black uppercase text-slate-500 mb-2">Задачи</div>
-                  {getTeamTaskLeaders().map((row, index) => <div key={`${row.name}-${index}`} className="text-sm">{index + 1}. <b>{row.name}</b> — {row.closed}</div>)}
+                <div className="border border-blue-200 border-t-4 border-t-blue-500 rounded-lg p-3 bg-blue-50/30">
+                  <div className="text-xs font-black uppercase text-blue-700 mb-2">Топ по задачам</div>
+                  {getTeamTaskLeaders().map((row, index) => (
+                    <div key={`${row.name}-${index}`} className="flex justify-between gap-2 text-sm py-1">
+                      <span><span className="text-slate-400 font-bold mr-1">{index + 1}.</span><b>{row.name}</b></span>
+                      <span className="font-black">{row.closed}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="border border-slate-200 rounded-lg p-3">
-                  <div className="text-xs font-black uppercase text-slate-500 mb-2">Инциденты</div>
-                  {getIncidentLeaders().length ? getIncidentLeaders().map((row, index) => <div key={`${row.name}-${index}`} className="text-sm">{index + 1}. <b>{row.name}</b> — {row.closed}</div>) : <div className="text-sm text-slate-500">Нет данных</div>}
+                <div className="border border-emerald-200 border-t-4 border-t-emerald-500 rounded-lg p-3 bg-emerald-50/30">
+                  <div className="text-xs font-black uppercase text-emerald-700 mb-2">Топ по инцидентам</div>
+                  {getIncidentLeaders().length ? getIncidentLeaders().map((row, index) => (
+                    <div key={`${row.name}-${index}`} className="flex justify-between gap-2 text-sm py-1">
+                      <span><span className="text-slate-400 font-bold mr-1">{index + 1}.</span><b>{row.name}</b></span>
+                      <span className="font-black">{row.closed}</span>
+                    </div>
+                  )) : <div className="text-sm text-slate-500">Нет данных</div>}
                 </div>
-                <div className="border border-slate-200 rounded-lg p-3">
-                  <div className="text-xs font-black uppercase text-slate-500 mb-2">Телефония и CSAT</div>
-                  <div className="text-sm">CSAT: <b>{getCsatValue()}</b></div>
-                  <div className="text-sm">Звонков: <b>{getTelephonySummary().total || 'нет данных'}</b></div>
-                  <div className="text-sm">Пропущено: <b>{getTelephonySummary().missed || 0}</b></div>
+                <div className="border border-amber-200 border-t-4 border-t-amber-500 rounded-lg p-3 bg-amber-50/30">
+                  <div className="text-xs font-black uppercase text-amber-700 mb-2">Качество и линия</div>
+                  <div className="text-sm py-1">CSAT: <b className="text-lg">{getCsatValue()}</b></div>
+                  <div className="text-sm py-1">Звонков: <b>{getTelephonySummary().total || 'нет данных'}</b></div>
+                  <div className="text-sm py-1">Пропущено: <b>{getTelephonySummary().missed || 0}</b>{getTelephonySummary().availability !== null ? ` · доступность ${getTelephonySummary().availability}%` : ''}</div>
                 </div>
               </div>
             </section>
+
+            {wordCsatComments.length > 0 && (
+              <section className="mt-6">
+                <h3 className="text-lg font-black mb-3">5. Комментарии пользователей</h3>
+                <div className="border border-blue-100 rounded-lg bg-white p-3">
+                  <div className="text-xs text-slate-500 mb-3">Живые комментарии за период из CSAT-выгрузки.</div>
+                  <div className="space-y-2">
+                    {wordCsatComments.slice(0, 8).map(item => (
+                      <div key={`${item.id}-${item.comment}`} className="border border-blue-100 border-l-4 border-l-sky-400 rounded-lg bg-blue-50/30 p-3">
+                        <div className="text-xs text-slate-600 mb-1"><b>{item.assignee}</b>{item.rating !== null ? ` · оценка ${item.rating}` : ''}{item.title ? ` · ${item.title}` : ''}</div>
+                        <div className="text-sm text-slate-900 leading-relaxed">“{item.comment}”</div>
+                      </div>
+                    ))}
+                  </div>
+                  {badWordCsatComments.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-red-100">
+                      <div className="text-xs font-black uppercase text-red-700 mb-2">Оценки ниже 4</div>
+                      <div className="space-y-2">
+                        {badWordCsatComments.map(item => (
+                          <div key={`bad-${item.id}-${item.comment}`} className="border border-red-100 border-l-4 border-l-red-500 rounded-lg bg-red-50/40 p-3">
+                            <div className="text-xs text-slate-600 mb-1"><b>{item.assignee}</b>{item.rating !== null ? ` · оценка ${item.rating}` : ''}{item.title ? ` · ${item.title}` : ''}</div>
+                            <div className="text-sm text-slate-900 leading-relaxed">“{item.comment}”</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </div>
@@ -7844,7 +8038,7 @@ const App = () => {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} projectTasks={projectTasks} tasksArchive={tasksArchive} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} setTeamMetricsMemory={setTeamMetricsMemory} />;
       case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} tasksArchive={tasksArchive} teamMetricsMemory={teamMetricsMemory} />;
-      case 'wordReport': return <WordReportGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} />;
+      case 'wordReport': return <WordReportGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'weeklyCompetencies': return <WeeklyCompetenciesBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} aiTaskMemory={aiTaskMemory} />;
       case 'team': return <TeamAnalytics teamMetricsMemory={teamMetricsMemory} setTeamMetricsMemory={setTeamMetricsMemory} />;
