@@ -6612,7 +6612,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           availability
         };
       })
-      .filter(item => item.name && !THIRD_LINE_NAMES.includes(item.name))
+      .filter(item => item.name && !THIRD_LINE_ADMINS.includes(item.name))
       .sort((a, b) => b.closed - a.closed)
       .slice(0, 6);
   };
