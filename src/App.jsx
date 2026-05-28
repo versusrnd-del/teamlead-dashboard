@@ -6774,10 +6774,23 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const resolutionDetails = details.filter(item => isResolution(item.slaType || item.metric || item.type || item.name));
     const primaryMetric = metrics.find(item => isPrimary(item.name || item.metric || item.type || item.slaType));
     const resolutionMetric = metrics.find(item => isResolution(item.name || item.metric || item.type || item.slaType));
+    const getOverdueMinutes = (item) => Number(item?.overdueMin ?? item?.overdueMinutes ?? item?.overdue ?? item?.avgOverdueMin ?? 0) || 0;
+    const averageOverdue = (items) => {
+      const values = items.map(getOverdueMinutes).filter(value => value > 0);
+      return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+    };
+    const getMetricAverage = (metric, fallbackDetails) => Number(
+      metric?.avgOverdueMin ??
+      metric?.avgOverdue ??
+      metric?.avgDelay ??
+      metric?.avgMinutes ??
+      metric?.average ??
+      0
+    ) || averageOverdue(fallbackDetails);
     const primaryCount = primaryDetails.length || Number(primaryMetric?.violations || primaryMetric?.count || primaryMetric?.value || 0) || 0;
     const resolutionCount = resolutionDetails.length || Number(resolutionMetric?.violations || resolutionMetric?.count || resolutionMetric?.value || 0) || 0;
-    const primaryAvg = Number(primaryMetric?.avgOverdue || primaryMetric?.avgDelay || primaryMetric?.avgMinutes || primaryMetric?.average || 0) || 0;
-    const resolutionAvg = Number(resolutionMetric?.avgOverdue || resolutionMetric?.avgDelay || resolutionMetric?.avgMinutes || resolutionMetric?.average || 0) || 0;
+    const primaryAvg = getMetricAverage(primaryMetric, primaryDetails);
+    const resolutionAvg = getMetricAverage(resolutionMetric, resolutionDetails);
     const simpleShare = primaryDetails.length
       ? Math.round((primaryDetails.filter(item => /прост/i.test(safeString(item.complexity || item.size || item.classification))).length / primaryDetails.length) * 100)
       : 0;
@@ -7015,9 +7028,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 <div style="font-size:23px; font-weight:900; letter-spacing:0.03em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
                 <div style="font-size:12px; color:#cbd5e1; margin-top:3px;">${escapeHtml(weekTitle)}</div>
               </td>
-              <td style="vertical-align:middle; text-align:right;">
-                <span style="display:inline-block; border:1px solid #334155; background:#1e293b; color:#e2e8f0; border-radius:999px; padding:6px 10px; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.06em;">TeamLead Control Room</span>
-              </td>
+              <td style="vertical-align:middle; text-align:right;"></td>
             </tr>
           </table>
         </div>
