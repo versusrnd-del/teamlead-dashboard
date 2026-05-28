@@ -6580,6 +6580,23 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       .slice(0, 5);
   };
 
+  const getWordTaskPodium = (overrides = {}) => {
+    const rows = getWordTasks(overrides).reduce((acc, task) => {
+      const name = getFullName(task.assignee);
+      if (!name || name === TEAM_LEAD_NAME || EXCLUDED_USER_IDS.includes(name)) return acc;
+      const size = getMetricTaskSize(task);
+      const weight = TEAM_METRIC_SIZE_WEIGHTS[size] || TEAM_METRIC_SIZE_WEIGHTS.M;
+      if (!acc[name]) acc[name] = { name, closed: 0, weight: 0, complex: 0 };
+      acc[name].closed += 1;
+      acc[name].weight += weight;
+      if (size === 'L' || size === 'XL') acc[name].complex += 1;
+      return acc;
+    }, {});
+    return Object.values(rows)
+      .sort((a, b) => b.closed - a.closed || b.weight - a.weight)
+      .slice(0, 3);
+  };
+
   const getIncidentLeaders = () => (weekData?.topPerformers || [])
     .map(item => ({ name: getFullName(item.name || item.assignee), closed: Number(item.closed || item.count || item.total || 0) }))
     .filter(item => item.name)
@@ -6815,6 +6832,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const slaSnapshot = getWordSlaSnapshot();
     const weekTitle = `Неделя ${weekData?.weekNumber || ''}${weekData?.dates ? ` (${weekData.dates})` : ''}`;
     const kpiCards = getWordKpiCards();
+    const taskPodium = getWordTaskPodium(overrides);
 
     const renderKpi = () => `
       <table style="width:100%; border-collapse:separate; border-spacing:12px 0; margin: 0 0 20px 0;">
@@ -6842,11 +6860,11 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       <tr>
         <td style="width:92px; color:${section.color}; font-weight:800; padding:${isRoutineSection ? '5px' : '8px'} 8px ${isRoutineSection ? '6px' : '10px'} 0; border-bottom:1px solid #e5e7eb; vertical-align:top; white-space:nowrap; font-size:10px; letter-spacing:0.02em;">
           <div>${escapeHtml(task.id)}</div>
-          <div style="font-size:9px; color:#64748b; font-weight:600; margin-top:2px; white-space:normal;">${escapeHtml(getFullName(task.assignee))}</div>
+          <div style="font-size:10px; color:#334155; font-weight:700; margin-top:2px; line-height:1.15; white-space:normal;">${escapeHtml(getFullName(task.assignee))}</div>
         </td>
         <td style="padding:${isRoutineSection ? '5px' : '7px'} 0 ${isRoutineSection ? '6px' : '9px'} 0; border-bottom:1px solid #e5e7eb; vertical-align:top;">
-          <div style="font-weight:${isRoutineSection ? '700' : '900'}; color:${isRoutineSection ? '#475569' : '#0f172a'}; font-size:${isRoutineSection ? '11px' : '13px'};">${escapeHtml(task.wordTitle)}</div>
-          ${!isRoutineSection && task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:4px; line-height:1.45; padding-left:10px; border-left:2px solid #cbd5e1;">${escapeHtml(task.wordDetails)}</div>` : ''}
+          <div style="font-weight:${isRoutineSection ? '700' : '900'}; color:${isRoutineSection ? '#334155' : '#0f172a'}; font-size:${isRoutineSection ? '11.5px' : '13px'};">${escapeHtml(task.wordTitle)}</div>
+          ${!isRoutineSection && task.wordDetails ? `<div style="font-size:12.5px; color:#334155; margin-top:5px; line-height:1.5; padding-left:10px; border-left:2px solid #94a3b8;">${escapeHtml(task.wordDetails)}</div>` : ''}
         </td>
       </tr>`;
     };
@@ -6860,6 +6878,32 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${section.tasks.length ? `<table style="width:100%; border-collapse:collapse; margin-left:10px;">${section.tasks.map(task => renderTask(task, section)).join('')}</table>` : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
       </div>
     `).join('');
+
+    const renderTaskPodium = () => {
+      if (!taskPodium.length) return '';
+      const accents = ['#f59e0b', '#06b6d4', '#64748b'];
+      const labels = ['1 место', '2 место', '3 место'];
+      return `
+        <div style="margin:16px 0 18px 0;">
+          <div style="font-size:13px; color:#334155; font-weight:900; margin-bottom:8px;">Топ админов по закрытым задачам недели</div>
+          <table style="width:100%; border-collapse:separate; border-spacing:10px 0;">
+            <tr>
+              ${taskPodium.map((row, index) => `
+                <td style="width:33.33%; border:1px solid ${accents[index]}; border-left:5px solid ${accents[index]}; border-radius:10px; padding:11px 12px; background:${index === 0 ? '#fffbeb' : index === 1 ? '#ecfeff' : '#f8fafc'}; vertical-align:top;">
+                  <div style="font-size:10px; color:${accents[index]}; font-weight:900; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:5px;">${labels[index]}</div>
+                  <div style="font-size:15px; color:#0f172a; font-weight:900; margin-bottom:8px;">${escapeHtml(row.name)}</div>
+                  <table style="width:100%; border-collapse:separate; border-spacing:5px 0;">
+                    <tr>
+                      <td style="background:#ffffff; border:1px solid #dbe4ef; border-radius:6px; padding:6px; font-size:10px; color:#64748b;">Закрыто<br><b style="font-size:16px; color:#0f172a;">${row.closed}</b></td>
+                      <td style="background:#ffffff; border:1px solid #dbe4ef; border-radius:6px; padding:6px; font-size:10px; color:#64748b;">Вес<br><b style="font-size:16px; color:#0f172a;">${row.weight}</b></td>
+                      <td style="background:#ffffff; border:1px solid #dbe4ef; border-radius:6px; padding:6px; font-size:10px; color:#64748b;">Сложные<br><b style="font-size:16px; color:#0f172a;">${row.complex}</b></td>
+                    </tr>
+                  </table>
+                </td>`).join('')}
+            </tr>
+          </table>
+        </div>`;
+    };
 
     const renderManagementTasks = () => {
       const renderGroup = (title, tasks, isDoneGroup) => {
@@ -6880,25 +6924,36 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       return `${renderGroup('Выполнено', managementGroups.done, true)}${renderGroup('В работе по приоритету', managementGroups.active, false)}`;
     };
 
+    const renderLeaderList = (rows, color) => rows.length
+      ? `<table style="width:100%; border-collapse:collapse;">${rows.map((row, index) => `
+          <tr>
+            <td style="width:26px; padding:5px 0; color:#64748b; font-size:12px; border-bottom:1px solid #e2e8f0;">${index + 1}.</td>
+            <td style="padding:5px 6px; font-size:13px; font-weight:800; color:#0f172a; border-bottom:1px solid #e2e8f0;">${escapeHtml(row.name)}</td>
+            <td style="width:46px; padding:5px 0; text-align:right; font-size:14px; font-weight:900; color:${color}; border-bottom:1px solid #e2e8f0;">${row.closed}</td>
+          </tr>`).join('')}</table>`
+      : '<div style="font-size:12px; color:#64748b;">Нет данных</div>';
+
     const renderTeamMetrics = () => `
-      <table style="width:100%; border-collapse:separate; border-spacing:10px 0; margin-top:8px;">
-        <tr>
-          <td style="width:33%; padding:12px; border:1px solid #bfdbfe; border-top:4px solid #3b82f6; border-radius:8px; vertical-align:top; background:#f8fbff;">
-            <div style="font-size:11px; color:#1d4ed8; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по задачам</div>
-            ${taskLeaders.length ? `<table style="width:100%; border-collapse:collapse;">${taskLeaders.map((row, index) => `<tr><td style="font-size:12px; color:#64748b; width:20px; padding:2px 0;">${index + 1}.</td><td style="font-size:12px; font-weight:800; padding:2px 4px;">${escapeHtml(row.name)}</td><td style="font-size:12px; font-weight:900; text-align:right; padding:2px 0;">${row.closed}</td></tr>`).join('')}</table>` : '<div style="font-size:12px; color:#64748b;">Нет данных</div>'}
-          </td>
-          <td style="width:33%; padding:12px; border:1px solid #a7f3d0; border-top:4px solid #10b981; border-radius:8px; vertical-align:top; background:#f8fffc;">
-            <div style="font-size:11px; color:#047857; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по инцидентам</div>
-            ${incidentLeaders.length ? `<table style="width:100%; border-collapse:collapse;">${incidentLeaders.map((row, index) => `<tr><td style="font-size:12px; color:#64748b; width:20px; padding:2px 0;">${index + 1}.</td><td style="font-size:12px; font-weight:800; padding:2px 4px;">${escapeHtml(row.name)}</td><td style="font-size:12px; font-weight:900; text-align:right; padding:2px 0;">${row.closed}</td></tr>`).join('')}</table>` : '<div style="font-size:12px; color:#64748b;">Нет данных</div>'}
-          </td>
-          <td style="width:33%; padding:12px; border:1px solid #fde68a; border-top:4px solid #f59e0b; border-radius:8px; vertical-align:top; background:#fffdf5;">
-            <div style="font-size:11px; color:#92400e; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Качество и линия</div>
-            <div style="font-size:12px; margin-bottom:5px;">CSAT <b style="font-size:16px; color:#0f172a;">${escapeHtml(getCsatValue())}</b></div>
-            <div style="font-size:12px; margin-bottom:5px;">Звонков <b>${telephony.total || 'нет данных'}</b></div>
-            <div style="font-size:12px;">Пропущено <b>${telephony.missed || 0}</b>${telephony.availability !== null ? ` · доступность ${telephony.availability}%` : ''}</div>
-          </td>
-        </tr>
-      </table>`;
+      <div style="border:1px solid #dbe4ef; border-radius:10px; overflow:hidden; margin-top:8px; background:#ffffff;">
+        <table style="width:100%; border-collapse:collapse;">
+          <tr>
+            <td style="width:50%; padding:14px 16px; border-right:1px solid #e2e8f0; border-top:4px solid #3b82f6; vertical-align:top; background:#f8fbff;">
+              <div style="font-size:12px; color:#1d4ed8; font-weight:900; text-transform:uppercase; margin-bottom:10px;">Топ по задачам</div>
+              ${renderLeaderList(taskLeaders, '#1d4ed8')}
+            </td>
+            <td style="width:50%; padding:14px 16px; border-top:4px solid #10b981; vertical-align:top; background:#f8fffc;">
+              <div style="font-size:12px; color:#047857; font-weight:900; text-transform:uppercase; margin-bottom:10px;">Топ по инцидентам</div>
+              ${renderLeaderList(incidentLeaders, '#047857')}
+            </td>
+          </tr>
+        </table>
+        <div style="border-top:1px solid #e2e8f0; background:#fffdf5; padding:12px 16px;">
+          <span style="font-size:12px; color:#92400e; font-weight:900; text-transform:uppercase; margin-right:16px;">Качество и линия</span>
+          <span style="font-size:13px; color:#0f172a; margin-right:18px;">CSAT <b style="font-size:18px;">${escapeHtml(getCsatValue())}</b></span>
+          <span style="font-size:13px; color:#0f172a; margin-right:18px;">Звонков <b>${telephony.total || 'нет данных'}</b></span>
+          <span style="font-size:13px; color:#0f172a;">Пропущено <b>${telephony.missed || 0}</b>${telephony.availability !== null ? ` · доступность ${telephony.availability}%` : ''}</span>
+        </div>
+      </div>`;
 
     const renderFirstLine = () => {
       if (!firstLineRows.length) return '';
@@ -6957,6 +7012,20 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 <div style="font-size:10px; color:#64748b; margin-top:5px;"><span>Норма</span><span style="float:right;">Критично</span></div>
               </td>
               <td style="width:72%; vertical-align:top;">
+                <table style="width:100%; border-collapse:collapse; border:1px solid #fecaca; background:#fff7f7; border-radius:6px; margin-bottom:8px;">
+                  <tr>
+                    <td style="padding:7px 9px;">
+                      <div style="font-size:12px; color:#334155; font-weight:900;">Инцидент от момента создания</div>
+                      <div style="font-size:11px; color:#64748b;">Ср. время просрочки: <b style="color:#dc2626;">${Math.round(slaSnapshot.primaryAvg || 0)} мин</b></div>
+                    </td>
+                    <td style="width:74px; padding:5px; text-align:center;">
+                      <div style="border:1px solid #fca5a5; background:#fee2e2; color:#991b1b; border-radius:6px; padding:4px 6px; font-weight:900;">
+                        <div style="font-size:16px;">${slaSnapshot.primaryCount}</div>
+                        <div style="font-size:8px; text-transform:uppercase;">нарушений</div>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
                 <div style="font-size:12px; color:#334155; line-height:1.45;">${escapeHtml(slaSnapshot.diagnosis)}</div>
                 <div style="font-size:11px; color:#64748b; margin-top:6px;">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
               </td>
@@ -6994,6 +7063,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${renderKpi()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">1. Решенные задачи за неделю</h2>
         ${renderTaskSections()}
+        ${renderTaskPodium()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">2. Поручения руководства</h2>
         ${renderManagementTasks()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">3. Показатели команды</h2>
@@ -7052,6 +7122,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const badWordCsatComments = wordCsatComments.filter(item => item.rating !== null && item.rating < 4);
   const wordSystemProblems = getWordSystemProblems();
   const wordSlaSnapshot = getWordSlaSnapshot();
+  const wordTaskPodium = getWordTaskPodium();
 
   return (
     <div className="animate-in fade-in duration-500 pb-10 max-w-7xl">
@@ -7212,7 +7283,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                           <div className="flex flex-col md:flex-row md:items-start gap-3">
                             <div className="w-24 flex-shrink-0 text-[10px] font-black pt-1 tracking-wide" style={{ color: section.color }}>
                               <div>{task.id}</div>
-                              <div className="text-[9px] font-semibold text-slate-500 mt-0.5 leading-tight">{getFullName(task.assignee)}</div>
+                              <div className="text-[10px] font-bold text-slate-700 mt-0.5 leading-tight">{getFullName(task.assignee)}</div>
                             </div>
                             <div className="flex-1 min-w-0">
                               <div
@@ -7220,7 +7291,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                                 contentEditable
                                 suppressContentEditableWarning
                                 onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordTitle', event.currentTarget.innerText)}
-                                className={`${isRoutineSection ? 'font-bold text-[12px] text-slate-600' : 'font-black text-slate-950'} outline-none border-b border-transparent focus:border-blue-300`}
+                                className={`${isRoutineSection ? 'font-bold text-[12px] text-slate-700' : 'font-black text-slate-950'} outline-none border-b border-transparent focus:border-blue-300`}
                               >
                                 {task.wordTitle}
                               </div>
@@ -7229,7 +7300,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                                 contentEditable
                                 suppressContentEditableWarning
                                 onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordDetails', event.currentTarget.innerText)}
-                                className="mt-1.5 text-sm text-slate-600 border-l-2 border-slate-300 pl-3 py-1 min-h-[30px] outline-none focus:border-blue-400 whitespace-pre-wrap"
+                                className="mt-1.5 text-[13px] leading-relaxed text-slate-700 border-l-2 border-slate-400 pl-3 py-1 min-h-[30px] outline-none focus:border-blue-400 whitespace-pre-wrap"
                               >
                                 {task.wordDetails || 'Добавьте короткое описание результата...'}
                               </div>}
@@ -7254,6 +7325,32 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 ))}
               </div>
             </section>
+
+            {wordTaskPodium.length > 0 && (
+              <section className="mb-6" style={{ fontFamily: wordFontFamily }}>
+                <h3 className="text-base font-black mb-3 text-slate-800">Топ админов по закрытым задачам недели</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {wordTaskPodium.map((row, index) => {
+                    const styles = [
+                      'border-amber-400 bg-amber-50',
+                      'border-cyan-400 bg-cyan-50',
+                      'border-slate-400 bg-slate-50'
+                    ];
+                    return (
+                      <div key={row.name} className={`rounded-xl border-l-4 border p-4 ${styles[index] || styles[2]}`}>
+                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">{index + 1} место</div>
+                        <div className="text-base font-black text-slate-950 mb-3">{row.name}</div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="bg-white rounded-lg border border-slate-200 p-2"><div className="text-slate-500">Закрыто</div><b className="text-lg">{row.closed}</b></div>
+                          <div className="bg-white rounded-lg border border-slate-200 p-2"><div className="text-slate-500">Вес</div><b className="text-lg">{row.weight}</b></div>
+                          <div className="bg-white rounded-lg border border-slate-200 p-2"><div className="text-slate-500">Сложные</div><b className="text-lg">{row.complex}</b></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             <section className="mb-6" style={{ fontFamily: wordFontFamily }}>
               <h3 className="text-lg font-black mb-3">2. Поручения руководства</h3>
@@ -7438,6 +7535,16 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                       <div className="flex justify-between text-[10px] text-slate-500 mt-1"><span>Норма</span><span>Критично</span></div>
                     </div>
                     <div>
+                      <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-black text-slate-700">Инцидент от момента создания</div>
+                          <div className="text-xs text-slate-500">Ср. время просрочки: <b className="text-red-600">{Math.round(wordSlaSnapshot.primaryAvg || 0)} мин</b></div>
+                        </div>
+                        <div className="rounded-md border border-red-300 bg-red-100 px-3 py-1 text-center text-red-800">
+                          <div className="text-lg font-black">{wordSlaSnapshot.primaryCount}</div>
+                          <div className="text-[9px] font-black uppercase">нарушений</div>
+                        </div>
+                      </div>
                       <div className="text-sm text-slate-700">{wordSlaSnapshot.diagnosis}</div>
                       <div className="text-xs text-slate-500 mt-2">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
                     </div>
