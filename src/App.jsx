@@ -6580,23 +6580,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       .slice(0, 5);
   };
 
-  const getWordTaskPodium = (overrides = {}) => {
-    const rows = getWordTasks(overrides).reduce((acc, task) => {
-      const name = getFullName(task.assignee);
-      if (!name || name === TEAM_LEAD_NAME || EXCLUDED_USER_IDS.includes(name)) return acc;
-      const size = getMetricTaskSize(task);
-      const weight = TEAM_METRIC_SIZE_WEIGHTS[size] || TEAM_METRIC_SIZE_WEIGHTS.M;
-      if (!acc[name]) acc[name] = { name, closed: 0, weight: 0, complex: 0 };
-      acc[name].closed += 1;
-      acc[name].weight += weight;
-      if (size === 'L' || size === 'XL') acc[name].complex += 1;
-      return acc;
-    }, {});
-    return Object.values(rows)
-      .sort((a, b) => b.closed - a.closed || b.weight - a.weight)
-      .slice(0, 3);
-  };
-
   const getIncidentLeaders = () => (weekData?.topPerformers || [])
     .map(item => ({ name: getFullName(item.name || item.assignee), closed: Number(item.closed || item.count || item.total || 0) }))
     .filter(item => item.name)
@@ -6832,7 +6815,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const slaSnapshot = getWordSlaSnapshot();
     const weekTitle = `Неделя ${weekData?.weekNumber || ''}${weekData?.dates ? ` (${weekData.dates})` : ''}`;
     const kpiCards = getWordKpiCards();
-    const taskPodium = getWordTaskPodium(overrides);
 
     const renderKpi = () => `
       <table style="width:100%; border-collapse:separate; border-spacing:12px 0; margin: 0 0 20px 0;">
@@ -6878,32 +6860,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${section.tasks.length ? `<table style="width:100%; border-collapse:collapse; margin-left:10px;">${section.tasks.map(task => renderTask(task, section)).join('')}</table>` : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
       </div>
     `).join('');
-
-    const renderTaskPodium = () => {
-      if (!taskPodium.length) return '';
-      const accents = ['#f59e0b', '#06b6d4', '#64748b'];
-      const labels = ['1 место', '2 место', '3 место'];
-      return `
-        <div style="margin:16px 0 18px 0;">
-          <div style="font-size:13px; color:#334155; font-weight:900; margin-bottom:8px;">Топ админов по закрытым задачам недели</div>
-          <table style="width:100%; border-collapse:separate; border-spacing:10px 0;">
-            <tr>
-              ${taskPodium.map((row, index) => `
-                <td style="width:33.33%; border:1px solid ${accents[index]}; border-left:5px solid ${accents[index]}; border-radius:10px; padding:11px 12px; background:${index === 0 ? '#fffbeb' : index === 1 ? '#ecfeff' : '#f8fafc'}; vertical-align:top;">
-                  <div style="font-size:10px; color:${accents[index]}; font-weight:900; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:5px;">${labels[index]}</div>
-                  <div style="font-size:15px; color:#0f172a; font-weight:900; margin-bottom:8px;">${escapeHtml(row.name)}</div>
-                  <table style="width:100%; border-collapse:separate; border-spacing:5px 0;">
-                    <tr>
-                      <td style="background:#ffffff; border:1px solid #dbe4ef; border-radius:6px; padding:6px; font-size:10px; color:#64748b;">Закрыто<br><b style="font-size:16px; color:#0f172a;">${row.closed}</b></td>
-                      <td style="background:#ffffff; border:1px solid #dbe4ef; border-radius:6px; padding:6px; font-size:10px; color:#64748b;">Вес<br><b style="font-size:16px; color:#0f172a;">${row.weight}</b></td>
-                      <td style="background:#ffffff; border:1px solid #dbe4ef; border-radius:6px; padding:6px; font-size:10px; color:#64748b;">Сложные<br><b style="font-size:16px; color:#0f172a;">${row.complex}</b></td>
-                    </tr>
-                  </table>
-                </td>`).join('')}
-            </tr>
-          </table>
-        </div>`;
-    };
 
     const renderManagementTasks = () => {
       const renderGroup = (title, tasks, isDoneGroup) => {
@@ -7001,36 +6957,32 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 ${item.description ? `<div style="font-size:12px; color:#475569;">${escapeHtml(item.description)}</div>` : ''}
               </div>`).join('')}
           </div>` : ''}
-        <div style="border:1px solid ${slaSnapshot.heat.border}; border-left:5px solid ${slaSnapshot.heat.color}; background:${slaSnapshot.heat.bg}; border-radius:8px; padding:10px 12px;">
-          <div style="font-size:13px; color:${slaSnapshot.heat.color}; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Температура SLA: ${slaSnapshot.heat.label}</div>
-          <table style="width:100%; border-collapse:collapse;">
+        <div style="border:1px solid ${slaSnapshot.heat.border}; border-left:5px solid ${slaSnapshot.heat.color}; background:${slaSnapshot.heat.bg}; border-radius:8px; padding:12px;">
+          <div style="font-size:13px; color:${slaSnapshot.heat.color}; font-weight:900; text-transform:uppercase; margin-bottom:10px;">SLA основной контроль: ${slaSnapshot.heat.label}</div>
+          <table style="width:100%; border-collapse:separate; border-spacing:8px 0; margin-bottom:10px;">
             <tr>
-              <td style="width:28%; vertical-align:middle; padding-right:14px;">
-                <div style="height:18px; background:linear-gradient(90deg,#10b981 0%,#f59e0b 55%,#ef4444 100%); border:1px solid #cbd5e1; border-radius:999px; position:relative;">
-                  <div style="height:28px; width:4px; background:#0f172a; margin-left:${Math.min(96, Math.max(2, slaSnapshot.heat.width))}%; margin-top:-5px; border-radius:2px;"></div>
-                </div>
-                <div style="font-size:10px; color:#64748b; margin-top:5px;"><span>Норма</span><span style="float:right;">Критично</span></div>
+              <td style="width:33%; border:1px solid #fecaca; background:#fff7f7; border-radius:7px; padding:8px; vertical-align:top;">
+                <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Основной SLA</div>
+                <div style="font-size:24px; color:#991b1b; font-weight:900;">${slaSnapshot.primaryCount}</div>
+                <div style="font-size:11px; color:#64748b;">Инцидент от момента создания</div>
+                <div style="font-size:11px; color:#dc2626; font-weight:800;">+${Math.round(slaSnapshot.primaryAvg || 0)} мин</div>
               </td>
-              <td style="width:72%; vertical-align:top;">
-                <table style="width:100%; border-collapse:collapse; border:1px solid #fecaca; background:#fff7f7; border-radius:6px; margin-bottom:8px;">
-                  <tr>
-                    <td style="padding:7px 9px;">
-                      <div style="font-size:12px; color:#334155; font-weight:900;">Инцидент от момента создания</div>
-                      <div style="font-size:11px; color:#64748b;">Ср. время просрочки: <b style="color:#dc2626;">${Math.round(slaSnapshot.primaryAvg || 0)} мин</b></div>
-                    </td>
-                    <td style="width:74px; padding:5px; text-align:center;">
-                      <div style="border:1px solid #fca5a5; background:#fee2e2; color:#991b1b; border-radius:6px; padding:4px 6px; font-weight:900;">
-                        <div style="font-size:16px;">${slaSnapshot.primaryCount}</div>
-                        <div style="font-size:8px; text-transform:uppercase;">нарушений</div>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-                <div style="font-size:12px; color:#334155; line-height:1.45;">${escapeHtml(slaSnapshot.diagnosis)}</div>
-                <div style="font-size:11px; color:#64748b; margin-top:6px;">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
+              <td style="width:33%; border:1px solid #fed7aa; background:#fff7ed; border-radius:7px; padding:8px; vertical-align:top;">
+                <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">До решения</div>
+                <div style="font-size:24px; color:#c2410c; font-weight:900;">${slaSnapshot.resolutionCount}</div>
+                <div style="font-size:11px; color:#64748b;">Вторичный контроль</div>
+                <div style="font-size:11px; color:#c2410c; font-weight:800;">+${Math.round(slaSnapshot.resolutionAvg || 0)} мин</div>
+              </td>
+              <td style="width:33%; border:1px solid #cbd5e1; background:#ffffff; border-radius:7px; padding:8px; vertical-align:top;">
+                <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Характер просрочки</div>
+                <div style="font-size:18px; color:#0f172a; font-weight:900;">${slaSnapshot.simpleShare}%</div>
+                <div style="font-size:11px; color:#64748b;">простые обращения</div>
+                <div style="font-size:11px; color:#64748b;">сложные: ${slaSnapshot.complexShare}%</div>
               </td>
             </tr>
           </table>
+          <div style="font-size:12px; color:#334155; line-height:1.45;">${escapeHtml(slaSnapshot.diagnosis)}</div>
+          <div style="font-size:11px; color:#64748b; margin-top:6px;">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
         </div>`;
     };
 
@@ -7056,14 +7008,22 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
     return `
       <div style="font-family: ${wordFontFamily}; color:#0f172a; line-height:1.35;">
-        <div style="border-bottom:3px solid #2563eb; padding-bottom:10px; margin-bottom:12px;">
-          <div style="font-size:22px; font-weight:900; letter-spacing:0.02em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
-          <div style="font-size:12px; color:#64748b;">${escapeHtml(weekTitle)}</div>
+        <div style="background:#0f172a; color:#ffffff; border-radius:12px; padding:16px 18px; margin-bottom:14px;">
+          <table style="width:100%; border-collapse:collapse;">
+            <tr>
+              <td style="vertical-align:middle;">
+                <div style="font-size:23px; font-weight:900; letter-spacing:0.03em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
+                <div style="font-size:12px; color:#cbd5e1; margin-top:3px;">${escapeHtml(weekTitle)}</div>
+              </td>
+              <td style="vertical-align:middle; text-align:right;">
+                <span style="display:inline-block; border:1px solid #334155; background:#1e293b; color:#e2e8f0; border-radius:999px; padding:6px 10px; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.06em;">TeamLead Control Room</span>
+              </td>
+            </tr>
+          </table>
         </div>
         ${renderKpi()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">1. Решенные задачи за неделю</h2>
         ${renderTaskSections()}
-        ${renderTaskPodium()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">2. Поручения руководства</h2>
         ${renderManagementTasks()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">3. Показатели команды</h2>
@@ -7122,7 +7082,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const badWordCsatComments = wordCsatComments.filter(item => item.rating !== null && item.rating < 4);
   const wordSystemProblems = getWordSystemProblems();
   const wordSlaSnapshot = getWordSlaSnapshot();
-  const wordTaskPodium = getWordTaskPodium();
 
   return (
     <div className="animate-in fade-in duration-500 pb-10 max-w-7xl">
@@ -7326,32 +7285,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               </div>
             </section>
 
-            {wordTaskPodium.length > 0 && (
-              <section className="mb-6" style={{ fontFamily: wordFontFamily }}>
-                <h3 className="text-base font-black mb-3 text-slate-800">Топ админов по закрытым задачам недели</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {wordTaskPodium.map((row, index) => {
-                    const styles = [
-                      'border-amber-400 bg-amber-50',
-                      'border-cyan-400 bg-cyan-50',
-                      'border-slate-400 bg-slate-50'
-                    ];
-                    return (
-                      <div key={row.name} className={`rounded-xl border-l-4 border p-4 ${styles[index] || styles[2]}`}>
-                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">{index + 1} место</div>
-                        <div className="text-base font-black text-slate-950 mb-3">{row.name}</div>
-                        <div className="grid grid-cols-3 gap-2 text-xs">
-                          <div className="bg-white rounded-lg border border-slate-200 p-2"><div className="text-slate-500">Закрыто</div><b className="text-lg">{row.closed}</b></div>
-                          <div className="bg-white rounded-lg border border-slate-200 p-2"><div className="text-slate-500">Вес</div><b className="text-lg">{row.weight}</b></div>
-                          <div className="bg-white rounded-lg border border-slate-200 p-2"><div className="text-slate-500">Сложные</div><b className="text-lg">{row.complex}</b></div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
             <section className="mb-6" style={{ fontFamily: wordFontFamily }}>
               <h3 className="text-lg font-black mb-3">2. Поручения руководства</h3>
               <div className="space-y-2">
@@ -7526,29 +7459,29 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                   </div>
                 )}
                 <div className="rounded-lg p-4" style={{ border: `1px solid ${wordSlaSnapshot.heat.border}`, borderLeft: `5px solid ${wordSlaSnapshot.heat.color}`, background: wordSlaSnapshot.heat.bg }}>
-                  <div className="text-sm font-black uppercase mb-2" style={{ color: wordSlaSnapshot.heat.color }}>Температура SLA: {wordSlaSnapshot.heat.label}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4 items-center">
-                    <div>
-                      <div className="h-5 rounded-full border border-slate-300 bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500 relative">
-                        <div className="absolute top-[-5px] h-8 w-1 rounded bg-slate-950" style={{ left: `${Math.min(96, Math.max(2, wordSlaSnapshot.heat.width))}%` }} />
-                      </div>
-                      <div className="flex justify-between text-[10px] text-slate-500 mt-1"><span>Норма</span><span>Критично</span></div>
+                  <div className="text-sm font-black uppercase mb-3" style={{ color: wordSlaSnapshot.heat.color }}>SLA основной контроль: {wordSlaSnapshot.heat.label}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                      <div className="text-[11px] font-black uppercase text-slate-500">Основной SLA</div>
+                      <div className="text-2xl font-black text-red-800">{wordSlaSnapshot.primaryCount}</div>
+                      <div className="text-xs text-slate-500">Инцидент от момента создания</div>
+                      <div className="text-xs font-bold text-red-600">+{Math.round(wordSlaSnapshot.primaryAvg || 0)} мин</div>
                     </div>
-                    <div>
-                      <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-black text-slate-700">Инцидент от момента создания</div>
-                          <div className="text-xs text-slate-500">Ср. время просрочки: <b className="text-red-600">{Math.round(wordSlaSnapshot.primaryAvg || 0)} мин</b></div>
-                        </div>
-                        <div className="rounded-md border border-red-300 bg-red-100 px-3 py-1 text-center text-red-800">
-                          <div className="text-lg font-black">{wordSlaSnapshot.primaryCount}</div>
-                          <div className="text-[9px] font-black uppercase">нарушений</div>
-                        </div>
-                      </div>
-                      <div className="text-sm text-slate-700">{wordSlaSnapshot.diagnosis}</div>
-                      <div className="text-xs text-slate-500 mt-2">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
+                    <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                      <div className="text-[11px] font-black uppercase text-slate-500">До решения</div>
+                      <div className="text-2xl font-black text-orange-700">{wordSlaSnapshot.resolutionCount}</div>
+                      <div className="text-xs text-slate-500">Вторичный контроль</div>
+                      <div className="text-xs font-bold text-orange-700">+{Math.round(wordSlaSnapshot.resolutionAvg || 0)} мин</div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="text-[11px] font-black uppercase text-slate-500">Характер просрочки</div>
+                      <div className="text-2xl font-black text-slate-900">{wordSlaSnapshot.simpleShare}%</div>
+                      <div className="text-xs text-slate-500">простые обращения</div>
+                      <div className="text-xs text-slate-500">сложные: {wordSlaSnapshot.complexShare}%</div>
                     </div>
                   </div>
+                  <div className="text-sm text-slate-700">{wordSlaSnapshot.diagnosis}</div>
+                  <div className="text-xs text-slate-500 mt-2">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
                 </div>
               </section>
             )}
