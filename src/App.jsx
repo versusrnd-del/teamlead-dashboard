@@ -9,7 +9,6 @@ import {
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
   Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, Server, PieChart as PieChartIcon, Download, Edit3, PhoneCall
 } from 'lucide-react';
-import { generateFintechLabReport } from '/src/utils/generateFintechLabReport.js';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
 const USER_DICTIONARY = {
@@ -74,6 +73,83 @@ const generateMonthWeeks = (year, month) => {
     if (d.getMonth() !== month && d.getFullYear() >= year) break;
   }
   return weeks;
+};
+
+const generateFintechLabReport = ({
+  week = {},
+  metrics = [],
+  routeDistribution = [],
+  slaByRoute = [],
+  topNonSelfTopics = [],
+  dataQuality = {},
+  summary = '',
+  generatedAt = new Date()
+} = {}) => {
+  const html = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+  const num = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const pct = (value) => {
+    const parsed = num(value);
+    return parsed === null ? 'данные пока не подключены' : `${parsed.toFixed(1).replace('.0', '')}%`;
+  };
+  const count = (value) => {
+    const parsed = num(value);
+    return parsed === null ? 'данные пока не подключены' : `${Math.round(parsed)} шт.`;
+  };
+  const deltaText = (metric) => {
+    const parsed = num(metric?.delta);
+    if (parsed === null) return 'база формируется';
+    if (metric?.suffix === '%') return `${parsed > 0 ? '+' : ''}${parsed.toFixed(1).replace('.0', '')}% к прошлой неделе`;
+    return `${parsed > 0 ? '+' : ''}${Math.round(parsed)} шт. к прошлой неделе`;
+  };
+  const width = (value) => `${Math.max(0, Math.min(100, Number(value) || 0))}%`;
+  const generatedDate = generatedAt instanceof Date ? generatedAt : new Date(generatedAt);
+  const period = week?.dates || `Неделя ${week?.weekNumber || ''}`.trim() || 'данные пока не подключены';
+  const quality = num(dataQuality.routeDataQualityPercent);
+  const metricCards = metrics.map(metric => `
+    <article class="metric-card">
+      <div class="metric-label">${html(metric.label)}</div>
+      <div class="metric-value">${html(metric.suffix === '%' ? pct(metric.value) : count(metric.value))}</div>
+      <div class="metric-delta">${html(deltaText(metric))}</div>
+      <p>${html(metric.hint || '')}</p>
+    </article>`).join('');
+  const routeRows = routeDistribution.length ? routeDistribution.map(item => `
+    <div class="route-row">
+      <div class="route-meta"><strong>${html(item.displayRoute || item.route || 'Другое')}</strong><span>${html(count(item.count))} / ${html(pct(item.percentage))}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${width(item.percentage)}"></div></div>
+    </div>`).join('') : '<p class="muted">Данные по маршрутам пока не подключены.</p>';
+  const slaRows = slaByRoute.map(row => `
+    <tr><td>${html(row.route)}</td><td class="num">${html(count(row.count))}</td><td class="num">${row.primarySla === null || row.primarySla === undefined ? 'нет данных' : html(pct(row.primarySla))}</td><td class="num">${row.resolutionSla === null || row.resolutionSla === undefined ? 'нет данных' : html(pct(row.resolutionSla))}</td><td><span class="badge">${html(row.conclusion || 'мало данных для вывода')}</span></td></tr>`).join('');
+  const topicCards = topNonSelfTopics.length ? topNonSelfTopics.slice(0, 5).map((topic, index) => `
+    <article class="topic-card">
+      <div class="topic-head"><h3>${index + 1}. ${html(topic.theme || 'Без темы')}</h3><span>${html(count(topic.count))}</span></div>
+      <div class="topic-grid"><div><small>Основной маршрут</small><strong>${html(topic.mainRoute || 'данные пока не подключены')}</strong></div><div><small>SLA-просрочки</small><strong>${topic.slaBreaches === null || topic.slaBreaches === undefined ? 'нет данных' : html(count(topic.slaBreaches))}</strong></div></div>
+      <p>${html(topic.actionNeeded || 'Разобрать 3-5 типовых тикетов и решить: инструкция, обучение, права или маршрут.')}</p>
+    </article>`).join('') : '<p class="muted">Топ тем пока не подключен. Нужен анализ не-самостоятельных маршрутов.</p>';
+
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Финтехлаб — практика по метрикам</title><style>
+    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--soft-green:#ecfdf5;--soft-blue:#eff6ff;--soft-amber:#fffbeb}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:linear-gradient(135deg,#0f2f2c,#173a5e);color:white;border-radius:24px;padding:42px;box-shadow:0 24px 60px rgba(15,23,42,.16);margin-bottom:24px}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:12px}h1{font-size:42px;line-height:1.05;margin:0 0 10px;letter-spacing:-.02em}h2{font-size:22px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:19px;color:#dbeafe;margin:0 0 28px}.cover-grid,.metric-grid,.quality-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.cover-item span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;margin:18px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.summary{font-size:16px;color:#334155}.metric-card,.quality-box,.topic-card,.plan-card{border:1px solid var(--line);border-radius:18px;padding:18px;background:linear-gradient(180deg,#fff,#f8fafc)}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:var(--green);font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list,.plan-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}.hypothesis{background:linear-gradient(135deg,var(--soft-green),var(--soft-blue));border-color:#bfdbfe}ul{margin:10px 0 0;padding-left:19px;color:#334155}li{margin:6px 0}.questions{columns:2}.final{border-left:6px solid var(--green)}@media(max-width:820px){.cover-grid,.metric-grid,.quality-grid,.topic-list,.plan-grid{grid-template-columns:1fr}.questions{columns:1}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
+  </style></head><body><main class="page">
+    <header class="cover"><div class="eyebrow">Финтехлаб — практика по метрикам</div><h1>Финтехлаб — практика по метрикам</h1><p class="cover-subtitle">Процесс: Обработка инцидента 1-й линии</p><div class="cover-grid"><div class="cover-item"><span>Неделя / период</span><strong>${html(period)}</strong></div><div class="cover-item"><span>Владелец процесса</span><strong>Виктор</strong></div><div class="cover-item"><span>Направление</span><strong>ОСО / техническая поддержка</strong></div><div class="cover-item"><span>Дата формирования</span><strong>${html(generatedDate.toLocaleDateString('ru-RU'))}</strong></div></div></header>
+    <section><h2>Управленческое резюме</h2><p class="summary">В рамках практики выбран сервисный процесс обработки инцидентов 1-й линии. Цель — сделать процесс более наблюдаемым: видеть скорость реакции, соблюдение SLA и фактический маршрут решения инцидента. Ключевое изменение — фиксация поля «Маршрут решения» при закрытии тикета. Это позволит понять, где 1-й линии нужны инструкции, права, обучение или изменение маршрутизации. В текущей неделе вывод дашборда: ${html(summary || 'данные пока не подключены')}.</p></section>
+    <section><h2>Ключевые метрики</h2><div class="metric-grid">${metricCards}</div></section>
+    <section><h2>Качество данных по маршруту решения</h2><div class="quality-grid"><div class="quality-box"><small>Маршрут заполнен</small><strong>${html(pct(dataQuality.routeDataQualityPercent))}</strong></div><div class="quality-box"><small>Не указано / старые данные</small><strong>${html(count(dataQuality.unknownCount))}</strong></div><div class="quality-box"><small>Всего закрытых тикетов</small><strong>${html(count(dataQuality.closedCount))}</strong></div></div>${quality !== null && quality < 80 ? '<div class="warning">Выводы по маршрутам предварительные: часть тикетов ещё не размечена.</div>' : ''}</section>
+    <section><h2>Метрики, прошедшие через критерии</h2><table><thead><tr><th>Управленческий вопрос</th><th>Метрика</th><th>Тип</th><th>Источник данных</th><th>Какое решение помогает принять</th></tr></thead><tbody><tr><td>Успеваем ли быстро брать обращения в работу?</td><td>Доля обращений, взятых в работу до 10-15 минут.</td><td>Результирующая</td><td>JiraSD / SLA первой реакции</td><td>Корректировка смен, очереди, реакции на пики.</td></tr><tr><td>Соблюдаем ли SLA и насколько тяжёлые нарушения?</td><td>Доля SLA-просрочек + медианная длительность просрочки.</td><td>Результирующая</td><td>JiraSD / SLA отчёты</td><td>Поиск этапа или темы, где теряется время.</td></tr><tr><td>Где фактически решаются инциденты?</td><td>Распределение по «Маршруту решения».</td><td>Диагностическая</td><td>Новое поле JiraSD</td><td>Понять, где нужны знания, права, маршрутизация.</td></tr><tr><td>По каким темам 1-й линии чаще всего нужна помощь?</td><td>Топ тем с не-самостоятельным маршрутом.</td><td>Диагностическая / операционная</td><td>ИИ-семантика + маршрут решения</td><td>Инструкция, чек-лист, обучение, права или изменение маршрута.</td></tr></tbody></table></section>
+    <section><h2>Маршруты решения</h2>${routeRows}</section>
+    <section><h2>SLA по маршрутам решения</h2><table><thead><tr><th>Маршрут</th><th>Кол-во тикетов</th><th>SLA входа</th><th>SLA решения</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
+    <section><h2>Топ тем с не-самостоятельным маршрутом</h2><div class="topic-list">${topicCards}</div></section>
+    <section class="hypothesis"><h2>Гипотеза улучшения</h2><p>Если фиксировать фактический маршрут решения инцидента и сопоставлять его с SLA и темами обращений, то мы увидим узкие места 1-й линии: где не хватает знаний, прав, инструкций или маршрутизации. Это позволит точечно улучшать процесс, повышать долю самостоятельного решения 1-й линии и снижать повторяющиеся обращения к старшим уровням поддержки без ухудшения SLA.</p></section>
+    <section><h2>План проверки</h2><div class="plan-grid"><div class="plan-card"><h3>2 недели</h3><ul><li>Внедрить поле «Маршрут решения».</li><li>Сделать его обязательным при закрытии.</li><li>Собрать первые данные.</li><li>Проверить качество заполнения.</li><li>Построить первые графики.</li><li>Выбрать топ-1 тему для улучшения.</li></ul></div><div class="plan-card"><h3>8 недель</h3><ul><li>Накопить базу по маршрутам.</li><li>Отобрать повторяющиеся темы.</li><li>Подготовить 2-3 проверенных улучшения.</li><li>Оценить динамику SLA.</li><li>Оценить изменение самостоятельности и помощи старших.</li><li>Подготовить выводы для финальной презентации.</li></ul></div></div></section>
+    <section><h2>Вопросы тренерам</h2><ul class="questions"><li>Не слишком ли широк выбранный процесс?</li><li>Как фиксировать маршрут, если участвовало несколько уровней?</li><li>Достаточно ли 4 основных метрик?</li><li>Как избежать формального заполнения поля?</li><li>Нужно ли измерять время помощи старших или достаточно факта маршрута?</li><li>Что считать успехом через 2 недели?</li></ul></section>
+    <section class="final"><h2>Итоговый вывод</h2><p>На текущем этапе ключевой результат — не идеальная система метрик, а наблюдаемость процесса. Мы делаем видимым маршрут решения инцидента, связываем его со SLA и темами обращений, после чего можем принимать точечные решения: инструкция, права, обучение, изменение маршрутизации или выделение ресурса.</p></section>
+  </main></body></html>`;
 };
 
 // Вычисление разницы в неделях
