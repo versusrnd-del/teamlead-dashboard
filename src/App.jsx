@@ -2403,26 +2403,36 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     return Math.round(number * factor) / factor;
   };
 
-  const getPrimarySlaViolations = (data) => {
+  const isPrimarySlaName = (value) => {
+    const text = safeString(value).toLowerCase();
+    return text.includes('инцидент от момента') || text.includes('взят') || text.includes('перв') || text.includes('реакц') || text.includes('создан') || text.includes('момент');
+  };
+
+  const isResolutionSlaName = (value) => {
+    const text = safeString(value).toLowerCase();
+    return text.includes('до решения') || text.includes('решен') || text.includes('решени') || text.includes('закрыт') || text.includes('resolution') || text.includes('resolve');
+  };
+
+  const getSlaViolations = (data, predicate) => {
     const metrics = Array.isArray(data?.slaMetrics) ? data.slaMetrics : [];
     const primary = metrics.find(item => {
       const text = safeString(item?.name || item?.slaType || item?.type || item?.metric).toLowerCase();
-      return text.includes('инцидент от момента') || text.includes('перв') || text.includes('реакц') || text.includes('создан');
+      return predicate(text);
     });
     if (primary) return Number(primary.violations) || 0;
     const details = Array.isArray(data?.slaBreachDetails) ? data.slaBreachDetails : [];
     return details.filter(item => {
       const text = safeString(item?.slaType || item?.type || item?.name || item?.metric).toLowerCase();
-      return text.includes('инцидент от момента') || text.includes('перв') || text.includes('реакц') || text.includes('создан');
+      return predicate(text);
     }).length;
   };
 
-  const getMedianPrimaryOverdue = (data) => {
+  const getMedianSlaOverdue = (data, predicate) => {
     const details = Array.isArray(data?.slaBreachDetails) ? data.slaBreachDetails : [];
     const values = details
       .filter(item => {
         const text = safeString(item?.slaType || item?.type || item?.name || item?.metric).toLowerCase();
-        return text.includes('инцидент от момента') || text.includes('перв') || text.includes('реакц') || text.includes('создан');
+        return predicate(text);
       })
       .map(item => Number(item?.overdueMin))
       .filter(value => Number.isFinite(value) && value > 0)
@@ -2437,11 +2447,16 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     const closed = Number(section?.closedCount ?? data.incidentsClosed) || 0;
     const queue = Number(section?.queueCount ?? data.incidentsQueue) || 0;
     const inflow = Number(section?.inflowCount ?? (closed + queue)) || 0;
-    const primaryViolations = getPrimarySlaViolations(data);
+    const primaryViolations = getSlaViolations(data, isPrimarySlaName);
+    const resolutionViolations = getSlaViolations(data, isResolutionSlaName);
     const fallbackSuccess = closed > 0 ? Math.max(0, 100 - (primaryViolations / closed) * 100) : 0;
+    const resolutionFallbackSuccess = closed > 0 ? Math.max(0, 100 - (resolutionViolations / closed) * 100) : 0;
     const successRate = Number(section?.slaFirstReaction?.successRatePercent ?? fallbackSuccess) || 0;
+    const resolutionSuccessRate = Number(section?.slaResolution?.successRatePercent ?? section?.resolutionSla?.successRatePercent ?? resolutionFallbackSuccess) || 0;
     const slaBreachRate = Number(section?.slaBreachRatePercent ?? (closed > 0 ? (primaryViolations / closed) * 100 : 0)) || 0;
-    const medianSlaBreachMinutes = Number(section?.medianSlaBreachMinutes ?? getMedianPrimaryOverdue(data)) || 0;
+    const resolutionSlaBreachRate = Number(section?.resolutionSlaBreachRatePercent ?? (closed > 0 ? (resolutionViolations / closed) * 100 : 0)) || 0;
+    const medianSlaBreachMinutes = Number(section?.medianSlaBreachMinutes ?? getMedianSlaOverdue(data, isPrimarySlaName)) || 0;
+    const medianResolutionSlaBreachMinutes = Number(section?.medianResolutionSlaBreachMinutes ?? getMedianSlaOverdue(data, isResolutionSlaName)) || 0;
     const sourceRoutes = Array.isArray(section?.routeDistribution) ? section.routeDistribution : [];
     const routeDistribution = sourceRoutes.length > 0
       ? sourceRoutes.map(item => {
@@ -2465,8 +2480,13 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       closed,
       queue,
       successRate: roundMetric(successRate, 1),
+      resolutionSuccessRate: roundMetric(resolutionSuccessRate, 1),
       slaBreachRate: roundMetric(slaBreachRate, 1),
+      resolutionSlaBreachRate: roundMetric(resolutionSlaBreachRate, 1),
       medianSlaBreachMinutes: roundMetric(medianSlaBreachMinutes, 1),
+      medianResolutionSlaBreachMinutes: roundMetric(medianResolutionSlaBreachMinutes, 1),
+      primaryViolations,
+      resolutionViolations,
       routeDistribution,
       routeTotal,
       selfCount,
@@ -2535,16 +2555,23 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     sla: roundMetric(latestMetrics.sla - (baselineTraining?.successRate || 0), 1),
     help: roundMetric(latestMetrics.helpPercent - (baselineTraining?.helpPercent || 0), 1)
   };
+  const selectedCollectionIndex = visibleCollectionKeys.indexOf(selectedWeekKey);
+  const previousTrainingKey = selectedCollectionIndex > 0 ? visibleCollectionKeys[selectedCollectionIndex - 1] : null;
+  const previousTraining = previousTrainingKey ? normalizeTrainingWeek(weeksHistory?.[previousTrainingKey] || {}) : null;
+  const inflowDelta = previousTraining ? selectedTraining.inflow - previousTraining.inflow : null;
+  const inflowHint = previousTraining
+    ? `${inflowDelta > 0 ? '+' : ''}${inflowDelta} к прошлой неделе`
+    : 'Нет предыдущей недели для сравнения';
 
   const routeChartData = selectedTraining.routeDistribution
     .map(item => ({ ...item, label: safeString(item.route).length > 28 ? `${safeString(item.route).slice(0, 28)}...` : safeString(item.route) }))
     .sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
 
   const kpiCards = [
-    { label: 'Входящий поток', value: selectedTraining.inflow, suffix: 'шт.', tone: 'text-slate-100', hint: 'Закрыто + очередь периода' },
+    { label: 'Входящий поток', value: selectedTraining.inflow, suffix: 'шт.', tone: 'text-slate-100', hint: inflowHint },
     { label: 'Закрыто', value: selectedTraining.closed, suffix: 'шт.', tone: 'text-emerald-300', hint: 'Инциденты 1-й линии' },
-    { label: 'Очередь', value: selectedTraining.queue, suffix: 'шт.', tone: selectedTraining.queue > 0 ? 'text-amber-300' : 'text-slate-300', hint: 'Остаток на конец периода' },
-    { label: 'SLA-1 без просрочки', value: selectedTraining.successRate, suffix: '%', tone: selectedTraining.successRate >= 85 ? 'text-emerald-300' : 'text-amber-300', hint: 'Первая реакция до 15 минут' },
+    { label: 'SLA входа', value: selectedTraining.successRate, suffix: '%', tone: selectedTraining.successRate >= 85 ? 'text-emerald-300' : 'text-amber-300', hint: `Основной: до взятия в работу. Нарушений: ${selectedTraining.primaryViolations}` },
+    { label: 'SLA решения', value: selectedTraining.resolutionSuccessRate, suffix: '%', tone: selectedTraining.resolutionSuccessRate >= 85 ? 'text-emerald-300' : 'text-amber-300', hint: `Вторичный: до решения. Нарушений: ${selectedTraining.resolutionViolations}` },
     { label: 'Самостоятельность', value: selectedTraining.selfPercent, suffix: '%', tone: selectedTraining.selfPercent >= 60 ? 'text-emerald-300' : 'text-cyan-300', hint: `${selectedTraining.selfCount} из ${selectedTraining.routeTotal}` },
     { label: 'Помощь старших', value: selectedTraining.helpPercent, suffix: '%', tone: selectedTraining.helpPercent > 25 ? 'text-amber-300' : 'text-slate-300', hint: `${selectedTraining.helpCount} обращений` }
   ];
@@ -2555,7 +2582,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     return (
       <div className={`rounded-lg border px-4 py-3 ${color}`}>
         <div className="text-[10px] uppercase font-black tracking-wider mb-1">{label}</div>
-        <div className="text-2xl font-black">{value > 0 ? '+' : ''}{value}<span className="text-xs ml-1">процентных пункта</span></div>
+        <div className="text-2xl font-black">{value > 0 ? '+' : ''}{value}<span className="text-xs ml-1">% к базе</span></div>
       </div>
     );
   };
@@ -2582,7 +2609,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         {kpiCards.map(card => (
           <div key={card.label} className="bg-slate-800 rounded-xl p-4 border border-slate-700/50 shadow-sm">
             <div className="text-[10px] uppercase font-black tracking-wider text-slate-500 mb-2">{card.label}</div>
@@ -2597,7 +2624,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
           <div className="flex items-start justify-between gap-3 mb-5">
             <div>
               <h2 className="text-lg font-medium text-white flex items-center gap-2"><TrendingUp size={20} className="text-emerald-400" /> Тренд с недели 23</h2>
-              <p className="text-xs text-slate-500 mt-1">Самостоятельность, SLA-1 и доля помощи старших/смежников с начала сбора маршрутизации.</p>
+              <p className="text-xs text-slate-500 mt-1">Самостоятельность, основной SLA входа и доля помощи старших/смежников с начала сбора маршрутизации.</p>
             </div>
             <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">С недели {TRAINING_BASE_WEEK}: {trendKeys.length} нед.</span>
           </div>
@@ -2611,7 +2638,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#f8fafc', fontSize: '12px' }} formatter={(value) => [`${value}%`, '']} />
                   <Legend wrapperStyle={{ paddingTop: '12px', fontSize: '12px' }} />
                   <Line type="monotone" dataKey="self" name="Самостоятельность" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="sla" name="SLA-1" stroke="#38bdf8" strokeWidth={3} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="sla" name="SLA входа" stroke="#38bdf8" strokeWidth={3} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="help" name="Помощь старших" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -2622,10 +2649,10 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         </div>
 
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
-          <h2 className="text-lg font-medium text-white flex items-center gap-2 mb-4"><Activity size={20} className="text-amber-400" /> Общая дельта с недели 23</h2>
+          <h2 className="text-lg font-medium text-white flex items-center gap-2 mb-4"><Activity size={20} className="text-amber-400" /> Изменение с недели 23</h2>
           <div className="space-y-3">
             {renderDelta('Самостоятельность', delta.self, true)}
-            {renderDelta('SLA-1', delta.sla, true)}
+            {renderDelta('SLA входа', delta.sla, true)}
             {renderDelta('Помощь старших', delta.help, false)}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-700/50 text-xs text-slate-500 leading-relaxed">
