@@ -866,7 +866,8 @@ const defaultWeekData = {
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
   mainWin: "", thanks: "", sprintWin: "", sprintRisk: "", shieldHero: "", blockersAndWaste: "Ожидание данных аналитики...",
-  topIncidents: [], slaMetrics: [], slaBreachDetails: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: [], telephonyData: [], telephonyInsight: ""
+  topIncidents: [], slaMetrics: [], slaBreachDetails: [], topPerformers: [], taskPerformers: [], taskComplexity: [], taskTypesDistribution: [], staleBacklog: [], telephonyData: [], telephonyInsight: "",
+  trainingSection: null
 };
 
 const defaultProcesses = [
@@ -2379,6 +2380,317 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   );
 };
 
+const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect }) => {
+  const normalizeRoute = (route) => {
+    const text = safeString(route).trim();
+    if (!text || ['-', '—', 'null', 'undefined', 'другое'].includes(text.toLowerCase())) return 'Не указано / Старые данные';
+    return text;
+  };
+
+  const isSelfRoute = (route) => normalizeRoute(route).toLowerCase().includes('самостоятель');
+  const isUnknownRoute = (route) => normalizeRoute(route).toLowerCase().includes('не указано') || normalizeRoute(route).toLowerCase().includes('старые данные');
+  const isHelpRoute = (route) => {
+    const text = normalizeRoute(route).toLowerCase();
+    return !isSelfRoute(text) && !isUnknownRoute(text) && (
+      text.includes('помощ') || text.includes('дежур') || text.includes('направлен') || text.includes('смеж') || text.includes('администратор')
+    );
+  };
+
+  const roundMetric = (value, digits = 1) => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return 0;
+    const factor = 10 ** digits;
+    return Math.round(number * factor) / factor;
+  };
+
+  const getPrimarySlaViolations = (data) => {
+    const metrics = Array.isArray(data?.slaMetrics) ? data.slaMetrics : [];
+    const primary = metrics.find(item => {
+      const text = safeString(item?.name || item?.slaType || item?.type || item?.metric).toLowerCase();
+      return text.includes('инцидент от момента') || text.includes('перв') || text.includes('реакц') || text.includes('создан');
+    });
+    if (primary) return Number(primary.violations) || 0;
+    const details = Array.isArray(data?.slaBreachDetails) ? data.slaBreachDetails : [];
+    return details.filter(item => {
+      const text = safeString(item?.slaType || item?.type || item?.name || item?.metric).toLowerCase();
+      return text.includes('инцидент от момента') || text.includes('перв') || text.includes('реакц') || text.includes('создан');
+    }).length;
+  };
+
+  const getMedianPrimaryOverdue = (data) => {
+    const details = Array.isArray(data?.slaBreachDetails) ? data.slaBreachDetails : [];
+    const values = details
+      .filter(item => {
+        const text = safeString(item?.slaType || item?.type || item?.name || item?.metric).toLowerCase();
+        return text.includes('инцидент от момента') || text.includes('перв') || text.includes('реакц') || text.includes('создан');
+      })
+      .map(item => Number(item?.overdueMin))
+      .filter(value => Number.isFinite(value) && value > 0)
+      .sort((a, b) => a - b);
+    if (values.length === 0) return 0;
+    const mid = Math.floor(values.length / 2);
+    return values.length % 2 ? values[mid] : roundMetric((values[mid - 1] + values[mid]) / 2, 1);
+  };
+
+  const normalizeTrainingWeek = (data = {}) => {
+    const section = data.trainingSection && typeof data.trainingSection === 'object' ? data.trainingSection : null;
+    const closed = Number(section?.closedCount ?? data.incidentsClosed) || 0;
+    const queue = Number(section?.queueCount ?? data.incidentsQueue) || 0;
+    const inflow = Number(section?.inflowCount ?? (closed + queue)) || 0;
+    const primaryViolations = getPrimarySlaViolations(data);
+    const fallbackSuccess = closed > 0 ? Math.max(0, 100 - (primaryViolations / closed) * 100) : 0;
+    const successRate = Number(section?.slaFirstReaction?.successRatePercent ?? fallbackSuccess) || 0;
+    const slaBreachRate = Number(section?.slaBreachRatePercent ?? (closed > 0 ? (primaryViolations / closed) * 100 : 0)) || 0;
+    const medianSlaBreachMinutes = Number(section?.medianSlaBreachMinutes ?? getMedianPrimaryOverdue(data)) || 0;
+    const sourceRoutes = Array.isArray(section?.routeDistribution) ? section.routeDistribution : [];
+    const routeDistribution = sourceRoutes.length > 0
+      ? sourceRoutes.map(item => {
+        const count = Number(item?.count) || 0;
+        return {
+          route: normalizeRoute(item?.route),
+          count,
+          percentage: Number.isFinite(Number(item?.percentage)) ? roundMetric(Number(item.percentage), 1) : (closed > 0 ? roundMetric(count * 100 / closed, 1) : 0)
+        };
+      })
+      : [{ route: 'Не указано / Старые данные', count: closed, percentage: closed > 0 ? 100 : 0 }];
+    const routeTotal = routeDistribution.reduce((sum, item) => sum + (Number(item.count) || 0), 0) || closed || 0;
+    const selfCount = routeDistribution.filter(item => isSelfRoute(item.route)).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+    const helpCount = routeDistribution.filter(item => isHelpRoute(item.route)).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+    const unknownCount = routeDistribution.filter(item => isUnknownRoute(item.route)).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+    const bottleneckThemes = Array.isArray(section?.bottleneckThemes) ? section.bottleneckThemes : [];
+    return {
+      hasTraining: Boolean(section),
+      sectionSummary: safeString(section?.sectionSummary || 'Для этой недели нет отдельного trainingSection. Экран использует fallback из общих инцидентных метрик, маршруты помечены как старые данные.'),
+      inflow,
+      closed,
+      queue,
+      successRate: roundMetric(successRate, 1),
+      slaBreachRate: roundMetric(slaBreachRate, 1),
+      medianSlaBreachMinutes: roundMetric(medianSlaBreachMinutes, 1),
+      routeDistribution,
+      routeTotal,
+      selfCount,
+      helpCount,
+      unknownCount,
+      selfPercent: routeTotal > 0 ? roundMetric(selfCount * 100 / routeTotal, 1) : 0,
+      helpPercent: routeTotal > 0 ? roundMetric(helpCount * 100 / routeTotal, 1) : 0,
+      unknownPercent: routeTotal > 0 ? roundMetric(unknownCount * 100 / routeTotal, 1) : 0,
+      bottleneckThemes,
+      routeSlaBreaches: Array.isArray(section?.routeSlaBreaches) ? section.routeSlaBreaches : []
+    };
+  };
+
+  const selectedTraining = normalizeTrainingWeek(weekData);
+  const sortedKeys = [...(historyKeys || [])].sort();
+  const currentIndex = sortedKeys.indexOf(selectedWeekKey);
+  const endIndex = currentIndex >= 0 ? currentIndex : sortedKeys.length - 1;
+  const latest8Keys = sortedKeys.slice(Math.max(0, endIndex - 7), endIndex + 1);
+  const previous8Keys = sortedKeys.slice(Math.max(0, endIndex - 15), Math.max(0, endIndex - 7));
+  const buildTrendPoint = (key) => {
+    const data = weeksHistory?.[key] || {};
+    const normalized = normalizeTrainingWeek(data);
+    return {
+      key,
+      name: `Н${data.weekNumber || key.split('-')[1] || ''}`,
+      self: normalized.selfPercent,
+      sla: normalized.successRate,
+      help: normalized.helpPercent,
+      old: normalized.hasTraining ? 0 : 1
+    };
+  };
+  const trendData = latest8Keys.map(buildTrendPoint);
+
+  const aggregatePeriod = (keys) => keys.reduce((acc, key) => {
+    const normalized = normalizeTrainingWeek(weeksHistory?.[key] || {});
+    acc.inflow += normalized.inflow;
+    acc.closed += normalized.closed;
+    acc.queue += normalized.queue;
+    acc.self += normalized.selfCount;
+    acc.help += normalized.helpCount;
+    acc.total += normalized.routeTotal;
+    acc.slaWeighted += normalized.successRate * Math.max(normalized.closed, normalized.routeTotal, 0);
+    acc.slaWeight += Math.max(normalized.closed, normalized.routeTotal, 0);
+    acc.oldWeeks += normalized.hasTraining ? 0 : 1;
+    return acc;
+  }, { inflow: 0, closed: 0, queue: 0, self: 0, help: 0, total: 0, slaWeighted: 0, slaWeight: 0, oldWeeks: 0 });
+
+  const latestAgg = aggregatePeriod(latest8Keys);
+  const previousAgg = aggregatePeriod(previous8Keys);
+  const periodMetrics = (agg) => ({
+    selfPercent: agg.total > 0 ? roundMetric(agg.self * 100 / agg.total, 1) : 0,
+    helpPercent: agg.total > 0 ? roundMetric(agg.help * 100 / agg.total, 1) : 0,
+    sla: agg.slaWeight > 0 ? roundMetric(agg.slaWeighted / agg.slaWeight, 1) : 0
+  });
+  const latestMetrics = periodMetrics(latestAgg);
+  const previousMetrics = periodMetrics(previousAgg);
+  const delta = {
+    self: roundMetric(latestMetrics.selfPercent - previousMetrics.selfPercent, 1),
+    sla: roundMetric(latestMetrics.sla - previousMetrics.sla, 1),
+    help: roundMetric(latestMetrics.helpPercent - previousMetrics.helpPercent, 1)
+  };
+
+  const routeChartData = selectedTraining.routeDistribution
+    .map(item => ({ ...item, label: safeString(item.route).length > 28 ? `${safeString(item.route).slice(0, 28)}...` : safeString(item.route) }))
+    .sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
+
+  const kpiCards = [
+    { label: 'Входящий поток', value: selectedTraining.inflow, suffix: 'шт.', tone: 'text-slate-100', hint: 'Закрыто + очередь периода' },
+    { label: 'Закрыто', value: selectedTraining.closed, suffix: 'шт.', tone: 'text-emerald-300', hint: 'Инциденты 1-й линии' },
+    { label: 'Очередь', value: selectedTraining.queue, suffix: 'шт.', tone: selectedTraining.queue > 0 ? 'text-amber-300' : 'text-slate-300', hint: 'Остаток на конец периода' },
+    { label: 'SLA-1 без просрочки', value: selectedTraining.successRate, suffix: '%', tone: selectedTraining.successRate >= 85 ? 'text-emerald-300' : 'text-amber-300', hint: 'Первая реакция до 15 минут' },
+    { label: 'Самостоятельность', value: selectedTraining.selfPercent, suffix: '%', tone: selectedTraining.selfPercent >= 60 ? 'text-emerald-300' : 'text-cyan-300', hint: `${selectedTraining.selfCount} из ${selectedTraining.routeTotal}` },
+    { label: 'Помощь старших', value: selectedTraining.helpPercent, suffix: '%', tone: selectedTraining.helpPercent > 25 ? 'text-amber-300' : 'text-slate-300', hint: `${selectedTraining.helpCount} обращений` }
+  ];
+
+  const renderDelta = (label, value, positiveGood = true) => {
+    const isGood = positiveGood ? value >= 0 : value <= 0;
+    const color = value === 0 ? 'text-slate-400 border-slate-700 bg-slate-900/60' : (isGood ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : 'text-amber-300 border-amber-500/30 bg-amber-500/10');
+    return (
+      <div className={`rounded-lg border px-4 py-3 ${color}`}>
+        <div className="text-[10px] uppercase font-black tracking-wider mb-1">{label}</div>
+        <div className="text-2xl font-black">{value > 0 ? '+' : ''}{value}<span className="text-sm ml-1">п.п.</span></div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="animate-in fade-in duration-500 max-w-7xl pb-10">
+      <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Обучение</h1>
+          <p className="text-slate-400 text-sm">Метрики самостоятельности 1-й линии, теневой эскалации и тем для инструкций.</p>
+        </div>
+        <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
+      </div>
+
+      <div className={`rounded-xl border p-5 mb-6 ${selectedTraining.hasTraining ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-800/80 border-slate-700/60'}`}>
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+          <div>
+            <div className="text-xs uppercase font-black tracking-wider text-emerald-300 mb-2 flex items-center gap-2"><BookOpen size={16} /> Вывод для UI</div>
+            <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{selectedTraining.sectionSummary}</p>
+          </div>
+          {!selectedTraining.hasTraining && (
+            <span className="text-xs font-bold text-slate-400 bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 shrink-0">Старые данные</span>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 mb-6">
+        {kpiCards.map(card => (
+          <div key={card.label} className="bg-slate-800 rounded-xl p-4 border border-slate-700/50 shadow-sm">
+            <div className="text-[10px] uppercase font-black tracking-wider text-slate-500 mb-2">{card.label}</div>
+            <div className={`text-3xl font-black ${card.tone}`}>{card.value}<span className="text-sm text-slate-500 ml-1">{card.suffix}</span></div>
+            <div className="text-[11px] text-slate-500 mt-2 leading-snug">{card.hint}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+        <div className="xl:col-span-2 bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <div>
+              <h2 className="text-lg font-medium text-white flex items-center gap-2"><TrendingUp size={20} className="text-emerald-400" /> 8-недельный тренд</h2>
+              <p className="text-xs text-slate-500 mt-1">Самостоятельность, SLA-1 и доля помощи старших/смежников.</p>
+            </div>
+            <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">Последние {latest8Keys.length} нед.</span>
+          </div>
+          <div className="h-72">
+            {trendData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData} margin={{ top: 8, right: 20, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.35} />
+                  <XAxis dataKey="name" stroke="#64748b" tickLine={false} axisLine={false} fontSize={11} />
+                  <YAxis stroke="#64748b" tickLine={false} axisLine={false} fontSize={11} domain={[0, 100]} />
+                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#f8fafc', fontSize: '12px' }} formatter={(value) => [`${value}%`, '']} />
+                  <Legend wrapperStyle={{ paddingTop: '12px', fontSize: '12px' }} />
+                  <Line type="monotone" dataKey="self" name="Самостоятельность" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="sla" name="SLA-1" stroke="#38bdf8" strokeWidth={3} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="help" name="Помощь старших" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-slate-500">Нет недель для тренда</div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
+          <h2 className="text-lg font-medium text-white flex items-center gap-2 mb-4"><Activity size={20} className="text-amber-400" /> Дельта 8 недель</h2>
+          <div className="space-y-3">
+            {renderDelta('Самостоятельность', delta.self, true)}
+            {renderDelta('SLA-1', delta.sla, true)}
+            {renderDelta('Помощь старших', delta.help, false)}
+          </div>
+          <div className="mt-4 pt-4 border-t border-slate-700/50 text-xs text-slate-500 leading-relaxed">
+            Сравнение последних {latest8Keys.length} недель с предыдущими {previous8Keys.length || 0}. Старые недели без `trainingSection`: {latestAgg.oldWeeks}.
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <div>
+              <h2 className="text-lg font-medium text-white flex items-center gap-2"><PieChartIcon size={20} className="text-cyan-400" /> Маршруты решения</h2>
+              <p className="text-xs text-slate-500 mt-1">Фактическая оцифровка раздергиваний по выбранной неделе.</p>
+            </div>
+            <span className="text-xs font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded">{selectedTraining.routeTotal} шт.</span>
+          </div>
+          <div className="h-80">
+            {routeChartData.length > 0 && selectedTraining.routeTotal > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={routeChartData} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} />
+                  <XAxis type="number" stroke="#64748b" tickLine={false} axisLine={false} fontSize={11} />
+                  <YAxis type="category" dataKey="label" width={150} stroke="#94a3b8" tickLine={false} axisLine={false} fontSize={10} />
+                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#f8fafc', fontSize: '12px' }} formatter={(value, name, props) => [`${value} шт. / ${props?.payload?.percentage || 0}%`, props?.payload?.route || name]} />
+                  <Bar dataKey="count" name="Инциденты" fill="#22c55e" radius={[0, 6, 6, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-slate-500">Нет данных по маршрутам</div>
+            )}
+          </div>
+          <div className="mt-4 space-y-2">
+            {routeChartData.map(item => (
+              <div key={item.route} className="flex items-center justify-between gap-3 text-xs bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2">
+                <span className={isUnknownRoute(item.route) ? 'text-slate-500' : 'text-slate-300'}>{item.route}</span>
+                <span className="font-black text-slate-100 shrink-0">{item.count} / {item.percentage}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
+          <h2 className="text-lg font-medium text-white flex items-center gap-2 mb-5"><Target size={20} className="text-fuchsia-400" /> Топ тем для улучшения</h2>
+          {selectedTraining.bottleneckThemes.length > 0 ? (
+            <div className="space-y-3">
+              {selectedTraining.bottleneckThemes.slice(0, 3).map((item, idx) => (
+                <div key={`${item.theme}-${idx}`} className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="text-sm font-bold text-white leading-snug">{idx + 1}. {safeString(item.theme) || 'Без темы'}</div>
+                    <span className="text-xs font-black text-fuchsia-300 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded px-2 py-1 shrink-0">{Number(item.count) || 0} шт.</span>
+                  </div>
+                  <div className="text-xs text-slate-300 leading-relaxed bg-slate-950/50 border border-slate-700/50 rounded-lg p-3">
+                    <span className="text-slate-500 font-bold uppercase tracking-wider block mb-1">Что сделать</span>
+                    {safeString(item.actionNeeded) || 'Нужно уточнить действие для улучшения процесса.'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-10 bg-slate-900/40 rounded-xl border border-slate-700/50 border-dashed text-center">
+              <BookOpen size={42} className="text-slate-600 mb-4" />
+              <p className="text-slate-300 text-sm font-bold">Нет топов по обучению</p>
+              <p className="text-slate-500 text-xs mt-1 max-w-md">Загрузите инцидентный JSON с `trainingSection.bottleneckThemes`, чтобы увидеть темы для БЗ, IDM, обучения или изменения маршрута.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const WeeklyCompetenciesBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, aiTaskMemory }) => {
   const normalizeAnalysisText = (value) => safeString(value)
     .toLowerCase()
@@ -2898,6 +3210,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     detailedTasks: [],
     telephonyData: [],
     telephonyInsight: '',
+    trainingSection: null,
     customReportHtml: null,
     isReportFrozen: false
   });
@@ -8418,6 +8731,7 @@ const App = () => {
       case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} tasksArchive={tasksArchive} teamMetricsMemory={teamMetricsMemory} />;
       case 'wordReport': return <WordReportGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
+      case 'training': return <TrainingBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
       case 'weeklyCompetencies': return <WeeklyCompetenciesBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} aiTaskMemory={aiTaskMemory} />;
       case 'team': return <TeamAnalytics teamMetricsMemory={teamMetricsMemory} setTeamMetricsMemory={setTeamMetricsMemory} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
@@ -8443,6 +8757,7 @@ const App = () => {
     { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
     { id: 'wordReport', icon: BookOpen, label: 'Word-отчет', roles: ['admin', 'viewer'] },
     { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
+    { id: 'training', icon: BookOpen, label: 'Обучение', roles: ['admin', 'viewer'] },
     { id: 'weeklyCompetencies', icon: Award, label: 'Компетенции недели', roles: ['admin', 'viewer'] },
     { id: 'team', icon: Users, label: 'Команда', roles: ['admin', 'viewer'] },
     { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
