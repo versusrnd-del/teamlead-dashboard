@@ -2484,8 +2484,15 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   const sortedKeys = [...(historyKeys || [])].sort();
   const currentIndex = sortedKeys.indexOf(selectedWeekKey);
   const endIndex = currentIndex >= 0 ? currentIndex : sortedKeys.length - 1;
-  const latest8Keys = sortedKeys.slice(Math.max(0, endIndex - 7), endIndex + 1);
-  const previous8Keys = sortedKeys.slice(Math.max(0, endIndex - 15), Math.max(0, endIndex - 7));
+  const TRAINING_BASE_WEEK = 23;
+  const isTrainingCollectionWeek = (key) => {
+    const data = weeksHistory?.[key] || {};
+    const weekNumber = Number(data.weekNumber || key.split('-')[1]);
+    return weekNumber >= TRAINING_BASE_WEEK && normalizeTrainingWeek(data).hasTraining;
+  };
+  const collectionKeys = sortedKeys.filter(key => isTrainingCollectionWeek(key));
+  const visibleCollectionKeys = collectionKeys.filter(key => sortedKeys.indexOf(key) <= endIndex);
+  const trendKeys = visibleCollectionKeys.length > 0 ? visibleCollectionKeys : sortedKeys.slice(Math.max(0, endIndex - 7), endIndex + 1);
   const buildTrendPoint = (key) => {
     const data = weeksHistory?.[key] || {};
     const normalized = normalizeTrainingWeek(data);
@@ -2498,7 +2505,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       old: normalized.hasTraining ? 0 : 1
     };
   };
-  const trendData = latest8Keys.map(buildTrendPoint);
+  const trendData = trendKeys.map(buildTrendPoint);
 
   const aggregatePeriod = (keys) => keys.reduce((acc, key) => {
     const normalized = normalizeTrainingWeek(weeksHistory?.[key] || {});
@@ -2514,19 +2521,19 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     return acc;
   }, { inflow: 0, closed: 0, queue: 0, self: 0, help: 0, total: 0, slaWeighted: 0, slaWeight: 0, oldWeeks: 0 });
 
-  const latestAgg = aggregatePeriod(latest8Keys);
-  const previousAgg = aggregatePeriod(previous8Keys);
+  const latestAgg = aggregatePeriod(visibleCollectionKeys);
+  const baselineKey = visibleCollectionKeys[0] || null;
+  const baselineTraining = baselineKey ? normalizeTrainingWeek(weeksHistory?.[baselineKey] || {}) : null;
   const periodMetrics = (agg) => ({
     selfPercent: agg.total > 0 ? roundMetric(agg.self * 100 / agg.total, 1) : 0,
     helpPercent: agg.total > 0 ? roundMetric(agg.help * 100 / agg.total, 1) : 0,
     sla: agg.slaWeight > 0 ? roundMetric(agg.slaWeighted / agg.slaWeight, 1) : 0
   });
   const latestMetrics = periodMetrics(latestAgg);
-  const previousMetrics = periodMetrics(previousAgg);
   const delta = {
-    self: roundMetric(latestMetrics.selfPercent - previousMetrics.selfPercent, 1),
-    sla: roundMetric(latestMetrics.sla - previousMetrics.sla, 1),
-    help: roundMetric(latestMetrics.helpPercent - previousMetrics.helpPercent, 1)
+    self: roundMetric(latestMetrics.selfPercent - (baselineTraining?.selfPercent || 0), 1),
+    sla: roundMetric(latestMetrics.sla - (baselineTraining?.successRate || 0), 1),
+    help: roundMetric(latestMetrics.helpPercent - (baselineTraining?.helpPercent || 0), 1)
   };
 
   const routeChartData = selectedTraining.routeDistribution
@@ -2548,7 +2555,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     return (
       <div className={`rounded-lg border px-4 py-3 ${color}`}>
         <div className="text-[10px] uppercase font-black tracking-wider mb-1">{label}</div>
-        <div className="text-2xl font-black">{value > 0 ? '+' : ''}{value}<span className="text-sm ml-1">п.п.</span></div>
+        <div className="text-2xl font-black">{value > 0 ? '+' : ''}{value}<span className="text-xs ml-1">процентных пункта</span></div>
       </div>
     );
   };
@@ -2589,10 +2596,10 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         <div className="xl:col-span-2 bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
           <div className="flex items-start justify-between gap-3 mb-5">
             <div>
-              <h2 className="text-lg font-medium text-white flex items-center gap-2"><TrendingUp size={20} className="text-emerald-400" /> 8-недельный тренд</h2>
-              <p className="text-xs text-slate-500 mt-1">Самостоятельность, SLA-1 и доля помощи старших/смежников.</p>
+              <h2 className="text-lg font-medium text-white flex items-center gap-2"><TrendingUp size={20} className="text-emerald-400" /> Тренд с недели 23</h2>
+              <p className="text-xs text-slate-500 mt-1">Самостоятельность, SLA-1 и доля помощи старших/смежников с начала сбора маршрутизации.</p>
             </div>
-            <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">Последние {latest8Keys.length} нед.</span>
+            <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">С недели {TRAINING_BASE_WEEK}: {trendKeys.length} нед.</span>
           </div>
           <div className="h-72">
             {trendData.length > 0 ? (
@@ -2615,14 +2622,14 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         </div>
 
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
-          <h2 className="text-lg font-medium text-white flex items-center gap-2 mb-4"><Activity size={20} className="text-amber-400" /> Дельта 8 недель</h2>
+          <h2 className="text-lg font-medium text-white flex items-center gap-2 mb-4"><Activity size={20} className="text-amber-400" /> Общая дельта с недели 23</h2>
           <div className="space-y-3">
             {renderDelta('Самостоятельность', delta.self, true)}
             {renderDelta('SLA-1', delta.sla, true)}
             {renderDelta('Помощь старших', delta.help, false)}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-700/50 text-xs text-slate-500 leading-relaxed">
-            Сравнение последних {latest8Keys.length} недель с предыдущими {previous8Keys.length || 0}. Старые недели без `trainingSection`: {latestAgg.oldWeeks}.
+            Сравнение накопленного результата с базовой неделей {TRAINING_BASE_WEEK}. Учитываются только недели с `trainingSection`, без старых периодов до старта маршрутизации.
           </div>
         </div>
       </div>
@@ -2662,7 +2669,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         </div>
 
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm">
-          <h2 className="text-lg font-medium text-white flex items-center gap-2 mb-5"><Target size={20} className="text-fuchsia-400" /> Топ тем для улучшения</h2>
+          <h2 className="text-lg font-medium text-white flex items-center gap-2 mb-5"><Target size={20} className="text-fuchsia-400" /> Топ тем с не-самостоятельным маршрутом решения</h2>
           {selectedTraining.bottleneckThemes.length > 0 ? (
             <div className="space-y-3">
               {selectedTraining.bottleneckThemes.slice(0, 3).map((item, idx) => (
@@ -2682,7 +2689,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
             <div className="flex flex-col items-center justify-center p-10 bg-slate-900/40 rounded-xl border border-slate-700/50 border-dashed text-center">
               <BookOpen size={42} className="text-slate-600 mb-4" />
               <p className="text-slate-300 text-sm font-bold">Нет топов по обучению</p>
-              <p className="text-slate-500 text-xs mt-1 max-w-md">Загрузите инцидентный JSON с `trainingSection.bottleneckThemes`, чтобы увидеть темы для БЗ, IDM, обучения или изменения маршрута.</p>
+              <p className="text-slate-500 text-xs mt-1 max-w-md">В JSON выбранной недели нет `trainingSection.bottleneckThemes`. Для этого блока внешний анализ должен вернуть топ тем только по маршрутам с помощью дежурного, администратора направления или смежников.</p>
             </div>
           )}
         </div>
