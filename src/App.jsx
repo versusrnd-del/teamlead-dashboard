@@ -9,7 +9,7 @@ import {
   Settings, HelpCircle, FileSearch, ArrowRight, Target, Calendar, Flame, Search, Archive,
   Medal, Star, ThumbsUp, ShieldCheck, Zap, Heart, User, TrendingUp, Sparkles, DownloadCloud, Timer, ChevronDown, Layers, Lock, Key, LogOut, UserPlus, RefreshCcw, Server, PieChart as PieChartIcon, Download, Edit3, PhoneCall
 } from 'lucide-react';
-import { generateFintechLabReport } from './src/utils/generateFintechLabReport';
+import { generateFintechLabReport } from '/src/utils/generateFintechLabReport.js';
 
 // --- КОНСТАНТЫ И НАСТРОЙКИ ---
 const USER_DICTIONARY = {
