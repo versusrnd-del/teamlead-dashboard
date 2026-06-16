@@ -7236,7 +7236,13 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     ];
     if (!cleaned || cleaned.length <= 8) return '';
     if (blockedPhrases.some(phrase => lowered === phrase || lowered.includes(phrase))) return '';
-    return cleaned;
+    const compact = cleaned
+      .split(/\n+/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .find(line => line.length > 12) || cleaned;
+    const limit = 165;
+    return compact.length > limit ? `${compact.slice(0, limit).trim()}...` : compact;
   };
 
   const getWordTaskOrder = (task, overrides = {}) => {
@@ -7755,6 +7761,22 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       ...section,
       tasks: tasks.filter(task => task.wordSectionId === section.id)
     })).filter(section => section.tasks.length > 0 || !exportMode);
+    const compactTasksBySection = (() => {
+      const filled = tasksBySection.filter(section => section.tasks.length > 0);
+      const major = filled.filter(section => section.tasks.length > 1);
+      const minor = filled.filter(section => section.tasks.length === 1);
+      const minorTasks = minor.flatMap(section => section.tasks);
+      const compact = [...major];
+      if (minorTasks.length) {
+        compact.push({
+          id: 'planning-other-done',
+          title: 'Прочие выполненные задачи',
+          color: '#3b82f6',
+          tasks: minorTasks
+        });
+      }
+      return exportMode ? compact : tasksBySection;
+    })();
     const managementGroups = getManagementTaskGroups(projectOverrides);
     const taskLeaders = getTeamTaskLeaders();
     const incidentLeaders = getIncidentLeaders();
@@ -7795,11 +7817,10 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       </div>`;
     };
 
-    const renderTaskSections = () => tasksBySection.map(section => `
+    const renderTaskSections = () => compactTasksBySection.map(section => `
       <div style="border:1px solid #bfdbfe; border-left:5px solid #3b82f6; border-radius:8px; margin:0 0 12px 0; overflow:hidden;">
         <div style="background:#eff6ff; padding:7px 10px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:12px; letter-spacing:0.03em;">
           ${escapeHtml(section.title)}
-          <span style="float:right; font-size:11px; color:#64748b; font-weight:800;">${section.tasks.length}</span>
         </div>
         ${section.tasks.length ? section.tasks.map(task => renderTask(task)).join('') : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px; background:#ffffff;">Нет задач в разделе</div>`}
       </div>
@@ -8165,7 +8186,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                   <div key={section.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleTaskDrop(event, section.id)} className="overflow-hidden">
                     <div className="bg-blue-50 border border-blue-200 border-l-4 border-l-blue-500 px-3 py-2 flex justify-between items-center">
                       <h4 className="font-black text-blue-700 uppercase tracking-wide text-xs">{section.title}</h4>
-                      <span className="text-xs font-bold text-slate-500">{section.tasks.length}</span>
                     </div>
                     <div className="border-x border-b border-blue-100 bg-white">
                       {section.tasks.length ? section.tasks.map(task => (
