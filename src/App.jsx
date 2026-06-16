@@ -7787,22 +7787,21 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         </tr>
       </table>`;
 
-    const renderTask = (task, section) => {
-      const isRoutineSection = section.id === 'other';
+    const renderTask = (task) => {
       return `
-      <div style="padding:${isRoutineSection ? '7px' : '9px'} 10px; border-top:1px solid #dbeafe; background:#ffffff;">
-        <div style="font-weight:${isRoutineSection ? '800' : '900'}; color:#0f172a; font-size:${isRoutineSection ? '12.5px' : '13.5px'}; line-height:1.35;">${escapeHtml(task.wordTitle)}</div>
+      <div style="padding:9px 10px; border-top:1px solid #dbeafe; background:#ffffff;">
+        <div style="font-weight:900; color:#0f172a; font-size:13px; line-height:1.35;">${escapeHtml(task.wordTitle)}</div>
         ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:3px; line-height:1.45;">${escapeHtml(task.wordDetails)}</div>` : ''}
       </div>`;
     };
 
     const renderTaskSections = () => tasksBySection.map(section => `
-      <div style="border:1px solid #bfdbfe; border-left:5px solid ${section.color}; border-radius:8px; margin:0 0 12px 0; overflow:hidden; background:#ffffff;">
+      <div style="border:1px solid #bfdbfe; border-left:5px solid #3b82f6; border-radius:8px; margin:0 0 12px 0; overflow:hidden;">
         <div style="background:#eff6ff; padding:7px 10px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:12px; letter-spacing:0.03em;">
           ${escapeHtml(section.title)}
           <span style="float:right; font-size:11px; color:#64748b; font-weight:800;">${section.tasks.length}</span>
         </div>
-        ${section.tasks.length ? section.tasks.map(task => renderTask(task, section)).join('') : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
+        ${section.tasks.length ? section.tasks.map(task => renderTask(task)).join('') : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px; background:#ffffff;">Нет задач в разделе</div>`}
       </div>
     `).join('');
 
@@ -8164,7 +8163,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               <div className="space-y-4">
                 {tasksBySection.map(section => (
                   <div key={section.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleTaskDrop(event, section.id)} className="overflow-hidden">
-                    <div className="bg-blue-50 border border-blue-200 border-l-4 px-3 py-2 flex justify-between items-center" style={{ borderLeftColor: section.color }}>
+                    <div className="bg-blue-50 border border-blue-200 border-l-4 border-l-blue-500 px-3 py-2 flex justify-between items-center">
                       <h4 className="font-black text-blue-700 uppercase tracking-wide text-xs">{section.title}</h4>
                       <span className="text-xs font-bold text-slate-500">{section.tasks.length}</span>
                     </div>
