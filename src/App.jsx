@@ -7622,8 +7622,14 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const slaSnapshot = getWordSlaSnapshot();
     const primaryRate = incidentsClosed > 0 ? slaSnapshot.primaryCount / incidentsClosed : 0;
     const resolutionRate = incidentsClosed > 0 ? slaSnapshot.resolutionCount / incidentsClosed : 0;
-    const slaPenalty = Math.round((primaryRate * 80) + (resolutionRate * 25) + (slaSnapshot.simpleShare * 0.25) + Math.min(45, slaSnapshot.primaryCount * 1.2) + Math.min(15, (slaSnapshot.primaryAvg || 0) / 35));
-    const slaIndex = Math.max(0, Math.min(100, 100 - slaPenalty));
+    const trainingSla = Number(weekData?.trainingSection?.slaFirstReaction?.successRatePercent);
+    const slaFirstReactionPercent = Number.isFinite(trainingSla) && trainingSla > 0
+      ? Math.round(trainingSla * 10) / 10
+      : (incidentsClosed > 0 ? Math.round(Math.max(0, 100 - (primaryRate * 100)) * 10) / 10 : 0);
+    const trainingResolutionSla = Number(weekData?.trainingSection?.slaResolution?.successRatePercent ?? weekData?.trainingSection?.resolutionSla?.successRatePercent);
+    const slaResolutionPercent = Number.isFinite(trainingResolutionSla) && trainingResolutionSla > 0
+      ? Math.round(trainingResolutionSla * 10) / 10
+      : (incidentsClosed > 0 ? Math.round(Math.max(0, 100 - (resolutionRate * 100)) * 10) / 10 : 0);
     const returnsRate = Number(weekData?.reopenRate || weekData?.returnRate || weekData?.returnsRate || 0) || 0;
     const backlog = Number(weekData?.backlog || weekData?.backlogTotal || 0) || 0;
     const backlogOld30 = Number(weekData?.backlogOld30) || 0;
@@ -7632,7 +7638,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       incidentsClosed,
       incidentTrend,
       tasksClosed,
-      slaIndex,
+      slaFirstReactionPercent,
+      slaResolutionPercent,
       slaPrimaryCount: slaSnapshot.primaryCount,
       slaResolutionCount: slaSnapshot.resolutionCount,
       returnsRate,
@@ -7673,12 +7680,12 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       },
       {
         key: 'sla',
-        title: 'SLA первой реакции',
-        value: summary.slaIndex,
-        suffix: '/100',
-        accent: summary.slaIndex >= 80 ? '#10b981' : (summary.slaIndex >= 60 ? '#f59e0b' : '#ef4444'),
-        progress: Math.min(100, Math.max(0, summary.slaIndex)),
-        hint: `Основной SLA: ${summary.slaPrimaryCount} | до решения: ${summary.slaResolutionCount}`,
+        title: 'Взятие в работу ≤15 мин',
+        value: summary.slaFirstReactionPercent,
+        suffix: '%',
+        accent: summary.slaFirstReactionPercent >= 95 ? '#10b981' : (summary.slaFirstReactionPercent >= 85 ? '#f59e0b' : '#ef4444'),
+        progress: Math.min(100, Math.max(0, summary.slaFirstReactionPercent)),
+        hint: `Просрочек реакции: ${summary.slaPrimaryCount} | Решение в срок: ${summary.slaResolutionPercent}%`,
         trend: '',
         trendTone: 'slate'
       }
