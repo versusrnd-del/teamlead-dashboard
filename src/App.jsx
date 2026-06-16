@@ -7820,8 +7820,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const renderTask = (task) => {
       return `
       <div style="padding:9px 10px; border-top:1px solid #dbeafe; background:#ffffff;">
-        <div style="font-weight:900; color:#0f172a; font-size:13px; line-height:1.35;">- ${escapeHtml(task.wordTitle)};</div>
-        ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:3px; line-height:1.45;">&nbsp;&nbsp;&nbsp;${escapeHtml(task.wordDetails)}</div>` : ''}
+        <div style="font-weight:900; color:#0f172a; font-size:13px; line-height:1.35;">${escapeHtml(task.wordTitle)};</div>
+        ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:3px; line-height:1.45;">${escapeHtml(task.wordDetails)}</div>` : ''}
       </div>`;
     };
 
@@ -8211,7 +8211,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                           <div className="flex flex-col md:flex-row md:items-start gap-3">
                             <div className="flex-1 min-w-0">
                               <div className={`${isRoutineSection ? 'text-[13px]' : 'text-[14px]'} text-slate-950 leading-snug`}>
-                                <span className="font-black">- </span>
                                 <span
                                   data-word-task-title="true"
                                   contentEditable
@@ -8228,7 +8227,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                                 contentEditable
                                 suppressContentEditableWarning
                                 onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordDetails', event.currentTarget.innerText)}
-                                className="mt-1 pl-[1.05em] text-[12.5px] leading-relaxed text-slate-600 min-h-[20px] outline-none focus:text-slate-800 whitespace-pre-wrap"
+                                className="mt-1 text-[12.5px] leading-relaxed text-slate-600 min-h-[20px] outline-none focus:text-slate-800 whitespace-pre-wrap"
                               >
                                 {task.wordDetails || ''}
                               </div>
