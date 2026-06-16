@@ -83,6 +83,10 @@ const generateFintechLabReport = ({
   topNonSelfTopics = [],
   deltas = [],
   dataQuality = {},
+  statusWeek = {},
+  healthyImprovement = {},
+  mainAction = {},
+  loadContext = {},
   summary = '',
   generatedAt = new Date()
 } = {}) => {
@@ -106,16 +110,28 @@ const generateFintechLabReport = ({
   };
   const deltaText = (metric) => {
     const parsed = num(metric?.delta);
-    if (parsed === null) return 'база формируется';
-    if (metric?.suffix === '%') return `${parsed > 0 ? '+' : ''}${parsed.toFixed(1).replace('.0', '')}% к прошлой неделе`;
+    if (parsed === null) return 'первая неделя сбора';
+    if (metric?.suffix === '%') {
+      if (metric.previousValue === null || metric.previousValue === undefined) return 'первая неделя сбора';
+      const current = num(metric.value);
+      const previous = num(metric.previousValue);
+      if (current === null || previous === null) return 'первая неделя сбора';
+      if (parsed === 0) return `было ${pct(previous)}, стало ${pct(current)} — без изменений`;
+      const isGood = metric.goodDirection === 'down' ? parsed < 0 : parsed > 0;
+      return `было ${pct(previous)}, стало ${pct(current)} — ${isGood ? 'лучше' : 'хуже'} на ${Math.abs(parsed).toFixed(1).replace('.0', '')} пункта`;
+    }
     return `${parsed > 0 ? '+' : ''}${Math.round(parsed)} шт. к прошлой неделе`;
+  };
+  const metricTone = (metric) => {
+    if (metric.tone === 'good' || metric.tone === 'warn' || metric.tone === 'bad' || metric.tone === 'violet') return metric.tone;
+    return 'neutral';
   };
   const width = (value) => `${Math.max(0, Math.min(100, Number(value) || 0))}%`;
   const generatedDate = generatedAt instanceof Date ? generatedAt : new Date(generatedAt);
   const period = week?.dates || `Неделя ${week?.weekNumber || ''}`.trim() || 'данные пока не подключены';
   const quality = num(dataQuality.routeDataQualityPercent);
   const metricCards = metrics.map(metric => `
-    <article class="metric-card">
+    <article class="metric-card ${metricTone(metric)}">
       <div class="metric-label">${html(metric.label)}</div>
       <div class="metric-value">${html(metric.suffix === '%' ? pct(metric.value) : count(metric.value))}</div>
       <div class="metric-delta">${html(deltaText(metric))}</div>
@@ -123,8 +139,8 @@ const generateFintechLabReport = ({
     </article>`).join('');
   const periodDeltaRows = deltas.length ? deltas.map(item => {
     const parsed = num(item.deltaValue);
-    const delta = parsed === null ? 'база формируется' : `${parsed > 0 ? '+' : ''}${parsed.toFixed(1).replace('.0', '')}%`;
-    return `<div class="delta-card"><small>${html(item.label)}</small><strong>${html(delta)}</strong><span>Текущее: ${html(pct(item.current))}${item.previous === null || item.previous === undefined ? '' : ` · база: ${html(pct(item.previous))}`}</span></div>`;
+    const delta = parsed === null ? 'база формируется' : `${parsed === 0 ? 'без изменений' : `${item.isGood ? 'лучше' : 'хуже'} на ${Math.abs(parsed).toFixed(1).replace('.0', '')} пункта`}`;
+    return `<div class="delta-card"><small>${html(item.label)}</small><strong>${html(delta)}</strong><span>${item.previous === null || item.previous === undefined ? `текущее: ${html(pct(item.current))}` : `было ${html(pct(item.previous))}, стало ${html(pct(item.current))}`}</span></div>`;
   }).join('') : '<p class="muted">База формируется. Общая дельта появится после 2-3 недель сбора маршрутизации.</p>';
   const routeRows = routeDistribution.length ? routeDistribution.map(item => `
     <div class="route-row">
@@ -141,17 +157,19 @@ const generateFintechLabReport = ({
     </article>`).join('') : '<p class="muted">Топ тем пока не подключен. Нужен анализ не-самостоятельных маршрутов.</p>';
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Финтехлаб — практика по метрикам</title><style>
-    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--soft-blue:#eff6ff;--soft-amber:#fffbeb}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:linear-gradient(135deg,#0f2f2c,#173a5e);color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.16);margin-bottom:20px}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.cover-item span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-radius:18px;padding:18px;background:linear-gradient(180deg,#fff,#f8fafc)}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:var(--green);font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}@media(max-width:820px){.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.note-grid{grid-template-columns:1fr}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
+    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--red:#dc2626;--violet:#7c3aed;--soft-blue:#eff6ff;--soft-amber:#fffbeb}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:linear-gradient(135deg,#0f2f2c,#173a5e);color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.16);margin-bottom:20px}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.cover-item span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-radius:18px;padding:18px;background:linear-gradient(180deg,#fff,#f8fafc)}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:var(--blue);font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-card.good .metric-value{color:var(--green)}.metric-card.warn .metric-value{color:var(--amber)}.metric-card.bad .metric-value{color:var(--red)}.metric-card.violet .metric-value{color:var(--violet)}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}@media(max-width:820px){.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.note-grid{grid-template-columns:1fr}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
   </style></head><body><main class="page">
     <header class="cover"><div class="eyebrow">Финтехлаб — практика по метрикам</div><h1>Финтехлаб — практика по метрикам</h1><p class="cover-subtitle">Процесс: Обработка инцидента 1-й линии</p><div class="cover-grid"><div class="cover-item"><span>Неделя / период</span><strong>${html(period)}</strong></div><div class="cover-item"><span>Владелец процесса</span><strong>Виктор</strong></div><div class="cover-item"><span>Направление</span><strong>ОСО / техническая поддержка</strong></div><div class="cover-item"><span>Дата формирования</span><strong>${html(generatedDate.toLocaleDateString('ru-RU'))}</strong></div></div></header>
-    <section><h2>Короткий вывод</h2><div class="note">${html(summary || 'Данные пока не подключены.')}</div></section>
+    <section><h2>Статус недели</h2><div class="note"><strong>${html(statusWeek.title || 'База формируется')}</strong><br>${html(statusWeek.summary || summary || 'Данные пока не подключены.')}</div><div class="note-grid" style="margin-top:10px">${(statusWeek.points || []).map(point => `<div class="note">${html(point)}</div>`).join('')}<div class="note"><strong>Главное действие:</strong> ${html(statusWeek.nextAction || mainAction.actionNeeded || 'выбрать тему после накопления данных')}</div></div></section>
     <section><h2>Ключевые метрики</h2><div class="metric-grid">${metricCards}</div></section>
-    <section><h2>Общая дельта за период</h2><div class="delta-grid">${periodDeltaRows}</div><p class="muted" style="margin-top:12px">Если это первая неделя сбора, отчет показывает «база формируется», а не нулевое изменение.</p></section>
-    <section><h2>Качество данных по маршруту решения</h2><div class="quality-grid"><div class="quality-box"><small>Маршрут заполнен</small><strong>${html(pct(dataQuality.routeDataQualityPercent))}</strong></div><div class="quality-box"><small>Не указано / старые данные</small><strong>${html(count(dataQuality.unknownCount))}</strong></div><div class="quality-box"><small>Всего закрытых тикетов</small><strong>${html(count(dataQuality.closedCount))}</strong></div></div>${quality !== null && quality < 80 ? '<div class="warning">Выводы по маршрутам предварительные: часть тикетов ещё не размечена.</div>' : ''}</section>
-    <section><h2>Примечания к чтению отчета</h2><div class="note-grid"><div class="note">Самостоятельность и помощь старших считаются только по тикетам с заполненным маршрутом.</div><div class="note">Если база первая неделя, дельта не выводится как ноль: показывается «база формируется».</div><div class="note">SLA по маршрутам показывает, где теряется время, а не рейтинг сотрудников.</div><div class="note">Топ тем нужен для выбора действия: инструкция, права, обучение или уточнение маршрута.</div></div></section>
+    <section><h2>Здоровое улучшение</h2><div class="note"><strong>${html(healthyImprovement.title || 'Вывод предварительный')}</strong><br>${html(healthyImprovement.summary || 'Повторные обращения и динамика будут надежнее после накопления нескольких недель.')}</div></section>
+    <section><h2>Где теряется SLA</h2><table><thead><tr><th>Маршрут</th><th>Кол-во тикетов</th><th>Взятие в работу ≤15 мин</th><th>Решение в срок</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
+    <section><h2>Главное действие на следующую неделю</h2><div class="note"><strong>${html(mainAction.theme || 'Тема пока не выбрана')}</strong><br>${html(mainAction.details || 'Нужны данные по топу не-самостоятельных маршрутов.')}<br><strong>Проверка:</strong> ${html(mainAction.check || 'сравнить помощь старших и решение в срок по выбранной теме через неделю')}</div></section>
     <section><h2>Маршруты решения</h2>${routeRows}</section>
-    <section><h2>SLA по маршрутам решения</h2><table><thead><tr><th>Маршрут</th><th>Кол-во тикетов</th><th>SLA входа</th><th>SLA решения</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
     <section><h2>Топ тем с не-самостоятельным маршрутом</h2><div class="topic-list">${topicCards}</div></section>
+    <section><h2>Контекст нагрузки</h2><div class="note-grid"><div class="note">Входящий поток: <strong>${html(count(loadContext.inflow))}</strong></div><div class="note">Закрыто: <strong>${html(count(loadContext.closed))}</strong>, очередь: <strong>${html(count(loadContext.queue))}</strong></div><div class="note">Тип недели: <strong>${html(loadContext.weekTypeLabel || 'обычная неделя')}</strong></div><div class="note">Изменение потока: <strong>${html(loadContext.inflowChange || 'база формируется')}</strong></div></div><p class="muted" style="margin-top:12px">Эти показатели объясняют нагрузку, но не являются основной оценкой качества процесса.</p></section>
+    <section><h2>Гипотеза и план проверки</h2><div class="note-grid"><div class="note"><strong>Гипотеза:</strong> меньше помощи старших без ухудшения SLA и без роста повторов.</div><div class="note"><strong>Проверка:</strong> через неделю смотрим выбранную тему, помощь старших, решение в срок и повторы.</div></div></section>
+    <section><h2>Вопросы тренерам</h2><div class="note-grid"><div class="note">Достаточно ли этих метрик для защиты домашнего задания?</div><div class="note">Как правильно учитывать недели с авариями или неполной выгрузкой?</div><div class="note">Как не превратить маршрут решения в формальное заполнение поля?</div><div class="note">SLA по маршрутам показывает процесс, а не рейтинг сотрудников.</div></div></section>
   </main></body></html>`;
 };
 
@@ -942,6 +960,7 @@ const defaultWeekData = {
   avgCycleTime: 0, reopenRate: 0, techDebtCategories: [],
   mainInsight: "Ожидание данных аналитики...", mainRisk: "Ожидание данных аналитики...",
   nextFocus: "Ожидание данных аналитики...", trainingHypothesis: "Ожидание данных аналитики...",
+  weekType: "normal",
   resourceAudit: "",
   incidentsClosed: 0, incidentsQueue: 0, sprintPlanned: 0, sprintCompleted: 0, sprintCarriedOver: 0,
   urgentCompleted: 0, urgentQueue: 0, backlog: 0, backlogOld30: 0, backlogCompleted: 0,
@@ -2463,25 +2482,30 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect }) => {
   const normalizeRoute = (route) => {
     const text = safeString(route).trim();
-    if (!text || ['-', '—', 'null', 'undefined', 'другое'].includes(text.toLowerCase())) return 'Не указано / Старые данные';
+    if (!text || ['-', '—', 'null', 'undefined'].includes(text.toLowerCase())) return 'Старые / некорректные значения поля';
     return text;
   };
 
+  const VALID_TRAINING_ROUTES = [
+    '1-я линия решила самостоятельно',
+    'Решено с помощью администратора 1-й линии',
+    'Решено с помощью дежурного администратора',
+    'Решено с помощью администратора направления',
+    'Передано / требуется участие смежной команды',
+    'Другое'
+  ];
+  const isValidRoute = (route) => VALID_TRAINING_ROUTES.includes(normalizeRoute(route));
   const getRouteDisplayName = (route, hasTraining = true) => {
-    if (hasTraining && isUnknownRoute(route)) return 'Закрыл сам автор обращения';
+    if (!isValidRoute(route)) return 'Старые / некорректные значения поля';
     return normalizeRoute(route);
   };
-
-  const isSelfRoute = (route) => normalizeRoute(route).toLowerCase().includes('самостоятель');
-  const isUnknownRoute = (route) => normalizeRoute(route).toLowerCase().includes('не указано') || normalizeRoute(route).toLowerCase().includes('старые данные');
+  const isSelfRoute = (route) => normalizeRoute(route) === '1-я линия решила самостоятельно';
   const isHelpRoute = (route) => {
-    const text = normalizeRoute(route).toLowerCase();
-    return !isSelfRoute(text) && !isUnknownRoute(text) && (
-      text.includes('помощ') || text.includes('дежур') || text.includes('направлен') || text.includes('смеж') || text.includes('администратор')
-    );
+    const normalized = normalizeRoute(route);
+    return isValidRoute(normalized) && !isSelfRoute(normalized) && normalized !== 'Другое';
   };
 
-  const isRouteDataGap = (route, hasTraining = true) => !hasTraining && isUnknownRoute(route);
+  const isRouteDataGap = (route) => !isValidRoute(route);
 
   const roundMetric = (value, digits = 1) => {
     const number = Number(value);
@@ -2553,6 +2577,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
 
   const normalizeTrainingWeek = (data = {}) => {
     const section = data.trainingSection && typeof data.trainingSection === 'object' ? data.trainingSection : null;
+    const weekType = safeString(section?.weekType || data.weekType || 'normal') || 'normal';
     const closed = Number(section?.closedCount ?? data.incidentsClosed) || 0;
     const queue = Number(section?.queueCount ?? data.incidentsQueue) || 0;
     const inflow = Number(section?.inflowCount ?? (closed + queue)) || 0;
@@ -2576,17 +2601,18 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
           percentage: Number.isFinite(Number(item?.percentage)) ? roundMetric(Number(item.percentage), 1) : (closed > 0 ? roundMetric(count * 100 / closed, 1) : 0)
         };
       })
-      : [{ route: 'Не указано / Старые данные', count: closed, percentage: closed > 0 ? 100 : 0 }];
+      : [{ route: 'Старые / некорректные значения поля', count: closed, percentage: closed > 0 ? 100 : 0 }];
     const routeTotal = routeDistribution.reduce((sum, item) => sum + (Number(item.count) || 0), 0) || closed || 0;
     const selfCount = routeDistribution.filter(item => isSelfRoute(item.route)).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
     const helpCount = routeDistribution.filter(item => isHelpRoute(item.route)).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
-    const unknownCount = routeDistribution.filter(item => isRouteDataGap(item.route, Boolean(section))).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
-    const filledRouteCount = Math.max(0, routeTotal - unknownCount);
+    const invalidRouteCount = routeDistribution.filter(item => isRouteDataGap(item.route)).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+    const filledRouteCount = routeDistribution.filter(item => isValidRoute(item.route)).reduce((sum, item) => sum + (Number(item.count) || 0), 0);
     const repeatCount = getRepeatCount(data, section);
     const repeatRate = getRepeatRate(data, closed, section);
     const bottleneckThemes = Array.isArray(section?.bottleneckThemes) ? section.bottleneckThemes : [];
     return {
       hasTraining: Boolean(section),
+      weekType,
       sectionSummary: safeString(section?.sectionSummary || 'Для этой недели нет отдельного trainingSection. Экран использует fallback из общих инцидентных метрик, маршруты помечены как старые данные.'),
       inflow,
       closed,
@@ -2604,11 +2630,11 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       filledRouteCount,
       selfCount,
       helpCount,
-      unknownCount,
+      unknownCount: invalidRouteCount,
       routeDataQualityPercent: percentOf(filledRouteCount, closed || routeTotal),
       selfPercent: percentOf(selfCount, filledRouteCount),
       helpPercent: percentOf(helpCount, filledRouteCount),
-      unknownPercent: percentOf(unknownCount, closed || routeTotal),
+      unknownPercent: percentOf(invalidRouteCount, closed || routeTotal),
       repeatCount,
       repeatRate,
       hasRepeatData: repeatCount > 0 || repeatRate > 0,
@@ -2664,8 +2690,20 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   }, { inflow: 0, closed: 0, queue: 0, self: 0, help: 0, total: 0, slaWeighted: 0, resolutionSlaWeighted: 0, slaWeight: 0, qualityClosed: 0, qualityFilled: 0, oldWeeks: 0 });
 
   const latestAgg = aggregatePeriod(visibleCollectionKeys);
-  const baselineKey = visibleCollectionKeys[0] || null;
-  const baselineTraining = baselineKey ? normalizeTrainingWeek(weeksHistory?.[baselineKey] || {}) : null;
+  const baselineKeys = visibleCollectionKeys.filter(key => normalizeTrainingWeek(weeksHistory?.[key] || {}).weekType === 'normal');
+  const medianValue = (values) => {
+    const clean = values.map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+    if (clean.length === 0) return null;
+    const mid = Math.floor(clean.length / 2);
+    return clean.length % 2 ? clean[mid] : roundMetric((clean[mid - 1] + clean[mid]) / 2, 1);
+  };
+  const baselineMetrics = baselineKeys.length >= 3 ? {
+    selfPercent: medianValue(baselineKeys.map(key => normalizeTrainingWeek(weeksHistory?.[key] || {}).selfPercent)),
+    helpPercent: medianValue(baselineKeys.map(key => normalizeTrainingWeek(weeksHistory?.[key] || {}).helpPercent)),
+    successRate: medianValue(baselineKeys.map(key => normalizeTrainingWeek(weeksHistory?.[key] || {}).successRate)),
+    resolutionSuccessRate: medianValue(baselineKeys.map(key => normalizeTrainingWeek(weeksHistory?.[key] || {}).resolutionSuccessRate)),
+    routeDataQualityPercent: medianValue(baselineKeys.map(key => normalizeTrainingWeek(weeksHistory?.[key] || {}).routeDataQualityPercent))
+  } : null;
   const periodMetrics = (agg) => ({
     selfPercent: percentOf(agg.self, agg.total),
     helpPercent: percentOf(agg.help, agg.total),
@@ -2675,11 +2713,11 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   });
   const latestMetrics = periodMetrics(latestAgg);
   const delta = {
-    self: roundMetric(latestMetrics.selfPercent - (baselineTraining?.selfPercent || 0), 1),
-    sla: roundMetric(latestMetrics.sla - (baselineTraining?.successRate || 0), 1),
-    help: roundMetric(latestMetrics.helpPercent - (baselineTraining?.helpPercent || 0), 1),
-    slaResolution: roundMetric(latestMetrics.slaResolution - (baselineTraining?.resolutionSuccessRate || 0), 1),
-    quality: roundMetric(latestMetrics.quality - (baselineTraining?.routeDataQualityPercent || 0), 1)
+    self: baselineMetrics ? roundMetric(latestMetrics.selfPercent - baselineMetrics.selfPercent, 1) : null,
+    sla: baselineMetrics ? roundMetric(latestMetrics.sla - baselineMetrics.successRate, 1) : null,
+    help: baselineMetrics ? roundMetric(latestMetrics.helpPercent - baselineMetrics.helpPercent, 1) : null,
+    slaResolution: baselineMetrics ? roundMetric(latestMetrics.slaResolution - baselineMetrics.resolutionSuccessRate, 1) : null,
+    quality: baselineMetrics ? roundMetric(latestMetrics.quality - baselineMetrics.routeDataQualityPercent, 1) : null
   };
   const selectedCollectionIndex = visibleCollectionKeys.indexOf(selectedWeekKey);
   const previousTrainingKey = selectedCollectionIndex > 0 ? visibleCollectionKeys[selectedCollectionIndex - 1] : null;
@@ -2690,13 +2728,24 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     : 'Нет предыдущей недели для сравнения';
 
   const formatPercent = (value) => `${roundMetric(value, 1)}%`;
-  const formatDelta = (value) => `${value > 0 ? '+' : ''}${roundMetric(value, 1)}%`;
+  const formatPointDelta = (current, previous, positiveGood = true) => {
+    if (!Number.isFinite(Number(current)) || !Number.isFinite(Number(previous))) return 'база формируется';
+    const diff = roundMetric(Number(current) - Number(previous), 1);
+    if (diff === 0) return `было ${formatPercent(previous)}, стало ${formatPercent(current)} — без изменений`;
+    const good = positiveGood ? diff > 0 : diff < 0;
+    return `было ${formatPercent(previous)}, стало ${formatPercent(current)} — ${good ? 'лучше' : 'хуже'} на ${Math.abs(diff)} пункта`;
+  };
+  const formatSignedNumber = (value) => {
+    if (!Number.isFinite(Number(value))) return 'база формируется';
+    const rounded = roundMetric(Number(value), 1);
+    return `${rounded > 0 ? '+' : ''}${rounded}`;
+  };
   const hasComparisonBase = Boolean(previousTraining);
   const comparisonRows = [
     { label: 'Самостоятельность', current: selectedTraining.selfPercent, previous: previousTraining?.selfPercent, positiveGood: true },
     { label: 'Помощь старших', current: selectedTraining.helpPercent, previous: previousTraining?.helpPercent, positiveGood: false },
-    { label: 'SLA входа', current: selectedTraining.successRate, previous: previousTraining?.successRate, positiveGood: true },
-    { label: 'SLA решения', current: selectedTraining.resolutionSuccessRate, previous: previousTraining?.resolutionSuccessRate, positiveGood: true },
+    { label: 'Взятие в работу ≤15 мин', current: selectedTraining.successRate, previous: previousTraining?.successRate, positiveGood: true },
+    { label: 'Решение в срок', current: selectedTraining.resolutionSuccessRate, previous: previousTraining?.resolutionSuccessRate, positiveGood: true },
     { label: 'Качество данных', current: selectedTraining.routeDataQualityPercent, previous: previousTraining?.routeDataQualityPercent, positiveGood: true }
   ].map(item => {
     const deltaValue = hasComparisonBase ? roundMetric(item.current - item.previous, 1) : null;
@@ -2705,23 +2754,16 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   });
 
   const targetRows = [
-    { label: 'SLA входа', current: selectedTraining.successRate, target: 95 },
-    { label: 'SLA решения', current: selectedTraining.resolutionSuccessRate, target: 95 },
+    { label: 'Взятие в работу ≤15 мин', current: selectedTraining.successRate, target: 95 },
+    { label: 'Решение в срок', current: selectedTraining.resolutionSuccessRate, target: 95 },
     { label: 'Качество данных маршрута', current: selectedTraining.routeDataQualityPercent, target: 95 },
     { label: 'Самостоятельность', current: selectedTraining.selfPercent, target: null },
     { label: 'Помощь старших', current: selectedTraining.helpPercent, target: null }
   ];
 
   const getRouteBucket = (route) => {
-    const text = normalizeRoute(route).toLowerCase();
-    if (isSelfRoute(text)) return '1-я линия решила самостоятельно';
-    if (text.includes('закрыл сам автор') || text.includes('автор обращ')) return 'Закрыл сам автор обращения';
-    if ((text.includes('администратор') || text.includes('админ')) && (text.includes('1-й') || text.includes('1-') || text.includes('1 ') || text.includes('первой линии'))) return 'Решено с помощью администратора 1-й линии';
-    if (text.includes('дежур')) return 'Решено с помощью дежурного администратора';
-    if (text.includes('направлен')) return 'Решено с помощью администратора направления';
-    if (text.includes('смеж') || text.includes('передано') || text.includes('участие')) return 'Передано / требуется участие смежной команды';
-    if (isUnknownRoute(text)) return 'Не указано / старые данные';
-    return 'Другое';
+    const normalized = normalizeRoute(route);
+    return isValidRoute(normalized) ? normalized : 'Старые / некорректные значения поля';
   };
 
   const routeSlaIndex = (selectedTraining.routeSlaBreaches || []).reduce((acc, item) => {
@@ -2737,10 +2779,10 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     return acc;
   }, {});
 
-  const routeSlaRows = ['1-я линия решила самостоятельно', 'Решено с помощью администратора 1-й линии', 'Закрыл сам автор обращения', 'Решено с помощью дежурного администратора', 'Решено с помощью администратора направления', 'Передано / требуется участие смежной команды', 'Другое', 'Не указано / старые данные']
+  const routeSlaRows = [...VALID_TRAINING_ROUTES, 'Старые / некорректные значения поля']
     .map(route => {
       const count = selectedTraining.routeDistribution
-        .filter(item => getRouteBucket(getRouteDisplayName(item.route, selectedTraining.hasTraining)) === route && !isRouteDataGap(item.route, selectedTraining.hasTraining))
+        .filter(item => getRouteBucket(item.route) === route)
         .reduce((sum, item) => sum + (Number(item.count) || 0), 0);
       const slaInfo = routeSlaIndex[route] || {};
       const primaryViolations = Number(slaInfo.primaryViolations) || 0;
@@ -2754,7 +2796,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       return { route, count, primarySla, resolutionSla, conclusion };
     });
 
-  const getThemeRoute = (item) => getRouteDisplayName(item?.mainRoute || item?.route || item?.dominantRoute || item?.topRoute || 'Не указано / Старые данные', selectedTraining.hasTraining);
+  const getThemeRoute = (item) => getRouteDisplayName(item?.mainRoute || item?.route || item?.dominantRoute || item?.topRoute || 'Старые / некорректные значения поля', selectedTraining.hasTraining);
   const getThemeSlaBreaches = (item) => {
     const value = Number(item?.slaBreaches ?? item?.slaBreachCount ?? item?.slaViolations ?? item?.violations);
     return Number.isFinite(value) && value > 0 ? value : null;
@@ -2782,29 +2824,37 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
 
   const kpiCards = [
     { label: 'Входящий поток', value: selectedTraining.inflow, suffix: 'шт.', tone: 'text-slate-100', hint: inflowHint },
-    { label: 'Закрыто', value: selectedTraining.closed, suffix: 'шт.', tone: 'text-emerald-300', hint: 'Инциденты 1-й линии' },
-    { label: 'SLA входа', value: selectedTraining.successRate, suffix: '%', tone: selectedTraining.successRate >= 85 ? 'text-emerald-300' : 'text-amber-300', hint: `Основной: до взятия в работу. Нарушений: ${selectedTraining.primaryViolations}` },
-    { label: 'SLA решения', value: selectedTraining.resolutionSuccessRate, suffix: '%', tone: selectedTraining.resolutionSuccessRate >= 85 ? 'text-emerald-300' : 'text-amber-300', hint: `Вторичный: до решения. Нарушений: ${selectedTraining.resolutionViolations}` },
-    { label: 'Самостоятельность', value: selectedTraining.selfPercent, suffix: '%', tone: selectedTraining.selfPercent >= 60 ? 'text-emerald-300' : 'text-cyan-300', hint: `${selectedTraining.selfCount} из ${selectedTraining.filledRouteCount} с маршрутом` },
-    { label: 'Помощь старших', value: selectedTraining.helpPercent, suffix: '%', tone: selectedTraining.helpPercent > 25 ? 'text-amber-300' : 'text-slate-300', hint: `${selectedTraining.helpCount} из ${selectedTraining.filledRouteCount} с маршрутом` }
+    { label: 'Взятие в работу ≤15 мин', value: selectedTraining.successRate, suffix: '%', tone: selectedTraining.successRate >= 95 ? 'text-emerald-300' : (selectedTraining.successRate >= 90 ? 'text-amber-300' : 'text-red-300'), hint: `Доля обращений, взятых в работу в установленный срок после создания. Просрочек реакции: ${selectedTraining.primaryViolations}` },
+    { label: 'Решение в срок', value: selectedTraining.resolutionSuccessRate, suffix: '%', tone: selectedTraining.resolutionSuccessRate >= 95 ? 'text-emerald-300' : (selectedTraining.resolutionSuccessRate >= 90 ? 'text-amber-300' : 'text-red-300'), hint: `Доля обращений, решенных в рамках установленного SLA. Просрочек решения: ${selectedTraining.resolutionViolations}` },
+    { label: 'Самостоятельность', value: selectedTraining.selfPercent, suffix: '%', tone: 'text-cyan-300', hint: `${selectedTraining.selfCount} из ${selectedTraining.filledRouteCount} валидных маршрутов. Наблюдаем динамику.` },
+    { label: 'Помощь старших', value: selectedTraining.helpPercent, suffix: '%', tone: 'text-fuchsia-300', hint: `${selectedTraining.helpCount} из ${selectedTraining.filledRouteCount} валидных маршрутов. Проверить влияние на SLA.` },
+    { label: 'Качество данных маршрута', value: selectedTraining.routeDataQualityPercent, suffix: '%', tone: selectedTraining.routeDataQualityPercent >= 95 ? 'text-emerald-300' : (selectedTraining.routeDataQualityPercent >= 80 ? 'text-amber-300' : 'text-red-300'), hint: `${selectedTraining.unknownCount} тикетов требуют очистки справочника` }
   ];
 
-  const fintechMetrics = kpiCards.map(card => {
+  const fintechMetrics = kpiCards.filter(card => card.label !== 'Входящий поток').map(card => {
     const previousMap = {
       'Входящий поток': previousTraining?.inflow,
-      'Закрыто': previousTraining?.closed,
-      'SLA входа': previousTraining?.successRate,
-      'SLA решения': previousTraining?.resolutionSuccessRate,
+      'Взятие в работу ≤15 мин': previousTraining?.successRate,
+      'Решение в срок': previousTraining?.resolutionSuccessRate,
       'Самостоятельность': previousTraining?.selfPercent,
-      'Помощь старших': previousTraining?.helpPercent
+      'Помощь старших': previousTraining?.helpPercent,
+      'Качество данных маршрута': previousTraining?.routeDataQualityPercent
     };
     const previousValue = previousMap[card.label];
+    const tone = card.label === 'Самостоятельность'
+      ? 'neutral'
+      : (card.label === 'Помощь старших'
+        ? 'violet'
+        : (card.tone.includes('emerald') ? 'good' : (card.tone.includes('amber') ? 'warn' : (card.tone.includes('red') ? 'bad' : 'neutral'))));
     return {
       label: card.label,
       value: card.value,
       suffix: card.suffix,
       hint: card.hint,
-      delta: previousTraining && Number.isFinite(Number(previousValue)) ? roundMetric(Number(card.value) - Number(previousValue), 1) : null
+      previousValue: previousTraining && Number.isFinite(Number(previousValue)) ? Number(previousValue) : null,
+      delta: previousTraining && Number.isFinite(Number(previousValue)) ? roundMetric(Number(card.value) - Number(previousValue), 1) : null,
+      goodDirection: card.label === 'Помощь старших' ? 'down' : 'up',
+      tone
     };
   });
 
@@ -2815,6 +2865,55 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     slaBreaches: getThemeSlaBreaches(item),
     actionNeeded: getThemeAction(item)
   }));
+
+  const weekTypeLabels = {
+    normal: 'обычная неделя',
+    high_load: 'высокая нагрузка',
+    incident: 'аварийная неделя',
+    partial: 'неполная неделя'
+  };
+  const weekTypeLabel = weekTypeLabels[selectedTraining.weekType] || 'обычная неделя';
+  const statusTitle = selectedTraining.successRate < 90 || selectedTraining.resolutionSuccessRate < 90
+    ? 'Красная зона: SLA требует разбора'
+    : (selectedTraining.successRate < 95 || selectedTraining.resolutionSuccessRate < 95 ? 'Желтая зона: есть риски' : 'Зеленая зона: сервис стабилен');
+  const weakestSlaRoute = routeSlaRows
+    .filter(row => row.count >= 5 && row.resolutionSla !== null)
+    .sort((a, b) => (a.resolutionSla || 0) - (b.resolutionSla || 0))[0];
+  const mainActionTopic = fintechTopics[0] || null;
+  const reportStatusWeek = {
+    title: statusTitle,
+    summary: selectedTraining.sectionSummary,
+    points: [
+      `Взятие в работу: ${formatPercent(selectedTraining.successRate)}; решение в срок: ${formatPercent(selectedTraining.resolutionSuccessRate)}.`,
+      weakestSlaRoute ? `Самая слабая точка по SLA: ${weakestSlaRoute.route}.` : 'По маршрутам пока недостаточно SLA-данных.',
+      selectedTraining.routeDataQualityPercent < 95 ? `Качество маршрутов требует внимания: ${formatPercent(selectedTraining.routeDataQualityPercent)}.` : 'Качество маршрутов близко к целевому уровню.'
+    ],
+    nextAction: mainActionTopic ? `Взять в улучшение тему: ${mainActionTopic.theme}.` : 'Накопить топ тем с не-самостоятельным маршрутом.'
+  };
+  const selfTrendUp = previousTraining ? selectedTraining.selfPercent >= previousTraining.selfPercent : false;
+  const helpTrendDown = previousTraining ? selectedTraining.helpPercent <= previousTraining.helpPercent : false;
+  const slaNotWorse = previousTraining ? selectedTraining.successRate >= previousTraining.successRate && selectedTraining.resolutionSuccessRate >= previousTraining.resolutionSuccessRate : false;
+  const repeatNotGrowing = previousTraining && selectedTraining.hasRepeatData && previousTraining.hasRepeatData ? selectedTraining.repeatRate <= previousTraining.repeatRate : false;
+  const reportHealthyImprovement = !selectedTraining.hasRepeatData
+    ? {
+      title: 'Вывод предварительный',
+      summary: 'Метрика повторных обращений пока не подключена. Она нужна как защита от формального быстрого закрытия ради SLA.'
+    }
+    : (selfTrendUp && helpTrendDown && slaNotWorse && repeatNotGrowing
+      ? { title: 'Улучшение выглядит здоровым', summary: 'Самостоятельность растет, помощь старших снижается, SLA и повторы не ухудшаются.' }
+      : { title: 'Нужно проверить качество улучшения', summary: 'Динамика маршрутов сама по себе недостаточна: проверяем SLA и повторные обращения.' });
+  const reportMainAction = mainActionTopic ? {
+    theme: mainActionTopic.theme,
+    details: `${mainActionTopic.count} тикетов, SLA-просрочки: ${mainActionTopic.slaBreaches === null ? 'нет данных' : mainActionTopic.slaBreaches}, основной маршрут — ${mainActionTopic.mainRoute}. Действие: ${mainActionTopic.actionNeeded}`,
+    check: 'через неделю смотрим помощь старших и показатель «Решение в срок» по этой теме.'
+  } : {};
+  const loadContext = {
+    inflow: selectedTraining.inflow,
+    closed: selectedTraining.closed,
+    queue: selectedTraining.queue,
+    weekTypeLabel,
+    inflowChange: previousTraining ? `${selectedTraining.inflow > previousTraining.inflow ? 'рост' : (selectedTraining.inflow < previousTraining.inflow ? 'снижение' : 'без изменений')} на ${Math.abs(selectedTraining.inflow - previousTraining.inflow)} шт.` : 'база формируется'
+  };
 
   const handleDownloadFintechLabReport = () => {
     const html = generateFintechLabReport({
@@ -2832,6 +2931,10 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         unknownCount: selectedTraining.unknownCount,
         closedCount: selectedTraining.closed
       },
+      statusWeek: reportStatusWeek,
+      healthyImprovement: reportHealthyImprovement,
+      mainAction: reportMainAction,
+      loadContext,
       summary: selectedTraining.sectionSummary,
       generatedAt: new Date()
     });
@@ -2846,17 +2949,6 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  };
-
-  const renderDelta = (label, value, positiveGood = true) => {
-    const isGood = positiveGood ? value >= 0 : value <= 0;
-    const color = value === 0 ? 'text-slate-400 border-slate-700 bg-slate-900/60' : (isGood ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : 'text-amber-300 border-amber-500/30 bg-amber-500/10');
-    return (
-      <div className={`rounded-lg border px-4 py-3 ${color}`}>
-        <div className="text-[10px] uppercase font-black tracking-wider mb-1">{label}</div>
-        <div className="text-2xl font-black">{value > 0 ? '+' : ''}{value}<span className="text-xs ml-1">% к базе</span></div>
-      </div>
-    );
   };
 
   return (
@@ -2905,11 +2997,11 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
           <h2 className="text-base font-medium text-white flex items-center gap-2 mb-4"><Database size={18} className="text-cyan-400" /> Качество данных</h2>
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div>
-              <div className="text-[10px] uppercase font-black tracking-wider text-slate-500 mb-1">Маршрут заполнен</div>
+              <div className="text-[10px] uppercase font-black tracking-wider text-slate-500 mb-1">Валидные маршруты</div>
               <div className={`text-2xl font-black ${selectedTraining.routeDataQualityPercent >= 95 ? 'text-emerald-300' : 'text-amber-300'}`}>{selectedTraining.routeDataQualityPercent}<span className="text-xs text-slate-500 ml-1">%</span></div>
             </div>
             <div>
-              <div className="text-[10px] uppercase font-black tracking-wider text-slate-500 mb-1">Не указано</div>
+              <div className="text-[10px] uppercase font-black tracking-wider text-slate-500 mb-1">Некорректно</div>
               <div className="text-2xl font-black text-slate-200">{selectedTraining.unknownCount}<span className="text-xs text-slate-500 ml-1">шт.</span></div>
             </div>
             <div>
@@ -2917,7 +3009,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
               <div className="text-2xl font-black text-slate-200">{selectedTraining.closed}<span className="text-xs text-slate-500 ml-1">шт.</span></div>
             </div>
           </div>
-          <p className="text-xs text-slate-500 leading-relaxed">Самостоятельность и помощь старших считаются только по тикетам с заполненным маршрутом решения.</p>
+          <p className="text-xs text-slate-500 leading-relaxed">Самостоятельность и помощь старших считаются только по тикетам с валидным маршрутом решения.</p>
         </div>
 
         <div className="xl:col-span-2 bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm">
@@ -2934,8 +3026,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
               </div>
               <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3">
                 <div className="text-[10px] uppercase font-black tracking-wider text-slate-500 mb-1">Динамика</div>
-                <div className="text-2xl font-black text-slate-100">{previousTraining ? formatDelta(selectedTraining.repeatRate - previousTraining.repeatRate) : '—'}</div>
-                <div className="text-[11px] text-slate-500 mt-1">{previousTraining ? 'к прошлой неделе' : 'база формируется'}</div>
+                <div className="text-sm font-bold text-slate-100 leading-snug">{previousTraining ? formatPointDelta(selectedTraining.repeatRate, previousTraining.repeatRate, false) : '—'}</div>
+                <div className="text-[11px] text-slate-500 mt-1">{previousTraining ? 'сравнение с прошлой неделей' : 'база формируется'}</div>
               </div>
             </div>
           ) : (
@@ -2951,7 +3043,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
           <div className="flex items-start justify-between gap-3 mb-5">
             <div>
               <h2 className="text-lg font-medium text-white flex items-center gap-2"><TrendingUp size={20} className="text-emerald-400" /> Тренд с недели 23</h2>
-              <p className="text-xs text-slate-500 mt-1">Самостоятельность, основной SLA входа и доля помощи старших/смежников с начала сбора маршрутизации.</p>
+              <p className="text-xs text-slate-500 mt-1">Самостоятельность, взятие в работу до 15 минут и доля помощи старших с начала сбора маршрутизации.</p>
             </div>
             <span className="text-xs text-slate-400 bg-slate-900/80 px-2 py-1.5 rounded border border-slate-700/50">С недели {TRAINING_BASE_WEEK}: {trendKeys.length} нед.</span>
           </div>
@@ -2965,8 +3057,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#f8fafc', fontSize: '12px' }} formatter={(value) => [`${value}%`, '']} />
                   <Legend wrapperStyle={{ paddingTop: '12px', fontSize: '12px' }} />
                   <Line type="monotone" dataKey="self" name="Самостоятельность" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="sla" name="SLA входа" stroke="#38bdf8" strokeWidth={3} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="slaResolution" name="SLA решения" stroke="#818cf8" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="sla" name="Взятие в работу ≤15 мин" stroke="#38bdf8" strokeWidth={3} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="slaResolution" name="Решение в срок" stroke="#818cf8" strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="help" name="Помощь старших" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="quality" name="Качество данных" stroke="#94a3b8" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
@@ -2985,7 +3077,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
                 <div key={row.label} className="bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2">
                   <div className="flex items-center justify-between gap-3 mb-1">
                     <span className="text-xs font-bold text-slate-300">{row.label}</span>
-                    <span className={`text-sm font-black ${row.isGood ? 'text-emerald-300' : 'text-amber-300'}`}>{formatDelta(row.deltaValue)}</span>
+                    <span className={`text-xs font-black text-right ${row.isGood ? 'text-emerald-300' : 'text-amber-300'}`}>{formatPointDelta(row.current, row.previous, row.positiveGood)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-500">
                     <span>Текущее: {formatPercent(row.current)}</span>
@@ -3012,7 +3104,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
                 <div className="text-xs font-bold text-slate-300 mb-1">{row.label}</div>
                 {row.target ? (
                   <div className="text-xs text-slate-500 leading-relaxed">
-                    Текущее: <span className="text-slate-100 font-bold">{formatPercent(row.current)}</span>, цель: <span className="text-emerald-300 font-bold">{row.target}%</span>, разрыв: <span className={(row.current - row.target) >= 0 ? 'text-emerald-300 font-bold' : 'text-amber-300 font-bold'}>{formatDelta(row.current - row.target)}</span>
+                    Текущее: <span className="text-slate-100 font-bold">{formatPercent(row.current)}</span>, цель: <span className="text-emerald-300 font-bold">{row.target}%</span>, <span className={(row.current - row.target) >= 0 ? 'text-emerald-300 font-bold' : 'text-amber-300 font-bold'}>{row.current >= row.target ? 'цель достигнута' : `не хватает ${roundMetric(row.target - row.current, 1)} пункта`}</span>
                   </div>
                 ) : (
                   <div className="text-xs text-slate-500 leading-relaxed">Цель будет задана после формирования базовой линии.</div>
@@ -3030,8 +3122,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
                 <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/60">
                   <th className="py-2 pr-3">Маршрут решения</th>
                   <th className="py-2 px-3 text-right">Тикеты</th>
-                  <th className="py-2 px-3 text-right">SLA входа</th>
-                  <th className="py-2 px-3 text-right">SLA решения</th>
+                  <th className="py-2 px-3 text-right">Взятие в работу ≤15 мин</th>
+                  <th className="py-2 px-3 text-right">Решение в срок</th>
                   <th className="py-2 pl-3">Вывод</th>
                 </tr>
               </thead>
@@ -3078,7 +3170,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
           <div className="mt-4 space-y-2">
             {routeChartData.map(item => (
               <div key={item.route} className="flex items-center justify-between gap-3 text-xs bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-2">
-                <span className={isUnknownRoute(item.route) && !selectedTraining.hasTraining ? 'text-slate-500' : 'text-slate-300'}>{item.displayRoute}</span>
+                <span className={isRouteDataGap(item.route) ? 'text-slate-500' : 'text-slate-300'}>{item.displayRoute}</span>
                 <span className="font-black text-slate-100 shrink-0">{item.count} / {item.percentage}%</span>
               </div>
             ))}
@@ -3644,6 +3736,7 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
     detailedTasks: [],
     telephonyData: [],
     telephonyInsight: '',
+    weekType: 'normal',
     trainingSection: null,
     customReportHtml: null,
     isReportFrozen: false
