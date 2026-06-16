@@ -7224,7 +7224,19 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const memory = getTaskMemory(task, overrides);
     const source = memory.wordDetails ?? task?.comments ?? task?.description ?? task?.summary ?? '';
     const cleaned = cleanWordReportText(source);
-    return cleaned && cleaned.length > 6 ? cleaned : '';
+    const lowered = cleaned.toLowerCase();
+    const blockedPhrases = [
+      'в работе',
+      'нет данных',
+      'ожидание данных',
+      'согласно заявке',
+      'стандартная процедура',
+      'готово',
+      'решено'
+    ];
+    if (!cleaned || cleaned.length <= 8) return '';
+    if (blockedPhrases.some(phrase => lowered === phrase || lowered.includes(phrase))) return '';
+    return cleaned;
   };
 
   const getWordTaskOrder = (task, overrides = {}) => {
@@ -7778,25 +7790,19 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const renderTask = (task, section) => {
       const isRoutineSection = section.id === 'other';
       return `
-      <tr>
-        <td style="width:92px; color:${section.color}; font-weight:800; padding:${isRoutineSection ? '5px' : '8px'} 8px ${isRoutineSection ? '6px' : '10px'} 0; border-bottom:1px solid #e5e7eb; vertical-align:top; white-space:nowrap; font-size:10px; letter-spacing:0.02em;">
-          <div>${escapeHtml(task.id)}</div>
-          <div style="font-size:10px; color:#334155; font-weight:700; margin-top:2px; line-height:1.15; white-space:normal;">${escapeHtml(getFullName(task.assignee))}</div>
-        </td>
-        <td style="padding:${isRoutineSection ? '5px' : '7px'} 0 ${isRoutineSection ? '6px' : '9px'} 0; border-bottom:1px solid #e5e7eb; vertical-align:top;">
-          <div style="font-weight:${isRoutineSection ? '700' : '900'}; color:${isRoutineSection ? '#334155' : '#0f172a'}; font-size:${isRoutineSection ? '11.5px' : '13px'};">${escapeHtml(task.wordTitle)}</div>
-          ${!isRoutineSection && task.wordDetails ? `<div style="font-size:12.5px; color:#334155; margin-top:5px; line-height:1.5; padding-left:10px; border-left:2px solid #94a3b8;">${escapeHtml(task.wordDetails)}</div>` : ''}
-        </td>
-      </tr>`;
+      <div style="padding:${isRoutineSection ? '7px' : '9px'} 10px; border-top:1px solid #dbeafe; background:#ffffff;">
+        <div style="font-weight:${isRoutineSection ? '800' : '900'}; color:#0f172a; font-size:${isRoutineSection ? '12.5px' : '13.5px'}; line-height:1.35;">${escapeHtml(task.wordTitle)}</div>
+        ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:3px; line-height:1.45;">${escapeHtml(task.wordDetails)}</div>` : ''}
+      </div>`;
     };
 
     const renderTaskSections = () => tasksBySection.map(section => `
-      <div style="margin:0 0 16px 0;">
-        <div style="border-left:5px solid ${section.color}; border-bottom:1px solid #dbeafe; background:#f8fafc; padding:8px 10px; margin-bottom:2px;">
-          <span style="font-size:14px; font-weight:900; color:#0f172a; text-transform:uppercase; letter-spacing:0.02em;">${escapeHtml(section.title)}</span>
-          <span style="float:right; font-size:11px; color:#64748b;">${section.tasks.length}</span>
+      <div style="border:1px solid #bfdbfe; border-left:5px solid ${section.color}; border-radius:8px; margin:0 0 12px 0; overflow:hidden; background:#ffffff;">
+        <div style="background:#eff6ff; padding:7px 10px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:12px; letter-spacing:0.03em;">
+          ${escapeHtml(section.title)}
+          <span style="float:right; font-size:11px; color:#64748b; font-weight:800;">${section.tasks.length}</span>
         </div>
-        ${section.tasks.length ? `<table style="width:100%; border-collapse:collapse; margin-left:10px;">${section.tasks.map(task => renderTask(task, section)).join('')}</table>` : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
+        ${section.tasks.length ? section.tasks.map(task => renderTask(task, section)).join('') : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px;">Нет задач в разделе</div>`}
       </div>
     `).join('');
 
@@ -8158,11 +8164,11 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               <div className="space-y-4">
                 {tasksBySection.map(section => (
                   <div key={section.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleTaskDrop(event, section.id)} className="overflow-hidden">
-                    <div className="bg-slate-50 border-b border-blue-100 px-3 py-2 flex justify-between items-center" style={{ borderLeft: `5px solid ${section.color}` }}>
-                      <h4 className="font-black text-slate-950 uppercase tracking-tight text-sm">{section.title}</h4>
+                    <div className="bg-blue-50 border border-blue-200 border-l-4 px-3 py-2 flex justify-between items-center" style={{ borderLeftColor: section.color }}>
+                      <h4 className="font-black text-blue-700 uppercase tracking-wide text-xs">{section.title}</h4>
                       <span className="text-xs font-bold text-slate-500">{section.tasks.length}</span>
                     </div>
-                    <div className="divide-y divide-slate-200 pl-3">
+                    <div className="border-x border-b border-blue-100 bg-white">
                       {section.tasks.length ? section.tasks.map(task => (
                         (() => {
                           const isRoutineSection = section.id === 'other';
@@ -8174,32 +8180,28 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                           onDragStart={(event) => handleTaskDragStart(event, task.id)}
                           onDragOver={(event) => event.preventDefault()}
                           onDrop={(event) => handleTaskDrop(event, section.id, task.id)}
-                          className={`${isRoutineSection ? 'py-1.5' : 'py-2.5'} pr-2 hover:bg-slate-50/70 transition-colors ${draggedTaskId === task.id ? 'opacity-50' : ''}`}
+                          className={`${isRoutineSection ? 'py-2' : 'py-2.5'} px-3 border-t border-blue-100 first:border-t-0 hover:bg-slate-50/70 transition-colors ${draggedTaskId === task.id ? 'opacity-50' : ''}`}
                         >
                           <div className="flex flex-col md:flex-row md:items-start gap-3">
-                            <div className="w-24 flex-shrink-0 text-[10px] font-black pt-1 tracking-wide" style={{ color: section.color }}>
-                              <div>{task.id}</div>
-                              <div className="text-[10px] font-bold text-slate-700 mt-0.5 leading-tight">{getFullName(task.assignee)}</div>
-                            </div>
                             <div className="flex-1 min-w-0">
                               <div
                                 data-word-task-title="true"
                                 contentEditable
                                 suppressContentEditableWarning
                                 onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordTitle', event.currentTarget.innerText)}
-                                className={`${isRoutineSection ? 'font-bold text-[12px] text-slate-700' : 'font-black text-slate-950'} outline-none border-b border-transparent focus:border-blue-300`}
+                                className={`${isRoutineSection ? 'font-extrabold text-[13px]' : 'font-black text-[14px]'} text-slate-950 outline-none border-b border-transparent focus:border-blue-300 leading-snug`}
                               >
                                 {task.wordTitle}
                               </div>
-                              {!isRoutineSection && <div
+                              <div
                                 data-word-task-details="true"
                                 contentEditable
                                 suppressContentEditableWarning
                                 onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordDetails', event.currentTarget.innerText)}
-                                className="mt-1.5 text-[13px] leading-relaxed text-slate-700 border-l-2 border-slate-400 pl-3 py-1 min-h-[30px] outline-none focus:border-blue-400 whitespace-pre-wrap"
+                                className="mt-1 text-[12.5px] leading-relaxed text-slate-600 min-h-[20px] outline-none focus:text-slate-800 whitespace-pre-wrap"
                               >
-                                {task.wordDetails || 'Добавьте короткое описание результата...'}
-                              </div>}
+                                {task.wordDetails || ''}
+                              </div>
                             </div>
                             <select
                               data-word-task-section="true"
