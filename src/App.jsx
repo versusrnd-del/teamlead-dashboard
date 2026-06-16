@@ -7952,7 +7952,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     };
 
     const renderCsatComments = () => {
-      if (!csatComments.length) return '';
       const renderComment = (item, tone = 'neutral') => `
         <div style="border:1px solid ${tone === 'bad' ? '#fecaca' : '#dbeafe'}; border-left:4px solid ${tone === 'bad' ? '#ef4444' : '#38bdf8'}; border-radius:8px; padding:9px 10px; margin-bottom:8px; background:${tone === 'bad' ? '#fff7f7' : '#f8fbff'};">
           <div style="font-size:12px; color:#334155; margin-bottom:4px;"><b>${escapeHtml(item.assignee)}</b>${item.rating !== null ? ` · оценка ${escapeHtml(item.rating)}` : ''}${item.title ? ` · ${escapeHtml(item.title)}` : ''}</div>
@@ -7962,7 +7961,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">4. Комментарии пользователей</h2>
         <div style="border:1px solid #dbeafe; border-radius:8px; padding:10px; background:#ffffff;">
           <div style="font-size:12px; color:#64748b; margin-bottom:8px;">Живые комментарии за период из CSAT-выгрузки.</div>
-          ${csatComments.slice(0, 8).map(item => renderComment(item)).join('')}
+          ${csatComments.length ? csatComments.slice(0, 8).map(item => renderComment(item)).join('') : '<div style="font-size:12px; color:#64748b; padding:8px 10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px;">Живые комментарии за период не загружены.</div>'}
           ${badCsatComments.length ? `
             <div style="margin-top:12px; padding-top:10px; border-top:1px solid #fecaca;">
               <div style="font-size:12px; color:#991b1b; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Оценки ниже 4</div>
@@ -8364,11 +8363,11 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               </section>
             )}
 
-            {wordCsatComments.length > 0 && (
-              <section className="mt-6">
-                <h3 className="text-lg font-black mb-3">4. Комментарии пользователей</h3>
-                <div className="border border-blue-100 rounded-lg bg-white p-3">
-                  <div className="text-xs text-slate-500 mb-3">Живые комментарии за период из CSAT-выгрузки.</div>
+            <section className="mt-6">
+              <h3 className="text-lg font-black mb-3">4. Комментарии пользователей</h3>
+              <div className="border border-blue-100 rounded-lg bg-white p-3">
+                <div className="text-xs text-slate-500 mb-3">Живые комментарии за период из CSAT-выгрузки.</div>
+                {wordCsatComments.length > 0 ? (
                   <div className="space-y-2">
                     {wordCsatComments.slice(0, 8).map(item => (
                       <div key={`${item.id}-${item.comment}`} className="border border-blue-100 border-l-4 border-l-sky-400 rounded-lg bg-blue-50/30 p-3">
@@ -8377,6 +8376,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <div className="text-sm text-slate-500 border border-slate-200 bg-slate-50 rounded-lg px-3 py-2">Живые комментарии за период не загружены.</div>
+                )}
                   {badWordCsatComments.length > 0 && (
                     <div className="mt-4 pt-3 border-t border-red-100">
                       <div className="text-xs font-black uppercase text-red-700 mb-2">Оценки ниже 4</div>
@@ -8390,9 +8392,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                       </div>
                     </div>
                   )}
-                </div>
-              </section>
-            )}
+              </div>
+            </section>
 
             {(wordSystemProblems.length > 0 || wordSlaSnapshot.primaryCount > 0 || wordSlaSnapshot.resolutionCount > 0) && (
               <section className="mt-6" style={{ fontFamily: wordFontFamily }}>
