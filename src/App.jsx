@@ -7229,6 +7229,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       'в работе',
       'нет данных',
       'ожидание данных',
+      'добавьте короткое описание результата',
       'согласно заявке',
       'стандартная процедура',
       'готово',
@@ -7820,7 +7821,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       return `
       <div style="padding:9px 10px; border-top:1px solid #dbeafe; background:#ffffff;">
         <div style="font-weight:900; color:#0f172a; font-size:13px; line-height:1.35;">- ${escapeHtml(task.wordTitle)};</div>
-        ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:3px; margin-left:12px; line-height:1.45;">${escapeHtml(task.wordDetails)}</div>` : ''}
+        ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:3px; line-height:1.45;">&nbsp;&nbsp;&nbsp;${escapeHtml(task.wordDetails)}</div>` : ''}
       </div>`;
     };
 
@@ -8227,7 +8228,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                                 contentEditable
                                 suppressContentEditableWarning
                                 onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordDetails', event.currentTarget.innerText)}
-                                className="mt-1 ml-3 text-[12.5px] leading-relaxed text-slate-600 min-h-[20px] outline-none focus:text-slate-800 whitespace-pre-wrap"
+                                className="mt-1 pl-[1.05em] text-[12.5px] leading-relaxed text-slate-600 min-h-[20px] outline-none focus:text-slate-800 whitespace-pre-wrap"
                               >
                                 {task.wordDetails || ''}
                               </div>
