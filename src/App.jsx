@@ -7819,8 +7819,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const renderTask = (task) => {
       return `
       <div style="padding:9px 10px; border-top:1px solid #dbeafe; background:#ffffff;">
-        <div style="font-weight:900; color:#0f172a; font-size:13px; line-height:1.35;">${escapeHtml(task.wordTitle)}</div>
-        ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:3px; line-height:1.45;">${escapeHtml(task.wordDetails)}</div>` : ''}
+        <div style="font-weight:900; color:#0f172a; font-size:13px; line-height:1.35;">- ${escapeHtml(task.wordTitle)};</div>
+        ${task.wordDetails ? `<div style="font-size:12px; color:#475569; margin-top:3px; margin-left:12px; line-height:1.45;">${escapeHtml(task.wordDetails)}</div>` : ''}
       </div>`;
     };
 
@@ -8209,21 +8209,25 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                         >
                           <div className="flex flex-col md:flex-row md:items-start gap-3">
                             <div className="flex-1 min-w-0">
-                              <div
-                                data-word-task-title="true"
-                                contentEditable
-                                suppressContentEditableWarning
-                                onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordTitle', event.currentTarget.innerText)}
-                                className={`${isRoutineSection ? 'font-extrabold text-[13px]' : 'font-black text-[14px]'} text-slate-950 outline-none border-b border-transparent focus:border-blue-300 leading-snug`}
-                              >
-                                {task.wordTitle}
+                              <div className={`${isRoutineSection ? 'text-[13px]' : 'text-[14px]'} text-slate-950 leading-snug`}>
+                                <span className="font-black">- </span>
+                                <span
+                                  data-word-task-title="true"
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordTitle', event.currentTarget.innerText)}
+                                  className={`${isRoutineSection ? 'font-extrabold' : 'font-black'} outline-none border-b border-transparent focus:border-blue-300`}
+                                >
+                                  {task.wordTitle}
+                                </span>
+                                <span className="font-black">;</span>
                               </div>
                               <div
                                 data-word-task-details="true"
                                 contentEditable
                                 suppressContentEditableWarning
                                 onBlur={(event) => handleSaveWordTaskField(task.id, task.wordTitle, 'wordDetails', event.currentTarget.innerText)}
-                                className="mt-1 text-[12.5px] leading-relaxed text-slate-600 min-h-[20px] outline-none focus:text-slate-800 whitespace-pre-wrap"
+                                className="mt-1 ml-3 text-[12.5px] leading-relaxed text-slate-600 min-h-[20px] outline-none focus:text-slate-800 whitespace-pre-wrap"
                               >
                                 {task.wordDetails || ''}
                               </div>
