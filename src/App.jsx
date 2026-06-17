@@ -7830,24 +7830,20 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const wordCopyFontStyle = `font-family:${wordCopyFontFamily}; mso-ascii-font-family:Aptos; mso-hansi-font-family:Aptos;`;
 
     const renderHtmlCopyTask = (task) => `
-      <div style="margin:0 0 4px 0; padding:0; ${wordCopyFontStyle} color:#0f172a; line-height:1.22; mso-line-height-rule:exactly;">
-        <div style="margin:0; padding:0; ${wordCopyFontStyle} font-weight:bold; color:#0f172a; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.wordTitle)};</div>
-        ${task.wordDetails ? `<div style="margin:0; padding:0; ${wordCopyFontStyle} font-size:11px; font-weight:400; color:#475569; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.wordDetails)}</div>` : ''}
+      <div style="margin:0 0 5px 0; padding:0; ${wordCopyFontStyle} color:#0f172a; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">
+        <p style="margin:0; padding:0; ${wordCopyFontStyle} font-size:12px; line-height:1.25; mso-line-height-rule:exactly;"><font face="Aptos, Calibri, Arial" style="font-size:12px; color:#0f172a;"><b>${escapeHtml(task.wordTitle)};</b></font></p>
+        ${task.wordDetails ? `<p style="margin:0; padding:0; ${wordCopyFontStyle} font-size:11px; font-weight:400; color:#475569; line-height:1.25; mso-line-height-rule:exactly;"><font face="Aptos, Calibri, Arial" style="font-size:11px; color:#475569;">${escapeHtml(task.wordDetails)}</font></p>` : ''}
       </div>`;
 
     const renderHtmlCopyTaskSections = () => compactTasksBySection.map(section => `
-      <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 7px 0; border:0; ${wordCopyFontStyle}">
-        <tr>
-          <td style="background:#eff6ff; padding:3px 8px; ${wordCopyFontStyle} font-weight:bold; color:#1d4ed8; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly; border:0;">
-            ${escapeHtml(section.title)}
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:4px 8px 5px 8px; border:0; background:#ffffff; ${wordCopyFontStyle}">
-            ${section.tasks.length ? section.tasks.map(task => renderHtmlCopyTask(task)).join('') : `<div style="margin:0; padding:0; ${wordCopyFontStyle} color:#94a3b8; font-size:11px;">Нет задач в разделе</div>`}
-          </td>
-        </tr>
-      </table>
+      <div style="margin:0 0 8px 0; padding:0; border:0; background:#ffffff; ${wordCopyFontStyle}">
+        <div style="margin:0 0 4px 0; padding:3px 8px; background:#eff6ff; ${wordCopyFontStyle} color:#1d4ed8; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly;">
+          <font face="Aptos, Calibri, Arial" style="font-size:11px; color:#1d4ed8;"><b>${escapeHtml(section.title)}</b></font>
+        </div>
+        <div style="margin:0; padding:0 8px 1px 8px; background:#ffffff; ${wordCopyFontStyle}">
+          ${section.tasks.length ? section.tasks.map(task => renderHtmlCopyTask(task)).join('') : `<p style="margin:0; padding:0; ${wordCopyFontStyle} color:#94a3b8; font-size:11px;"><font face="Aptos, Calibri, Arial" style="font-size:11px; color:#94a3b8;">Нет задач в разделе</font></p>`}
+        </div>
+      </div>
     `).join('');
 
     const renderTaskSections = () => compactTasksBySection.map(section => `
@@ -7864,21 +7860,19 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       const headerBg = isDoneGroup ? '#ecfdf5' : '#eff6ff';
       const headerColor = isDoneGroup ? '#0f766e' : '#1d4ed8';
       return `
-        <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 7px 0; border:0; ${wordCopyFontStyle}">
-          <tr>
-            <td style="background:${headerBg}; padding:3px 8px; ${wordCopyFontStyle} font-weight:bold; color:${headerColor}; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly; border:0;">${escapeHtml(title)}</td>
-          </tr>
-          <tr>
-            <td style="padding:4px 8px 5px 8px; border:0; background:${isDoneGroup ? '#f8fffc' : '#ffffff'}; ${wordCopyFontStyle}">
-              ${tasks.map(task => `
-                <div style="margin:0 0 4px 0; padding:0; ${wordCopyFontStyle} color:#0f172a; line-height:1.22; mso-line-height-rule:exactly;">
-                  <div style="margin:0; padding:0; ${wordCopyFontStyle} font-weight:bold; color:#0f172a; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.title)}</div>
-                  ${task.comment ? `<div style="margin:0; padding:0; ${wordCopyFontStyle} font-size:11px; font-weight:400; color:#475569; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.comment)}</div>` : ''}
-                </div>
-              `).join('')}
-            </td>
-          </tr>
-        </table>`;
+        <div style="margin:0 0 8px 0; padding:0; border:0; background:${isDoneGroup ? '#f8fffc' : '#ffffff'}; ${wordCopyFontStyle}">
+          <div style="margin:0 0 4px 0; padding:3px 8px; background:${headerBg}; ${wordCopyFontStyle} color:${headerColor}; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly;">
+            <font face="Aptos, Calibri, Arial" style="font-size:11px; color:${headerColor};"><b>${escapeHtml(title)}</b></font>
+          </div>
+          <div style="margin:0; padding:0 8px 1px 8px; background:${isDoneGroup ? '#f8fffc' : '#ffffff'}; ${wordCopyFontStyle}">
+            ${tasks.map(task => `
+              <div style="margin:0 0 5px 0; padding:0; ${wordCopyFontStyle} color:#0f172a; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">
+                <p style="margin:0; padding:0; ${wordCopyFontStyle} font-size:12px; line-height:1.25; mso-line-height-rule:exactly;"><font face="Aptos, Calibri, Arial" style="font-size:12px; color:#0f172a;"><b>${escapeHtml(task.title)}</b></font></p>
+                ${task.comment ? `<p style="margin:0; padding:0; ${wordCopyFontStyle} font-size:11px; font-weight:400; color:#475569; line-height:1.25; mso-line-height-rule:exactly;"><font face="Aptos, Calibri, Arial" style="font-size:11px; color:#475569;">${escapeHtml(task.comment)}</font></p>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>`;
     };
 
     const renderHtmlCopyManagementTasks = () => {
