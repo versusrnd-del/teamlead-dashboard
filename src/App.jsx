@@ -7762,6 +7762,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const getWordReportHtmlString = (options = {}) => {
     const exportMode = Boolean(options.exportMode);
     const htmlCopyMode = Boolean(options.htmlCopyMode);
+    const tasksClipboardMode = Boolean(options.tasksClipboardMode);
     const overrides = options.memoryOverrides || {};
     const projectOverrides = options.projectOverrides || {};
     const sections = getSections().filter(section => !section.hidden);
@@ -8024,6 +8025,16 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         </div>`;
     };
 
+    if (tasksClipboardMode) {
+      return `
+      <div style="font-family:Aptos, Calibri, Arial, sans-serif; mso-ascii-font-family:Aptos; mso-hansi-font-family:Aptos; color:#0f172a; font-size:12px; line-height:1.25;">
+        <h2 style="font-family:Aptos, Calibri, Arial, sans-serif; font-size:14px; margin:0 0 8px 0; color:#0f172a;">1. Решенные задачи за неделю</h2>
+        ${renderHtmlCopyTaskSections()}
+        <h2 style="font-family:Aptos, Calibri, Arial, sans-serif; font-size:14px; margin:14px 0 8px 0; color:#0f172a;">2. Поручения руководства</h2>
+        ${renderHtmlCopyManagementTasks()}
+      </div>`;
+    }
+
     return `
       <div style="font-family: ${wordFontFamily}; color:#0f172a; line-height:1.35;">
         <div style="border-bottom:4px solid #2563eb; padding-bottom:10px; margin-bottom:14px;">
@@ -8082,6 +8093,11 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const handleDownloadWordHtmlReport = () => {
     const persisted = persistWordPreviewEdits();
     const htmlContent = getWordReportHtmlString({ exportMode: true, htmlCopyMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
+    const tasksClipboardHtml = getWordReportHtmlString({ exportMode: true, htmlCopyMode: true, tasksClipboardMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
+    const tempClipboardDiv = document.createElement('div');
+    tempClipboardDiv.innerHTML = tasksClipboardHtml;
+    const tasksClipboardText = tempClipboardDiv.innerText;
+    const toScriptString = (value) => JSON.stringify(value).replace(/<\/script/gi, '<\\/script');
     const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -8141,6 +8157,26 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       font-weight: 800;
       white-space: nowrap;
     }
+    .html-report-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .html-copy-button {
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      background: rgba(16, 185, 129, 0.16);
+      color: #d1fae5;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font: 800 12px Aptos, Calibri, Arial, sans-serif;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .html-copy-button:hover {
+      background: rgba(16, 185, 129, 0.24);
+      border-color: rgba(16, 185, 129, 0.70);
+    }
     .html-report-page {
       background: #ffffff;
       max-width: 920px;
@@ -8171,13 +8207,61 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         <h1>Отчет руководителю</h1>
         <p>${escapeHtml(`Неделя ${weekData?.weekNumber || ''}${weekData?.dates ? ` (${weekData.dates})` : ''}`)}</p>
       </div>
-      <div class="html-report-badge">Таблицы — для скриншотов · задачи — для копирования в Lotus</div>
+      <div class="html-report-actions">
+        <div class="html-report-badge">Таблицы — для скриншотов · задачи — для копирования в Lotus</div>
+        <button class="html-copy-button" type="button" onclick="copyLotusTasks(this)">Скопировать задачи</button>
+      </div>
     </div>
     <article class="html-report-page">
       ${htmlContent}
     </article>
     <div class="copy-note">Для письма в Lotus выделяй только блоки задач и поручений. KPI и таблицы удобнее вставлять скриншотами.</div>
   </main>
+  <script>
+    const lotusTasksHtml = ${toScriptString(tasksClipboardHtml)};
+    const lotusTasksText = ${toScriptString(tasksClipboardText)};
+    async function copyLotusTasks(button) {
+      const originalText = button.textContent;
+      try {
+        if (navigator.clipboard && window.ClipboardItem) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'text/html': new Blob([lotusTasksHtml], { type: 'text/html' }),
+              'text/plain': new Blob([lotusTasksText], { type: 'text/plain' })
+            })
+          ]);
+        } else {
+          const holder = document.createElement('div');
+          holder.style.position = 'fixed';
+          holder.style.left = '-9999px';
+          holder.innerHTML = lotusTasksHtml;
+          document.body.appendChild(holder);
+          const range = document.createRange();
+          range.selectNodeContents(holder);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          document.execCommand('copy');
+          selection.removeAllRanges();
+          document.body.removeChild(holder);
+        }
+        button.textContent = 'Задачи скопированы';
+        setTimeout(() => { button.textContent = originalText; }, 1800);
+      } catch (error) {
+        const textArea = document.createElement('textarea');
+        textArea.value = lotusTasksText;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        button.textContent = 'Скопировано текстом';
+        setTimeout(() => { button.textContent = originalText; }, 1800);
+      }
+    }
+  </script>
 </body>
 </html>`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
