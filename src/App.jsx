@@ -7828,20 +7828,20 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
     const renderHtmlCopyTask = (task) => `
       <tr>
-        <td style="padding:4px 8px; border-bottom:1px solid #dbeafe; background:#ffffff; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">
-          <div style="font-weight:900; color:#0f172a; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">${escapeHtml(task.wordTitle)};</div>
-          ${task.wordDetails ? `<div style="font-size:11px; color:#475569; margin-top:1px; line-height:1.25; mso-line-height-rule:exactly;">${escapeHtml(task.wordDetails)}</div>` : ''}
+        <td style="padding:2px 8px 3px 8px; border:0; background:#ffffff; font-family:${wordFontFamily}; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">
+          <div style="font-weight:800; color:#0f172a; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.wordTitle)};</div>
+          ${task.wordDetails ? `<div style="font-size:11px; color:#475569; margin-top:0; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.wordDetails)}</div>` : ''}
         </td>
       </tr>`;
 
     const renderHtmlCopyTaskSections = () => compactTasksBySection.map(section => `
-      <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 8px 0; border-left:5px solid #3b82f6; border-right:1px solid #bfdbfe; border-bottom:1px solid #bfdbfe; font-family:${wordFontFamily};">
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 7px 0; border:0; font-family:${wordFontFamily};">
         <tr>
-          <td style="background:#eff6ff; padding:4px 8px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:11px; line-height:1.2; mso-line-height-rule:exactly;">
+          <td style="background:#eff6ff; padding:3px 8px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly; border:0;">
             ${escapeHtml(section.title)}
           </td>
         </tr>
-        ${section.tasks.length ? section.tasks.map(task => renderHtmlCopyTask(task)).join('') : `<tr><td style="padding:5px 8px; color:#94a3b8; font-size:11px; background:#ffffff;">Нет задач в разделе</td></tr>`}
+        ${section.tasks.length ? section.tasks.map(task => renderHtmlCopyTask(task)).join('') : `<tr><td style="padding:4px 8px; color:#94a3b8; font-size:11px; background:#ffffff; border:0;">Нет задач в разделе</td></tr>`}
       </table>
     `).join('');
 
@@ -7856,21 +7856,18 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
     const renderHtmlCopyManagementGroup = (title, tasks, isDoneGroup) => {
       if (!tasks.length) return '';
-      const accent = isDoneGroup ? '#14b8a6' : '#3b82f6';
-      const border = isDoneGroup ? '#a7f3d0' : '#bfdbfe';
       const headerBg = isDoneGroup ? '#ecfdf5' : '#eff6ff';
       const headerColor = isDoneGroup ? '#0f766e' : '#1d4ed8';
-      const rowBorder = isDoneGroup ? '#ccfbf1' : '#dbeafe';
       return `
-        <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 8px 0; border-left:5px solid ${accent}; border-right:1px solid ${border}; border-bottom:1px solid ${border}; font-family:${wordFontFamily};">
+        <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 7px 0; border:0; font-family:${wordFontFamily};">
           <tr>
-            <td style="background:${headerBg}; padding:4px 8px; font-weight:900; color:${headerColor}; text-transform:uppercase; font-size:11px; line-height:1.2; mso-line-height-rule:exactly;">${escapeHtml(title)}</td>
+            <td style="background:${headerBg}; padding:3px 8px; font-weight:900; color:${headerColor}; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly; border:0;">${escapeHtml(title)}</td>
           </tr>
           ${tasks.map(task => `
             <tr>
-              <td style="padding:4px 8px; border-bottom:1px solid ${rowBorder}; background:${isDoneGroup ? '#f8fffc' : '#ffffff'}; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">
-                <div style="font-weight:900; color:#0f172a; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">${escapeHtml(task.title)}</div>
-                ${task.comment ? `<div style="font-size:11px; color:#475569; margin-top:1px; line-height:1.25; mso-line-height-rule:exactly;">${escapeHtml(task.comment)}</div>` : ''}
+              <td style="padding:2px 8px 3px 8px; border:0; background:${isDoneGroup ? '#f8fffc' : '#ffffff'}; font-family:${wordFontFamily}; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">
+                <div style="font-weight:800; color:#0f172a; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.title)}</div>
+                ${task.comment ? `<div style="font-size:11px; color:#475569; margin-top:0; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.comment)}</div>` : ''}
               </td>
             </tr>
           `).join('')}
