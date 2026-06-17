@@ -132,7 +132,7 @@ const generateFintechLabReport = ({
     return `${parsed > 0 ? '+' : ''}${Math.round(parsed)} шт. к прошлой неделе`;
   };
   const metricTone = (metric) => {
-    if (metric.tone === 'good' || metric.tone === 'warn' || metric.tone === 'bad' || metric.tone === 'violet') return metric.tone;
+    if (metric.tone === 'good' || metric.tone === 'warn' || metric.tone === 'risk' || metric.tone === 'bad' || metric.tone === 'violet') return metric.tone;
     return 'neutral';
   };
   const width = (value) => `${Math.max(0, Math.min(100, Number(value) || 0))}%`;
@@ -144,6 +144,7 @@ const generateFintechLabReport = ({
       <div class="metric-label">${html(metric.label)}</div>
       <div class="metric-value">${html(metric.suffix === '%' ? pct(metric.value) : count(metric.value))}</div>
       ${metric.status ? `<div class="metric-status">${html(metric.status)}</div>` : ''}
+      ${metric.target ? `<div class="target-row"><span>Прогресс до цели: ${html(pct(metric.value))} / ${html(pct(metric.target))}</span><strong>${Number(metric.value) >= Number(metric.target) ? 'цель достигнута' : `не хватает ${html((Number(metric.target) - Number(metric.value)).toFixed(1).replace('.0', ''))} ${html(pointWord(Number(metric.target) - Number(metric.value)))}`}</strong></div><div class="progress-track"><div class="progress-fill" style="width:${width((Number(metric.value) || 0) * 100 / (Number(metric.target) || 100))}"></div></div>` : ''}
       <div class="metric-delta">${html(deltaText(metric))}</div>
       <p>${html(metric.hint || '')}</p>
     </article>`).join('');
@@ -195,15 +196,15 @@ const generateFintechLabReport = ({
     <tr><td>${html(row.label)}</td><td class="num">${html(count(row.count))}</td><td class="num">${html(row.hoursText)}</td></tr>
   `).join('') : '<tr><td colspan="3" class="muted">Данные по маршрутам помощи пока не подключены.</td></tr>';
   const diagnosticsRows = performerDiagnostics.length ? performerDiagnostics.slice(0, 8).map(row => `
-    <tr><td>${html(row.name)}</td><td class="num">${html(count(row.closed))}</td><td class="num">${html(row.avgTimeText)}</td><td class="num">${html(row.csatText)}</td><td>${html(row.profile)}</td></tr>
+    <tr><td>${html(row.displayName || row.name)}</td><td class="num">${html(count(row.closed))}</td><td class="num" title="${html(row.avgTimeHint || '')}">${html(row.medianTimeText || row.avgTimeText)}</td><td class="num">${html(row.csatText)}</td><td>${html(row.profile)}</td></tr>
   `).join('') : '<tr><td colspan="5" class="muted">Данные исполнителей пока не подключены.</td></tr>';
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Финтехлаб — практика по метрикам</title><style>
-    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--red:#dc2626;--violet:#7c3aed;--soft-blue:#eff6ff;--soft-amber:#fffbeb;--soft-red:#fef2f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:linear-gradient(135deg,#102033,#173a5e);color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.16);margin-bottom:20px}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.cover-item span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note strong{color:#203044}.status-grid,.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.status-grid{grid-template-columns:1.1fr 1.4fr 1fr}.status-box{border:1px solid var(--line);border-radius:16px;padding:14px;background:#f8fafc}.status-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.status-title{font-size:18px;font-weight:900;color:var(--amber)}.status-box ul{margin:0;padding-left:18px;color:#475569;font-size:13px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-top:4px solid #dbeafe;border-radius:18px;padding:18px;background:#fff}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:var(--blue);font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-card.good{border-top-color:#10b981}.metric-card.warn{border-top-color:#f59e0b}.metric-card.bad{border-top-color:#ef4444}.metric-card.violet{border-top-color:#8b5cf6}.metric-card.good .metric-value{color:var(--green)}.metric-card.warn .metric-value{color:var(--amber)}.metric-card.bad .metric-value{color:var(--red)}.metric-card.violet .metric-value{color:var(--violet)}.metric-status{display:inline-block;border-radius:999px;background:#f1f5f9;color:#334155;padding:4px 8px;font-size:11px;font-weight:900;margin-bottom:7px}.metric-card.good .metric-status{background:#ecfdf5;color:var(--green)}.metric-card.warn .metric-status{background:var(--soft-amber);color:var(--amber)}.metric-card.bad .metric-status{background:var(--soft-red);color:var(--red)}.metric-card.violet .metric-status{background:#f5f3ff;color:var(--violet)}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}.topic-card p{color:#475569;font-size:13px;margin:10px 0 0}.check-line{background:#f8fafc;border:1px solid #e7eef6;border-radius:12px;padding:10px}.read-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.read-list div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:12px;color:#475569;font-size:13px}.temp-scale{position:relative;height:44px;margin:12px 0 8px}.temp-track{position:absolute;left:0;right:0;top:17px;height:10px;border-radius:999px;background:linear-gradient(90deg,#d1fae5,#e0f2fe,#fef3c7,#fee2e2,#fecaca)}.temp-marker{position:absolute;top:7px;width:24px;height:24px;border:4px solid #102033;border-radius:999px;background:#fff;transform:translateX(-12px)}.temp-labels{display:flex;justify-content:space-between;color:#64748b;font-size:11px;font-weight:800}.mini-bars{display:grid;gap:8px}.mini-bar-row{display:grid;grid-template-columns:110px 1fr 56px;gap:10px;align-items:center;font-size:12px}.mini-bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.mini-bar span{display:block;height:100%;background:#2563eb;border-radius:999px}.executive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.traffic-badge{display:inline-block;border-radius:999px;padding:5px 10px;font-weight:900;font-size:12px;background:#f1f5f9;color:#334155}@media(max-width:820px){.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.note-grid,.status-grid,.read-list,.executive-grid{grid-template-columns:1fr}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
+    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--orange:#ea580c;--red:#dc2626;--violet:#7c3aed;--soft-blue:#eff6ff;--soft-amber:#fffbeb;--soft-orange:#fff7ed;--soft-red:#fef2f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:linear-gradient(135deg,#102033,#173a5e);color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.16);margin-bottom:20px}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.cover-item span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note strong{color:#203044}.status-grid,.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.status-grid{grid-template-columns:1.1fr 1.4fr 1fr}.status-box{border:1px solid var(--line);border-radius:16px;padding:14px;background:#f8fafc}.status-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.status-title{font-size:18px;font-weight:900;color:#1d4ed8}.status-box ul{margin:0;padding-left:18px;color:#475569;font-size:13px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-top:4px solid #dbeafe;border-radius:18px;padding:18px;background:#fff}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:#173a5e;font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-card.good{border-top-color:#10b981}.metric-card.warn{border-top-color:#f59e0b}.metric-card.risk{border-top-color:#f97316}.metric-card.bad{border-top-color:#ef4444}.metric-card.violet{border-top-color:#8b5cf6}.metric-status{display:inline-block;border-radius:999px;background:#f1f5f9;color:#334155;padding:4px 8px;font-size:11px;font-weight:900;margin-bottom:7px}.metric-card.good .metric-status{background:#ecfdf5;color:var(--green)}.metric-card.warn .metric-status{background:var(--soft-amber);color:var(--amber)}.metric-card.risk .metric-status{background:var(--soft-orange);color:var(--orange)}.metric-card.bad .metric-status{background:var(--soft-red);color:var(--red)}.metric-card.violet .metric-status{background:#f5f3ff;color:var(--violet)}.target-row{display:flex;justify-content:space-between;gap:10px;color:#475569;font-size:11px;font-weight:800;margin:8px 0 5px}.progress-track{height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-bottom:9px}.progress-fill{height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.metric-card.good .progress-fill{background:#10b981}.metric-card.warn .progress-fill{background:#f59e0b}.metric-card.risk .progress-fill{background:#f97316}.metric-card.bad .progress-fill{background:#ef4444}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}.topic-card p{color:#475569;font-size:13px;margin:10px 0 0}.check-line{background:#f8fafc;border:1px solid #e7eef6;border-radius:12px;padding:10px}.read-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.read-list div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:12px;color:#475569;font-size:13px}.temp-scale{position:relative;height:44px;margin:12px 0 8px}.temp-track{position:absolute;left:0;right:0;top:17px;height:10px;border-radius:999px;background:linear-gradient(90deg,#d1fae5,#e0f2fe,#fef3c7,#fed7aa,#fecaca)}.temp-marker{position:absolute;top:7px;width:24px;height:24px;border:4px solid #102033;border-radius:999px;background:#fff;transform:translateX(-12px)}.temp-labels{display:flex;justify-content:space-between;color:#64748b;font-size:11px;font-weight:800}.mini-bars{display:grid;gap:8px}.mini-bar-row{display:grid;grid-template-columns:110px 1fr 56px;gap:10px;align-items:center;font-size:12px}.mini-bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.mini-bar span{display:block;height:100%;background:#2563eb;border-radius:999px}.executive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.traffic-badge{display:inline-block;border-radius:999px;padding:5px 10px;font-weight:900;font-size:12px;background:#f1f5f9;color:#334155}@media(max-width:820px){.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.note-grid,.status-grid,.read-list,.executive-grid{grid-template-columns:1fr}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
   </style></head><body><main class="page">
     <header class="cover"><div class="eyebrow">Финтехлаб — практика по метрикам</div><h1>Финтехлаб — практика по метрикам</h1><p class="cover-subtitle">Процесс: Обработка инцидента 1-й линии</p><div class="cover-grid"><div class="cover-item"><span>Неделя / период</span><strong>${html(period)}</strong></div><div class="cover-item"><span>Владелец процесса</span><strong>Виктор</strong></div><div class="cover-item"><span>Направление</span><strong>ОСО / техническая поддержка</strong></div><div class="cover-item"><span>Дата формирования</span><strong>${html(generatedDate.toLocaleDateString('ru-RU'))}</strong></div></div></header>
     <section><h2>Статус недели</h2><div class="status-grid"><div class="status-box"><h3>Общий статус</h3><div class="status-title">${html(statusWeek.title || 'База формируется')}</div><p class="muted">${html(statusWeek.summary || summary || 'Данные пока не подключены.')}</p></div><div class="status-box"><h3>Почему такой статус</h3><ul>${(statusWeek.points || []).map(point => `<li>${html(point)}</li>`).join('')}</ul></div><div class="status-box"><h3>Главное действие</h3><p>${html(statusWeek.nextAction || mainAction.actionNeeded || 'выбрать тему после накопления данных')}</p></div></div></section>
-    <section><h2>Температура процесса</h2><div class="note"><strong>${html(temperature.label || 'Нормально')}</strong><br>${html(temperature.summary || 'Температура формируется по SLA, входящему потоку и типу недели.')}</div><div class="temp-scale"><div class="temp-track"></div><div class="temp-marker" style="left:${tempMarker}"></div></div><div class="temp-labels">${tempSteps.map(step => `<span>${html(step)}</span>`).join('')}</div></section>
+    <section><h2>Температура процесса</h2><div class="note"><strong>${html(temperature.label || 'Нормально')}</strong><br>${html(temperature.summary || 'Температура формируется по SLA, входящему потоку и типу недели.')}</div>${temperature.unavailable ? '' : `<div class="temp-scale"><div class="temp-track"></div><div class="temp-marker" style="left:${tempMarker}"></div></div><div class="temp-labels">${tempSteps.map(step => `<span>${html(step)}</span>`).join('')}</div>`}</section>
     <section><h2>Ключевые метрики</h2><div class="metric-grid">${metricCards}</div></section>
     <section><h2>Главное действие на следующую неделю</h2><div class="note"><strong>${html(mainAction.theme || 'Тема пока не выбрана')}</strong><br>${html(mainAction.details || 'Нужны данные по топу не-самостоятельных маршрутов.')}<br><strong>Проверка:</strong> ${html(mainAction.check || 'сравнить помощь старших и решение в срок по выбранной теме через неделю')}</div></section>
     <section><h2>Здоровое улучшение</h2><div class="note"><strong>${html(healthyImprovement.title || 'Вывод предварительный')}</strong><br>${html(healthyImprovement.summary || 'Повторные обращения и динамика будут надежнее после накопления нескольких недель.')}</div></section>
@@ -222,7 +223,7 @@ const generateFintechLabReport = ({
     <section><h2>Контекст нагрузки</h2><div class="note-grid"><div class="note">Входящий поток: <strong>${html(count(loadContext.inflow))}</strong></div><div class="note">Закрыто: <strong>${html(count(loadContext.closed))}</strong> из <strong>${html(count(loadContext.inflow))}</strong>, очередь на конец: <strong>${html(count(loadContext.queue))}</strong></div><div class="note">Тип недели: <strong>${html(loadContext.weekTypeLabel || 'обычная неделя')}</strong></div><div class="note">Изменение потока: <strong>${html(loadContext.inflowChange || 'база формируется')}</strong></div></div><p class="muted" style="margin-top:12px">${html(loadContext.note || 'Эти показатели объясняют нагрузку, но не являются основной оценкой качества процесса.')}</p></section>
     <section><h2>Гипотеза и план проверки</h2><div class="note-grid"><div class="note"><strong>Гипотеза:</strong> меньше помощи старших без ухудшения SLA и без роста повторов.</div><div class="note"><strong>Проверка:</strong> через неделю смотрим выбранную тему, помощь старших, решение в срок и повторы.</div></div></section>
     <section><h2>Вопросы тренерам</h2><div class="note-grid"><div class="note">Достаточно ли этих метрик для защиты домашнего задания?</div><div class="note">Как правильно учитывать недели с авариями или неполной выгрузкой?</div><div class="note">Как не превратить маршрут решения в формальное заполнение поля?</div><div class="note">SLA по маршрутам показывает процесс, а не рейтинг сотрудников.</div></div></section>
-    <details><summary style="cursor:pointer;font-weight:900;margin:16px 0;color:#102033">Диагностика исполнителей</summary><section><div class="note" style="margin-bottom:12px">Этот блок не является рейтингом сотрудников. Он нужен для анализа типов нагрузки, сложности задач и потребности в обучении или перераспределении.</div><table><thead><tr><th>Администратор</th><th>Закрыто</th><th>Среднее время</th><th>CSAT</th><th>Профиль нагрузки</th></tr></thead><tbody>${diagnosticsRows}</tbody></table></section></details>
+    <details><summary style="cursor:pointer;font-weight:900;margin:16px 0;color:#102033">Диагностика исполнителей</summary><section><div class="note" style="margin-bottom:12px">Диагностика исполнителей не является рейтингом сотрудников. Время показывается по медиане; среднее доступно как подсказка и используется только для поиска выбросов.</div><table><thead><tr><th>Исполнитель</th><th>Закрыто</th><th>Медианное время</th><th>CSAT</th><th>Профиль нагрузки</th></tr></thead><tbody>${diagnosticsRows}</tbody></table></section></details>
   </main></body></html>`;
 };
 
@@ -2825,7 +2826,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     const number = Number(value) || 0;
     if (number >= 95) return { label: 'в норме', tone: 'text-emerald-300', reportTone: 'good' };
     if (number >= 90) return { label: 'зона внимания', tone: 'text-amber-300', reportTone: 'warn' };
-    return { label: 'нужен разбор', tone: 'text-red-300', reportTone: 'bad' };
+    if (number >= 80) return { label: 'риск, нужен разбор', tone: 'text-orange-300', reportTone: 'risk' };
+    return { label: 'критично', tone: 'text-red-300', reportTone: 'bad' };
   };
   const primarySlaStatus = getSlaStatus(selectedTraining.successRate);
   const resolutionSlaStatus = getSlaStatus(selectedTraining.resolutionSuccessRate);
@@ -2893,7 +2895,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       const conclusionSla = resolutionSla ?? primarySla;
       const conclusion = count < 5
         ? 'мало данных для вывода'
-        : (conclusionSla === null ? 'нет данных по SLA' : (conclusionSla >= 95 ? 'маршрут стабилен' : (conclusionSla >= 85 ? 'зона внимания, смотреть причины' : 'узкое место, нужен разбор')));
+        : (conclusionSla === null ? 'нет данных по SLA' : (conclusionSla >= 95 ? 'маршрут стабилен' : (conclusionSla >= 90 ? 'зона внимания' : (conclusionSla >= 80 ? 'риск, нужен разбор' : 'критично, срочный разбор'))));
       return { route, count, primarySla, resolutionSla, conclusion };
     });
 
@@ -2944,22 +2946,29 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
 
   const weekTypeLabels = {
     calm: 'спокойная неделя',
-    normal: 'обычная неделя',
+    normal: 'нормальная неделя',
     high_load: 'повышенная нагрузка',
     incident: 'аномальная неделя / возможная авария',
     partial: 'неполная неделя'
   };
   const weekTypeLabel = weekTypeLabels[selectedTraining.weekType] || 'обычная неделя';
-  const abnormalWeekNote = ['high_load', 'incident', 'partial'].includes(selectedTraining.weekType)
-    ? 'Неделя с аномальной нагрузкой, не используется как эталонная база.'
-    : '';
+  const abnormalWeekNote = selectedTraining.weekType === 'partial'
+    ? 'Неполная неделя не используется как эталонная база.'
+    : (selectedTraining.weekType === 'incident'
+      ? 'Аномальная неделя / возможная авария не используется как эталонная база.'
+      : (selectedTraining.weekType === 'high_load'
+        ? 'Неделя с повышенной нагрузкой не используется как эталонная база.'
+        : ''));
+  const validRouteBaseText = selectedTraining.filledRouteCount > 0
+    ? `От всех закрытых тикетов: ${formatPercent(percentOf(selectedTraining.selfCount, selectedTraining.closed || selectedTraining.routeTotal))}.`
+    : 'Валидные маршруты пока не накоплены.';
   const kpiCards = [
     { label: 'Входящий поток', value: selectedTraining.inflow, suffix: 'шт.', tone: 'text-slate-100', hint: `Тип недели: ${weekTypeLabel}. ${inflowHint}.${abnormalWeekNote ? ` ${abnormalWeekNote}` : ''}` },
-    { label: 'Взятие в работу ≤15 мин', value: selectedTraining.successRate, suffix: '%', tone: primarySlaStatus.tone, status: primarySlaStatus.label, hint: `Показывает, какая доля обращений была взята в работу в установленный срок после создания. Просрочек реакции: ${selectedTraining.primaryViolations}. ${formatTargetGap(selectedTraining.successRate)}` },
-    { label: 'Решение в срок', value: selectedTraining.resolutionSuccessRate, suffix: '%', tone: resolutionSlaStatus.tone, status: resolutionSlaStatus.label, hint: `Показывает, какая доля обращений была решена в рамках установленного SLA. Просрочек решения: ${selectedTraining.resolutionViolations}. ${formatTargetGap(selectedTraining.resolutionSuccessRate)}` },
-    { label: 'Самостоятельность', value: selectedTraining.selfPercent, suffix: '%', tone: 'text-cyan-300', hint: 'Показывает, какая доля инцидентов была решена без участия следующих уровней поддержки.' },
+    { label: 'Взятие в работу ≤15 мин', value: selectedTraining.successRate, suffix: '%', tone: primarySlaStatus.tone, status: primarySlaStatus.label, target: 95, hint: `${formatPercent(selectedTraining.successRate)} обращений взяли в работу за 15 минут. ${selectedTraining.primaryViolations} обращений — позже нормы. До цели 95% ${selectedTraining.successRate >= 95 ? 'разрыва нет' : `не хватает ${roundMetric(95 - selectedTraining.successRate, 1)} ${pointWord(95 - selectedTraining.successRate)}`}.` },
+    { label: 'Решение в срок', value: selectedTraining.resolutionSuccessRate, suffix: '%', tone: resolutionSlaStatus.tone, status: resolutionSlaStatus.label, target: 95, hint: `${formatPercent(selectedTraining.resolutionSuccessRate)} обращений решены в рамках SLA. Просрочек решения: ${selectedTraining.resolutionViolations}. До цели 95% ${selectedTraining.resolutionSuccessRate >= 95 ? 'разрыва нет' : `не хватает ${roundMetric(95 - selectedTraining.resolutionSuccessRate, 1)} ${pointWord(95 - selectedTraining.resolutionSuccessRate)}`}.` },
+    { label: 'Самостоятельность', value: selectedTraining.selfPercent, suffix: '%', tone: 'text-cyan-300', hint: `Считается по тикетам с валидным маршрутом решения. ${validRouteBaseText}` },
     { label: 'Помощь старших', value: selectedTraining.helpPercent, suffix: '%', tone: 'text-fuchsia-300', hint: 'Показывает, какая доля инцидентов потребовала участия администратора 1-й линии, дежурного, администратора направления или смежной команды.' },
-    { label: 'Качество данных маршрута', value: selectedTraining.routeDataQualityPercent, suffix: '%', tone: selectedTraining.routeDataQualityPercent >= 95 ? 'text-emerald-300' : (selectedTraining.routeDataQualityPercent >= 80 ? 'text-amber-300' : 'text-red-300'), status: selectedTraining.routeDataQualityPercent >= 95 ? 'в норме' : 'нужна очистка', hint: `${selectedTraining.unknownCount} тикетов требуют очистки справочника` }
+    { label: 'Качество данных маршрута', value: selectedTraining.routeDataQualityPercent, suffix: '%', tone: selectedTraining.routeDataQualityPercent >= 95 ? 'text-emerald-300' : (selectedTraining.routeDataQualityPercent >= 80 ? 'text-amber-300' : 'text-red-300'), status: selectedTraining.routeDataQualityPercent >= 95 ? 'в норме' : (selectedTraining.routeDataQualityPercent >= 80 ? 'предварительно' : 'нужна очистка'), hint: `${formatPercent(selectedTraining.routeDataQualityPercent)} тикетов имеют корректный маршрут. ${selectedTraining.unknownCount} строк нужно очистить. До очистки выводы по маршрутам предварительные.` }
   ];
 
   const fintechReportCards = kpiCards.filter(card => card.label !== 'Входящий поток');
@@ -2988,6 +2997,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       suffix: card.suffix,
       hint: card.hint,
       status: card.status,
+      target: card.target,
       previousValue: previousTraining && Number.isFinite(Number(previousValue)) ? Number(previousValue) : null,
       delta: previousTraining && Number.isFinite(Number(previousValue)) ? roundMetric(Number(card.value) - Number(previousValue), 1) : null,
       goodDirection: card.label === 'Помощь старших' ? 'down' : 'up',
@@ -3007,19 +3017,39 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   }));
 
   const weakestSlaValue = Math.min(selectedTraining.successRate || 0, selectedTraining.resolutionSuccessRate || 0);
-  const statusTitle = weakestSlaValue >= 95
-    ? 'В норме: SLA на целевом уровне'
-    : (weakestSlaValue >= 90 ? 'Зона внимания: SLA ниже целевого уровня' : 'Критично: SLA требует разбора');
+  const getResolvedWeekStatus = () => {
+    const slaTail = weakestSlaValue < 80
+      ? 'SLA ниже критического порога, нужен срочный разбор.'
+      : (weakestSlaValue < 90
+        ? 'SLA ниже цели, нужен разбор причин.'
+        : (weakestSlaValue < 95 ? 'SLA ниже цели, зона внимания.' : 'SLA на целевом уровне.'));
+    if (selectedTraining.weekType === 'partial') {
+      return {
+        key: 'partial',
+        title: `Неполная неделя: статус предварительный. ${slaTail}`,
+        summary: `${weekTypeLabel}. Нагрузка в пределах ${selectedTraining.inflow >= 200 && selectedTraining.inflow <= 250 ? 'нормального диапазона' : 'текущего диапазона'}, но неделя не используется как база.`
+      };
+    }
+    if (weakestSlaValue < 80) return { key: 'critical', title: 'Критично: SLA требует срочного разбора', summary: 'Один из SLA ниже 80%. Красный статус используется только для таких случаев.' };
+    if (selectedTraining.weekType === 'incident') return { key: 'incident', title: 'Аномальная неделя / возможная авария', summary: 'Входящий поток выше 300 или неделя помечена как аварийная. Для базы не используем.' };
+    if (selectedTraining.weekType === 'high_load') return { key: 'high_load', title: 'Повышенная нагрузка', summary: 'Поток выше нормального диапазона. Для эталонной базы неделю не используем.' };
+    if (weakestSlaValue < 90) return { key: 'risk', title: 'Риск по SLA: нужен разбор причин', summary: 'SLA в диапазоне 80-89,9%. Это риск, но не критичный красный статус.' };
+    if (weakestSlaValue < 95) return { key: 'attention', title: 'Зона внимания: SLA ниже цели', summary: 'SLA в диапазоне 90-94,9%. Нужен контроль причин и динамики.' };
+    return { key: selectedTraining.weekType, title: 'Сервис стабилен', summary: `${weekTypeLabel}. SLA на целевом уровне.` };
+  };
+  const resolvedWeekStatus = getResolvedWeekStatus();
   const weakestSlaRoute = routeSlaRows
     .filter(row => row.count >= 5 && row.resolutionSla !== null)
     .sort((a, b) => (a.resolutionSla || 0) - (b.resolutionSla || 0))[0];
   const mainActionTopic = fintechTopics[0] || null;
   const reportStatusWeek = {
-    title: statusTitle,
-    summary: selectedTraining.sectionSummary,
+    title: resolvedWeekStatus.title,
+    summary: resolvedWeekStatus.summary || selectedTraining.sectionSummary,
     points: [
+      `Тип недели: ${weekTypeLabel}.`,
       `Взятие в работу ≤15 мин: ${formatPercent(selectedTraining.successRate)}, цель 95%, ${selectedTraining.successRate >= 95 ? 'цель достигнута' : `не хватает ${roundMetric(95 - selectedTraining.successRate, 1)} ${pointWord(95 - selectedTraining.successRate)}`}.`,
       `Решение в срок: ${formatPercent(selectedTraining.resolutionSuccessRate)}, цель 95%, ${selectedTraining.resolutionSuccessRate >= 95 ? 'цель достигнута' : `не хватает ${roundMetric(95 - selectedTraining.resolutionSuccessRate, 1)} ${pointWord(95 - selectedTraining.resolutionSuccessRate)}`}.`,
+      `Самостоятельность 1-й линии: ${formatPercent(selectedTraining.selfPercent)} по валидным маршрутам.`,
       `Помощь старших: ${formatPercent(selectedTraining.helpPercent)} валидных маршрутов — требуется разбор тем и маршрутов.`,
       weakestSlaRoute ? `Самая слабая точка по SLA: ${weakestSlaRoute.route}.` : 'По маршрутам пока недостаточно SLA-данных.',
       abnormalWeekNote || (baselineKeys.length < 3 ? 'База формируется: нужно минимум 3 обычные недели.' : 'База считается по медиане обычных недель.')
@@ -3223,15 +3253,25 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     ? `Неделя аномальная. Для планирования базовой емкости ее не используем, но используем для расчета аварийного резерва и анализа причины всплеска. При текущем входящем потоке ${selectedTraining.inflow} инцидентов оценочная нагрузка 1-й линии составляет ${formatHours(firstLineIncidentHours)}, резерв помощи старших за неделю — ${formatHours(totalSeniorSupportHours)}.`
     : `При текущем входящем потоке ${selectedTraining.inflow} инцидентов в неделю минимальная емкость стажеров составляет ${traineeMinHours} часов, максимальная — ${traineeMaxHours} часов. Оценочная нагрузка 1-й линии по тикетам составляет ${formatHours(firstLineIncidentHours)}. По маршрутам решения резерв помощи старших за неделю составляет ${formatHours(totalSeniorSupportHours)}, за месяц около ${formatHours(totalSeniorSupportHours * 4.3)}. Эти часы нужно учитывать при планировании задач развития, иначе проектные задачи будут проседать.`;
 
+  const classifyTemperature = () => {
+    if (selectedTraining.weekType === 'partial') {
+      return { label: 'Нет оценки', summary: 'Температура не рассчитывается: неделя неполная.', unavailable: true };
+    }
+    if (selectedTraining.weekType === 'incident' || selectedTraining.inflow > 300 || selectedTraining.successRate < 80 || selectedTraining.resolutionSuccessRate < 80) {
+      return { label: 'Перегрев', summary: 'Есть критичный SLA ниже 80% или входящий поток выше 300.' };
+    }
+    if (selectedTraining.successRate < 90 || selectedTraining.resolutionSuccessRate < 90) {
+      return { label: 'Горячо', summary: 'Один из SLA в диапазоне 80-89,9%, нужен разбор причин.' };
+    }
+    if (selectedTraining.successRate < 95 || selectedTraining.resolutionSuccessRate < 95 || selectedTraining.inflow > 250) {
+      return { label: 'Зона внимания', summary: 'Есть SLA ниже цели или повышенный входящий поток.' };
+    }
+    if (selectedTraining.inflow < 200) return { label: 'Спокойно', summary: 'SLA на целевом уровне, входящий поток спокойный.' };
+    return { label: 'Нормально', summary: 'SLA на целевом уровне, входящий поток в обычном диапазоне.' };
+  };
+
   const periodAnalytics = {
-    temperature: (() => {
-      if (selectedTraining.weekType === 'partial') return { label: 'Неполная неделя', summary: 'Неделя помечена как неполная. Не используется как эталонная база.' };
-      if (selectedTraining.weekType === 'incident' || selectedTraining.inflow > 300) return { label: 'Перегрев', summary: 'Входящий поток выше аварийного порога или неделя помечена как аномальная / возможная авария.' };
-      if (selectedTraining.successRate < 90 || selectedTraining.resolutionSuccessRate < 90) return { label: 'Горячо', summary: 'Один из SLA ниже 90%, требуется разбор маршрутов и причин просрочек.' };
-      if (selectedTraining.successRate < 95 || selectedTraining.resolutionSuccessRate < 95 || selectedTraining.inflow > 250) return { label: 'Зона внимания', summary: 'Есть риск по SLA или повышенный входящий поток.' };
-      if (selectedTraining.inflow < 200) return { label: 'Спокойно', summary: 'SLA на целевом уровне, входящий поток спокойный.' };
-      return { label: 'Нормально', summary: 'SLA на целевом уровне, входящий поток в обычном диапазоне.' };
-    })(),
+    temperature: classifyTemperature(),
     trafficLight: {
       current: selectedTraining.inflow,
       average: averageInflow,
@@ -3268,13 +3308,27 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     planning: {
       summary: `${planningSummary} Среднее количество тикетов с помощью старших в обычные недели: ${avg(ordinaryHelpCounts) ?? 'данные пока не подключены'}. В аномальные недели: ${avg(abnormalHelpCounts) ?? 'данные пока не подключены'}. Телефония: ${phoneCallsCount > 0 ? 'подключена' : 'не подключена'}.`
     },
-    performerDiagnostics: (Array.isArray(weekData?.topPerformers) ? weekData.topPerformers : []).map(item => ({
-      name: getFullName(item.name || item.login || item.assignee || item.user || 'Неизвестно'),
-      closed: Number(item.closed || item.count || item.incidents || item.total) || 0,
-      avgTimeText: Number.isFinite(Number(item.avgTimeMin || item.avgResolutionMin || item.avgTime)) ? `${roundMetric(Number(item.avgTimeMin || item.avgResolutionMin || item.avgTime), 1)} мин` : 'нет данных',
-      csatText: Number.isFinite(Number(item.csat || item.avgCsat)) ? `${roundMetric(Number(item.csat || item.avgCsat), 1)}` : 'нет данных',
-      profile: safeString(item.profile || item.loadProfile || item.role) || 'профиль нагрузки требует разбора'
-    }))
+    performerDiagnostics: (Array.isArray(weekData?.topPerformers) ? weekData.topPerformers : []).map((item, index) => {
+      const rawLogin = safeString(item.login || item.user || item.assigneeLogin || item.id).trim();
+      const rawName = safeString(item.name || item.assignee || item.responsible).trim();
+      const averageMinutes = Number(item.avgTimeMin || item.avgResolutionMin || item.avgTime);
+      const medianMinutes = Number(item.medianTimeMin || item.medianResolutionMin || item.medianTime || item.median);
+      const cleanMedian = Number.isFinite(medianMinutes) && medianMinutes > 0 ? medianMinutes : null;
+      const cleanAverage = Number.isFinite(averageMinutes) && averageMinutes > 0 ? averageMinutes : null;
+      const displayMinutes = cleanMedian ?? cleanAverage;
+      const isOutlier = cleanAverage !== null && cleanAverage > 10080;
+      const displayName = rawLogin || (rawName ? `Исполнитель ${index + 1}` : 'Исполнитель');
+      return {
+        displayName,
+        name: displayName,
+        closed: Number(item.closed || item.count || item.incidents || item.total) || 0,
+        medianTimeText: isOutlier ? 'выброс / проверить данные' : (displayMinutes !== null ? `${roundMetric(displayMinutes, 1)} мин` : 'нет данных'),
+        avgTimeText: cleanAverage !== null ? `${roundMetric(cleanAverage, 1)} мин` : 'нет данных',
+        avgTimeHint: cleanAverage !== null ? `Среднее: ${roundMetric(cleanAverage, 1)} мин` : '',
+        csatText: Number.isFinite(Number(item.csat || item.avgCsat)) ? `${roundMetric(Number(item.csat || item.avgCsat), 1)}` : 'нет данных',
+        profile: safeString(item.profile || item.loadProfile || item.role) || 'профиль нагрузки требует разбора'
+      };
+    })
   };
 
   const handleDownloadFintechLabReport = () => {
@@ -7964,7 +8018,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         suffix: '%',
         accent: summary.slaFirstReactionPercent >= 95 ? '#10b981' : (summary.slaFirstReactionPercent >= 80 ? '#f59e0b' : '#ef4444'),
         progress: Math.min(100, Math.max(0, summary.slaFirstReactionPercent)),
-        hint: `Цель: 95%. Просрочек реакции: ${summary.slaPrimaryCount} | Решение в срок: ${summary.slaResolutionPercent}%`,
+        hint: `Цель: 95%. Просрочек взятия в работу: ${summary.slaPrimaryCount} | Решение в срок: ${summary.slaResolutionPercent}%`,
         trend: '',
         trendTone: 'slate'
       }
