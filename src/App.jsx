@@ -8029,9 +8029,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       return `
       <div style="font-family:Aptos, Calibri, Arial, sans-serif; mso-ascii-font-family:Aptos; mso-hansi-font-family:Aptos; color:#0f172a; font-size:12px; line-height:1.25;">
         <h2 style="font-family:Aptos, Calibri, Arial, sans-serif; font-size:14px; margin:0 0 8px 0; color:#0f172a;">1. Решенные задачи за неделю</h2>
-        ${renderHtmlCopyTaskSections()}
+        ${renderTaskSections()}
         <h2 style="font-family:Aptos, Calibri, Arial, sans-serif; font-size:14px; margin:14px 0 8px 0; color:#0f172a;">2. Поручения руководства</h2>
-        ${renderHtmlCopyManagementTasks()}
+        ${renderManagementTasks()}
       </div>`;
     }
 
