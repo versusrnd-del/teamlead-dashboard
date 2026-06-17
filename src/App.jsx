@@ -8033,6 +8033,116 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadWordHtmlReport = () => {
+    const persisted = persistWordPreviewEdits();
+    const htmlContent = getWordReportHtmlString({ exportMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HTML Report Week ${weekData?.weekNumber || ''}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page-bg: #f8fafc;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --blue: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #0f172a;
+      color: var(--ink);
+      font-family: ${wordFontFamily};
+      line-height: 1.35;
+    }
+    .html-report-shell {
+      max-width: 1120px;
+      margin: 28px auto;
+      padding: 22px;
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 20px;
+      box-shadow: 0 24px 70px rgba(2, 6, 23, 0.35);
+    }
+    .html-report-toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-end;
+      padding: 0 2px 16px;
+      color: #e2e8f0;
+    }
+    .html-report-toolbar h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.01em;
+    }
+    .html-report-toolbar p {
+      margin: 4px 0 0;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+    .html-report-badge {
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      background: rgba(14, 165, 233, 0.10);
+      color: #bae6fd;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .html-report-page {
+      background: #ffffff;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 34px;
+      border-radius: 14px;
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+    }
+    .copy-note {
+      max-width: 920px;
+      margin: 14px auto 0;
+      color: #cbd5e1;
+      font-size: 12px;
+      text-align: center;
+    }
+    @media print {
+      body { background: #ffffff; }
+      .html-report-shell { margin: 0; padding: 0; background: #ffffff; border: 0; box-shadow: none; }
+      .html-report-toolbar, .copy-note { display: none; }
+      .html-report-page { box-shadow: none; border-radius: 0; max-width: none; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="html-report-shell">
+    <div class="html-report-toolbar">
+      <div>
+        <h1>Отчет руководителю</h1>
+        <p>${escapeHtml(`Неделя ${weekData?.weekNumber || ''}${weekData?.dates ? ` (${weekData.dates})` : ''}`)}</p>
+      </div>
+      <div class="html-report-badge">Таблицы — для скриншотов · задачи — для копирования в Lotus</div>
+    </div>
+    <article class="html-report-page">
+      ${htmlContent}
+    </article>
+    <div class="copy-note">Для письма в Lotus выделяй только блоки задач и поручений. KPI и таблицы удобнее вставлять скриншотами.</div>
+  </main>
+</body>
+</html>`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `HTML_Report_Week_${weekData?.weekNumber || 'current'}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const sections = getSections();
   const visibleSections = sections.filter(section => !section.hidden);
   const wordTasks = getWordTasks();
@@ -8060,6 +8170,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           </button>
           <button onClick={handleDownloadWordReport} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg transition-colors shadow-lg flex items-center gap-2">
             <Download size={18} /> Скачать Word
+          </button>
+          <button onClick={handleDownloadWordHtmlReport} className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2.5 rounded-lg transition-colors shadow-lg flex items-center gap-2" title="Скачать самостоятельный HTML-отчет для скриншотов и копирования задач">
+            <Download size={18} /> Скачать HTML
           </button>
         </div>
       </div>
