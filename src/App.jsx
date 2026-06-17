@@ -7798,21 +7798,24 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const kpiCards = getWordKpiCards();
 
     const renderKpi = () => `
-      <div style="border:1px solid #dbeafe; border-left:5px solid #2563eb; background:#ffffff; margin:0 0 16px 0;">
-        <div style="background:#eff6ff; padding:7px 10px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:12px; letter-spacing:0.03em;">Ключевые показатели недели</div>
-        ${kpiCards.map(card => `
-          <div style="padding:7px 10px; border-top:1px solid #dbeafe; background:#ffffff;">
-            <div style="font-size:13px; color:#0f172a;">
-              <b>${escapeHtml(card.title)}:</b>
-              <span style="font-size:17px; color:${card.accent}; font-weight:900; margin-left:4px;">${escapeHtml(card.value)}</span><span style="font-size:12px; color:#475569;"> ${escapeHtml(card.suffix)}</span>
-              ${card.trend ? `<span style="font-size:11px; color:${getTrendColor(card.trendTone)}; font-weight:800; margin-left:5px;">${escapeHtml(card.trend)}</span>` : ''}
-            </div>
-            <div style="font-size:12px; color:#64748b; margin-top:2px;">
-              ${escapeHtml(card.hint)}
-            </div>
-          </div>
+      <table style="width:100%; border-collapse:separate; border-spacing:12px 0; margin: 0 0 20px 0;">
+        <tr>
+          ${kpiCards.map(card => `
+            <td style="width:33.33%; border:1px solid #dbeafe; border-top:4px solid ${card.accent}; border-radius:10px; padding:14px; background:#ffffff; vertical-align:top; box-shadow:0 3px 10px rgba(15,23,42,0.10);">
+              <div style="font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px; font-weight:900;">${escapeHtml(card.title)}</div>
+              <div style="margin-bottom:8px;">
+                <span style="font-size:24px; color:${card.accent}; font-weight:900;">${escapeHtml(card.value)}</span>
+                <span style="font-size:12px; color:#475569;"> ${escapeHtml(card.suffix)}</span>
+                ${card.trend ? `<span style="font-size:11px; color:${getTrendColor(card.trendTone)}; font-weight:800; margin-left:4px;">${escapeHtml(card.trend)}</span>` : ''}
+              </div>
+              <div style="font-size:12px; color:#475569; margin-bottom:10px;">${escapeHtml(card.hint)}</div>
+              <div style="height:5px; background:#e2e8f0; border-radius:99px; overflow:hidden;">
+                <div style="height:5px; width:${card.progress}%; background:${card.accent}; border-radius:99px;"></div>
+              </div>
+            </td>
         `).join('')}
-      </div>`;
+        </tr>
+      </table>`;
 
     const renderTask = (task) => {
       return `
@@ -7851,24 +7854,28 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     };
 
     const renderLeaderList = (rows, color) => rows.length
-      ? rows.map((row, index) => `
-          <div style="border-bottom:1px solid #e2e8f0; padding:5px 0; font-size:13px; color:#0f172a;">
-            <span style="color:#64748b; display:inline-block; width:20px;">${index + 1}.</span>
-            <span style="font-weight:800;">${escapeHtml(row.name)}</span>
-            <span style="float:right; font-size:14px; font-weight:900; color:${color};">${row.closed}</span>
-          </div>`).join('')
+      ? `<table style="width:100%; border-collapse:collapse;">${rows.map((row, index) => `
+          <tr>
+            <td style="width:26px; padding:5px 0; color:#64748b; font-size:12px; border-bottom:1px solid #e2e8f0;">${index + 1}.</td>
+            <td style="padding:5px 6px; font-size:13px; font-weight:800; color:#0f172a; border-bottom:1px solid #e2e8f0;">${escapeHtml(row.name)}</td>
+            <td style="width:46px; padding:5px 0; text-align:right; font-size:14px; font-weight:900; color:${color}; border-bottom:1px solid #e2e8f0;">${row.closed}</td>
+          </tr>`).join('')}</table>`
       : '<div style="font-size:12px; color:#64748b;">Нет данных</div>';
 
     const renderTeamMetrics = () => `
       <div style="border:1px solid #dbe4ef; border-radius:10px; overflow:hidden; margin-top:8px; background:#ffffff;">
-        <div style="padding:12px 14px; border-top:4px solid #3b82f6; background:#f8fbff;">
-          <div style="font-size:12px; color:#1d4ed8; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по задачам</div>
-          ${renderLeaderList(taskLeaders, '#1d4ed8')}
-        </div>
-        <div style="padding:12px 14px; border-top:1px solid #dbeafe; border-left:4px solid #10b981; background:#f8fffc;">
-          <div style="font-size:12px; color:#047857; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по инцидентам</div>
-          ${renderLeaderList(incidentLeaders, '#047857')}
-        </div>
+        <table style="width:100%; border-collapse:collapse;">
+          <tr>
+            <td style="width:50%; padding:14px 16px; border-right:1px solid #e2e8f0; border-top:4px solid #3b82f6; vertical-align:top; background:#f8fbff;">
+              <div style="font-size:12px; color:#1d4ed8; font-weight:900; text-transform:uppercase; margin-bottom:10px;">Топ по задачам</div>
+              ${renderLeaderList(taskLeaders, '#1d4ed8')}
+            </td>
+            <td style="width:50%; padding:14px 16px; border-top:4px solid #10b981; vertical-align:top; background:#f8fffc;">
+              <div style="font-size:12px; color:#047857; font-weight:900; text-transform:uppercase; margin-bottom:10px;">Топ по инцидентам</div>
+              ${renderLeaderList(incidentLeaders, '#047857')}
+            </td>
+          </tr>
+        </table>
         <div style="border-top:1px solid #e2e8f0; background:#fffdf5; padding:12px 16px;">
           <span style="font-size:12px; color:#92400e; font-weight:900; text-transform:uppercase; margin-right:16px;">Качество и линия</span>
           <span style="font-size:13px; color:#0f172a; margin-right:18px;">CSAT <b style="font-size:18px;">${escapeHtml(getCsatValue())}</b></span>
@@ -7882,13 +7889,25 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       return `
         <div style="margin-top:12px; border:1px solid #dbeafe; border-radius:8px; overflow:hidden;">
           <div style="background:#f8fafc; padding:8px 10px; font-size:12px; color:#334155; font-weight:900; text-transform:uppercase;">Первая линия: основные показатели</div>
-          ${firstLineRows.map(row => `
-            <div style="padding:7px 10px; border-top:1px solid #f1f5f9; font-size:12px; background:#ffffff;">
-              <div style="font-weight:900; color:#0f172a;">${escapeHtml(row.name)}</div>
-              <div style="color:#475569; margin-top:2px;">
-                Инциденты: <b>${row.closed}</b>; звонки: <b>${row.calls || 'нет'}</b>; пропущено: <b>${row.missed || 0}</b>; доступность: <b>${row.availability !== null ? `${row.availability}%` : '-'}</b>; CSAT: <b>${row.csat ? row.csat.toFixed(1) : '-'}</b>
-              </div>
-            </div>`).join('')}
+          <table style="width:100%; border-collapse:collapse;">
+            <tr style="background:#ffffff;">
+              <th style="text-align:left; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Администратор</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Инциденты</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Звонки</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Пропущено</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Доступность</th>
+              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">CSAT</th>
+            </tr>
+            ${firstLineRows.map(row => `
+              <tr>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; font-size:12px; font-weight:800;">${escapeHtml(row.name)}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.closed}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.calls || 'нет'}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.missed || 0}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.availability !== null ? `${row.availability}%` : '-'}</td>
+                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:900;">${row.csat ? row.csat.toFixed(1) : '-'}</td>
+              </tr>`).join('')}
+          </table>
         </div>`;
     };
 
@@ -7913,26 +7932,28 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           </div>` : ''}
         <div style="border:1px solid ${slaSnapshot.heat.border}; border-left:5px solid ${slaSnapshot.heat.color}; background:${slaSnapshot.heat.bg}; border-radius:8px; padding:12px;">
           <div style="font-size:13px; color:${slaSnapshot.heat.color}; font-weight:900; text-transform:uppercase; margin-bottom:10px;">SLA основной контроль: ${slaSnapshot.heat.label}</div>
-          <div style="border:1px solid #fecaca; background:#fff7f7; border-radius:7px; padding:8px; margin-bottom:7px;">
-            <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Основной SLA</div>
-            <div style="font-size:13px; color:#334155;">
-              <span style="font-size:22px; color:#991b1b; font-weight:900;">${slaSnapshot.primaryCount}</span>
-              нарушений; инцидент от момента создания; <b style="color:#dc2626;">+${Math.round(slaSnapshot.primaryAvg || 0)} мин</b>
-            </div>
-          </div>
-          <div style="border:1px solid #fed7aa; background:#fff7ed; border-radius:7px; padding:8px; margin-bottom:7px;">
-            <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">До решения</div>
-            <div style="font-size:13px; color:#334155;">
-              <span style="font-size:22px; color:#c2410c; font-weight:900;">${slaSnapshot.resolutionCount}</span>
-              нарушений; вторичный контроль; <b style="color:#c2410c;">+${Math.round(slaSnapshot.resolutionAvg || 0)} мин</b>
-            </div>
-          </div>
-          <div style="border:1px solid #cbd5e1; background:#ffffff; border-radius:7px; padding:8px; margin-bottom:10px;">
-            <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Характер просрочки</div>
-            <div style="font-size:13px; color:#334155;">
-              Простые обращения: <b style="font-size:16px; color:#0f172a;">${slaSnapshot.simpleShare}%</b>; сложные: <b>${slaSnapshot.complexShare}%</b>
-            </div>
-          </div>
+          <table style="width:100%; border-collapse:separate; border-spacing:8px 0; margin-bottom:10px;">
+            <tr>
+              <td style="width:33%; border:1px solid #fecaca; background:#fff7f7; border-radius:7px; padding:8px; vertical-align:top;">
+                <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Основной SLA</div>
+                <div style="font-size:24px; color:#991b1b; font-weight:900;">${slaSnapshot.primaryCount}</div>
+                <div style="font-size:11px; color:#64748b;">Инцидент от момента создания</div>
+                <div style="font-size:11px; color:#dc2626; font-weight:800;">+${Math.round(slaSnapshot.primaryAvg || 0)} мин</div>
+              </td>
+              <td style="width:33%; border:1px solid #fed7aa; background:#fff7ed; border-radius:7px; padding:8px; vertical-align:top;">
+                <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">До решения</div>
+                <div style="font-size:24px; color:#c2410c; font-weight:900;">${slaSnapshot.resolutionCount}</div>
+                <div style="font-size:11px; color:#64748b;">Вторичный контроль</div>
+                <div style="font-size:11px; color:#c2410c; font-weight:800;">+${Math.round(slaSnapshot.resolutionAvg || 0)} мин</div>
+              </td>
+              <td style="width:33%; border:1px solid #cbd5e1; background:#ffffff; border-radius:7px; padding:8px; vertical-align:top;">
+                <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Характер просрочки</div>
+                <div style="font-size:18px; color:#0f172a; font-weight:900;">${slaSnapshot.simpleShare}%</div>
+                <div style="font-size:11px; color:#64748b;">простые обращения</div>
+                <div style="font-size:11px; color:#64748b;">сложные: ${slaSnapshot.complexShare}%</div>
+              </td>
+            </tr>
+          </table>
           <div style="font-size:12px; color:#334155; line-height:1.45;">${escapeHtml(slaSnapshot.diagnosis)}</div>
           <div style="font-size:11px; color:#64748b; margin-top:6px;">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
         </div>`;
@@ -7972,6 +7993,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${renderTeamMetrics()}
         ${renderFirstLine()}
         ${renderCsatComments()}
+        ${renderFlowControlAppendix()}
       </div>`;
   };
 
@@ -8376,6 +8398,56 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                   )}
               </div>
             </section>
+
+            {(wordSystemProblems.length > 0 || wordSlaSnapshot.primaryCount > 0 || wordSlaSnapshot.resolutionCount > 0) && (
+              <section className="mt-6" style={{ fontFamily: wordFontFamily }}>
+                <h3 className="text-lg font-black mb-3">5. Контроль потока инцидентов</h3>
+                {wordSystemProblems.length > 0 && (
+                  <div className="mb-5">
+                    <div className="text-sm font-black text-slate-700 mb-2">Ключевые системные проблемы (Топ-3)</div>
+                    <div className="space-y-2">
+                      {wordSystemProblems.map((item, index) => (
+                        <div key={`${item.title}-${index}`} className="rounded-md bg-slate-50 p-3" style={{ borderLeft: `4px solid ${item.color}` }}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="font-black text-sm">{index + 1}. {item.title}</div>
+                            <div className="text-xs font-black" style={{ color: item.color }}>{item.count} шт. ({item.percent}%)</div>
+                          </div>
+                          <div className="h-1 bg-slate-200 rounded-full overflow-hidden my-2">
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(4, item.percent))}%`, background: item.color }} />
+                          </div>
+                          {item.description && <div className="text-xs text-slate-600">{item.description}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="rounded-lg p-4" style={{ border: `1px solid ${wordSlaSnapshot.heat.border}`, borderLeft: `5px solid ${wordSlaSnapshot.heat.color}`, background: wordSlaSnapshot.heat.bg }}>
+                  <div className="text-sm font-black uppercase mb-3" style={{ color: wordSlaSnapshot.heat.color }}>SLA основной контроль: {wordSlaSnapshot.heat.label}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                      <div className="text-[11px] font-black uppercase text-slate-500">Основной SLA</div>
+                      <div className="text-2xl font-black text-red-800">{wordSlaSnapshot.primaryCount}</div>
+                      <div className="text-xs text-slate-500">Инцидент от момента создания</div>
+                      <div className="text-xs font-bold text-red-600">+{Math.round(wordSlaSnapshot.primaryAvg || 0)} мин</div>
+                    </div>
+                    <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                      <div className="text-[11px] font-black uppercase text-slate-500">До решения</div>
+                      <div className="text-2xl font-black text-orange-700">{wordSlaSnapshot.resolutionCount}</div>
+                      <div className="text-xs text-slate-500">Вторичный контроль</div>
+                      <div className="text-xs font-bold text-orange-700">+{Math.round(wordSlaSnapshot.resolutionAvg || 0)} мин</div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="text-[11px] font-black uppercase text-slate-500">Характер просрочки</div>
+                      <div className="text-2xl font-black text-slate-900">{wordSlaSnapshot.simpleShare}%</div>
+                      <div className="text-xs text-slate-500">простые обращения</div>
+                      <div className="text-xs text-slate-500">сложные: {wordSlaSnapshot.complexShare}%</div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-slate-700">{wordSlaSnapshot.diagnosis}</div>
+                  <div className="text-xs text-slate-500 mt-2">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
+                </div>
+              </section>
+            )}
 
           </div>
         </div>
