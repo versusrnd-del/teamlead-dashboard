@@ -7798,24 +7798,19 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const kpiCards = getWordKpiCards();
 
     const renderKpi = () => `
-      <table style="width:100%; border-collapse:separate; border-spacing:12px 0; margin: 0 0 20px 0;">
-        <tr>
-          ${kpiCards.map(card => `
-            <td style="width:33.33%; border:1px solid #dbeafe; border-top:4px solid ${card.accent}; border-radius:8px; padding:14px; background:#ffffff; vertical-align:top; box-shadow:0 2px 6px rgba(15,23,42,0.08);">
-              <div style="font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px;">${escapeHtml(card.title)}</div>
-              <div style="margin-bottom:8px;">
-                <span style="font-size:24px; color:${card.accent}; font-weight:900;">${escapeHtml(card.value)}</span>
-                <span style="font-size:12px; color:#475569;"> ${escapeHtml(card.suffix)}</span>
-                ${card.trend ? `<span style="font-size:11px; color:${getTrendColor(card.trendTone)}; font-weight:800; margin-left:4px;">${escapeHtml(card.trend)}</span>` : ''}
-              </div>
-              <div style="font-size:12px; color:#475569; margin-bottom:10px;">${escapeHtml(card.hint)}</div>
-              <div style="height:5px; background:#e2e8f0; border-radius:99px; overflow:hidden;">
-                <div style="height:5px; width:${card.progress}%; background:${card.accent}; border-radius:99px;"></div>
-              </div>
-            </td>
-          `).join('')}
-        </tr>
-      </table>`;
+      <div style="margin:0 0 16px 0;">
+        ${kpiCards.map(card => `
+          <div style="border:1px solid #dbeafe; border-left:5px solid ${card.accent}; padding:9px 10px; background:#ffffff; margin-bottom:8px;">
+            <div style="font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; font-weight:900;">${escapeHtml(card.title)}</div>
+            <div style="font-size:13px; color:#0f172a; margin-top:3px;">
+              <span style="font-size:20px; color:${card.accent}; font-weight:900;">${escapeHtml(card.value)}</span>
+              <span style="font-size:12px; color:#475569;"> ${escapeHtml(card.suffix)}</span>
+              ${card.trend ? `<span style="font-size:11px; color:${getTrendColor(card.trendTone)}; font-weight:800; margin-left:4px;">${escapeHtml(card.trend)}</span>` : ''}
+              <span style="color:#64748b;"> · ${escapeHtml(card.hint)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>`;
 
     const renderTask = (task) => {
       return `
@@ -7854,28 +7849,24 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     };
 
     const renderLeaderList = (rows, color) => rows.length
-      ? `<table style="width:100%; border-collapse:collapse;">${rows.map((row, index) => `
-          <tr>
-            <td style="width:26px; padding:5px 0; color:#64748b; font-size:12px; border-bottom:1px solid #e2e8f0;">${index + 1}.</td>
-            <td style="padding:5px 6px; font-size:13px; font-weight:800; color:#0f172a; border-bottom:1px solid #e2e8f0;">${escapeHtml(row.name)}</td>
-            <td style="width:46px; padding:5px 0; text-align:right; font-size:14px; font-weight:900; color:${color}; border-bottom:1px solid #e2e8f0;">${row.closed}</td>
-          </tr>`).join('')}</table>`
+      ? rows.map((row, index) => `
+          <div style="border-bottom:1px solid #e2e8f0; padding:5px 0; font-size:13px; color:#0f172a;">
+            <span style="color:#64748b; display:inline-block; width:20px;">${index + 1}.</span>
+            <span style="font-weight:800;">${escapeHtml(row.name)}</span>
+            <span style="float:right; font-size:14px; font-weight:900; color:${color};">${row.closed}</span>
+          </div>`).join('')
       : '<div style="font-size:12px; color:#64748b;">Нет данных</div>';
 
     const renderTeamMetrics = () => `
       <div style="border:1px solid #dbe4ef; border-radius:10px; overflow:hidden; margin-top:8px; background:#ffffff;">
-        <table style="width:100%; border-collapse:collapse;">
-          <tr>
-            <td style="width:50%; padding:14px 16px; border-right:1px solid #e2e8f0; border-top:4px solid #3b82f6; vertical-align:top; background:#f8fbff;">
-              <div style="font-size:12px; color:#1d4ed8; font-weight:900; text-transform:uppercase; margin-bottom:10px;">Топ по задачам</div>
-              ${renderLeaderList(taskLeaders, '#1d4ed8')}
-            </td>
-            <td style="width:50%; padding:14px 16px; border-top:4px solid #10b981; vertical-align:top; background:#f8fffc;">
-              <div style="font-size:12px; color:#047857; font-weight:900; text-transform:uppercase; margin-bottom:10px;">Топ по инцидентам</div>
-              ${renderLeaderList(incidentLeaders, '#047857')}
-            </td>
-          </tr>
-        </table>
+        <div style="padding:12px 14px; border-top:4px solid #3b82f6; background:#f8fbff;">
+          <div style="font-size:12px; color:#1d4ed8; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по задачам</div>
+          ${renderLeaderList(taskLeaders, '#1d4ed8')}
+        </div>
+        <div style="padding:12px 14px; border-top:1px solid #dbeafe; border-left:4px solid #10b981; background:#f8fffc;">
+          <div style="font-size:12px; color:#047857; font-weight:900; text-transform:uppercase; margin-bottom:8px;">Топ по инцидентам</div>
+          ${renderLeaderList(incidentLeaders, '#047857')}
+        </div>
         <div style="border-top:1px solid #e2e8f0; background:#fffdf5; padding:12px 16px;">
           <span style="font-size:12px; color:#92400e; font-weight:900; text-transform:uppercase; margin-right:16px;">Качество и линия</span>
           <span style="font-size:13px; color:#0f172a; margin-right:18px;">CSAT <b style="font-size:18px;">${escapeHtml(getCsatValue())}</b></span>
@@ -7889,25 +7880,13 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       return `
         <div style="margin-top:12px; border:1px solid #dbeafe; border-radius:8px; overflow:hidden;">
           <div style="background:#f8fafc; padding:8px 10px; font-size:12px; color:#334155; font-weight:900; text-transform:uppercase;">Первая линия: основные показатели</div>
-          <table style="width:100%; border-collapse:collapse;">
-            <tr style="background:#ffffff;">
-              <th style="text-align:left; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Администратор</th>
-              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Инциденты</th>
-              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Звонки</th>
-              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Пропущено</th>
-              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">Доступность</th>
-              <th style="text-align:right; padding:7px; border-bottom:1px solid #e2e8f0; font-size:11px; color:#64748b;">CSAT</th>
-            </tr>
-            ${firstLineRows.map(row => `
-              <tr>
-                <td style="padding:7px; border-bottom:1px solid #f1f5f9; font-size:12px; font-weight:800;">${escapeHtml(row.name)}</td>
-                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.closed}</td>
-                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.calls || 'нет'}</td>
-                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.missed || 0}</td>
-                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px;">${row.availability !== null ? `${row.availability}%` : '-'}</td>
-                <td style="padding:7px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:900;">${row.csat ? row.csat.toFixed(1) : '-'}</td>
-              </tr>`).join('')}
-          </table>
+          ${firstLineRows.map(row => `
+            <div style="padding:7px 10px; border-top:1px solid #f1f5f9; font-size:12px; background:#ffffff;">
+              <div style="font-weight:900; color:#0f172a;">${escapeHtml(row.name)}</div>
+              <div style="color:#475569; margin-top:2px;">
+                Инциденты: <b>${row.closed}</b>; звонки: <b>${row.calls || 'нет'}</b>; пропущено: <b>${row.missed || 0}</b>; доступность: <b>${row.availability !== null ? `${row.availability}%` : '-'}</b>; CSAT: <b>${row.csat ? row.csat.toFixed(1) : '-'}</b>
+              </div>
+            </div>`).join('')}
         </div>`;
     };
 
@@ -7932,28 +7911,26 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           </div>` : ''}
         <div style="border:1px solid ${slaSnapshot.heat.border}; border-left:5px solid ${slaSnapshot.heat.color}; background:${slaSnapshot.heat.bg}; border-radius:8px; padding:12px;">
           <div style="font-size:13px; color:${slaSnapshot.heat.color}; font-weight:900; text-transform:uppercase; margin-bottom:10px;">SLA основной контроль: ${slaSnapshot.heat.label}</div>
-          <table style="width:100%; border-collapse:separate; border-spacing:8px 0; margin-bottom:10px;">
-            <tr>
-              <td style="width:33%; border:1px solid #fecaca; background:#fff7f7; border-radius:7px; padding:8px; vertical-align:top;">
-                <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Основной SLA</div>
-                <div style="font-size:24px; color:#991b1b; font-weight:900;">${slaSnapshot.primaryCount}</div>
-                <div style="font-size:11px; color:#64748b;">Инцидент от момента создания</div>
-                <div style="font-size:11px; color:#dc2626; font-weight:800;">+${Math.round(slaSnapshot.primaryAvg || 0)} мин</div>
-              </td>
-              <td style="width:33%; border:1px solid #fed7aa; background:#fff7ed; border-radius:7px; padding:8px; vertical-align:top;">
-                <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">До решения</div>
-                <div style="font-size:24px; color:#c2410c; font-weight:900;">${slaSnapshot.resolutionCount}</div>
-                <div style="font-size:11px; color:#64748b;">Вторичный контроль</div>
-                <div style="font-size:11px; color:#c2410c; font-weight:800;">+${Math.round(slaSnapshot.resolutionAvg || 0)} мин</div>
-              </td>
-              <td style="width:33%; border:1px solid #cbd5e1; background:#ffffff; border-radius:7px; padding:8px; vertical-align:top;">
-                <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Характер просрочки</div>
-                <div style="font-size:18px; color:#0f172a; font-weight:900;">${slaSnapshot.simpleShare}%</div>
-                <div style="font-size:11px; color:#64748b;">простые обращения</div>
-                <div style="font-size:11px; color:#64748b;">сложные: ${slaSnapshot.complexShare}%</div>
-              </td>
-            </tr>
-          </table>
+          <div style="border:1px solid #fecaca; background:#fff7f7; border-radius:7px; padding:8px; margin-bottom:7px;">
+            <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Основной SLA</div>
+            <div style="font-size:13px; color:#334155;">
+              <span style="font-size:22px; color:#991b1b; font-weight:900;">${slaSnapshot.primaryCount}</span>
+              нарушений; инцидент от момента создания; <b style="color:#dc2626;">+${Math.round(slaSnapshot.primaryAvg || 0)} мин</b>
+            </div>
+          </div>
+          <div style="border:1px solid #fed7aa; background:#fff7ed; border-radius:7px; padding:8px; margin-bottom:7px;">
+            <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">До решения</div>
+            <div style="font-size:13px; color:#334155;">
+              <span style="font-size:22px; color:#c2410c; font-weight:900;">${slaSnapshot.resolutionCount}</span>
+              нарушений; вторичный контроль; <b style="color:#c2410c;">+${Math.round(slaSnapshot.resolutionAvg || 0)} мин</b>
+            </div>
+          </div>
+          <div style="border:1px solid #cbd5e1; background:#ffffff; border-radius:7px; padding:8px; margin-bottom:10px;">
+            <div style="font-size:11px; color:#64748b; font-weight:900; text-transform:uppercase;">Характер просрочки</div>
+            <div style="font-size:13px; color:#334155;">
+              Простые обращения: <b style="font-size:16px; color:#0f172a;">${slaSnapshot.simpleShare}%</b>; сложные: <b>${slaSnapshot.complexShare}%</b>
+            </div>
+          </div>
           <div style="font-size:12px; color:#334155; line-height:1.45;">${escapeHtml(slaSnapshot.diagnosis)}</div>
           <div style="font-size:11px; color:#64748b; margin-top:6px;">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
         </div>`;
@@ -7981,15 +7958,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     return `
       <div style="font-family: ${wordFontFamily}; color:#0f172a; line-height:1.35;">
         <div style="background:#0f172a; color:#ffffff; border-radius:12px; padding:16px 18px; margin-bottom:14px;">
-          <table style="width:100%; border-collapse:collapse;">
-            <tr>
-              <td style="vertical-align:middle;">
-                <div style="font-size:23px; font-weight:900; letter-spacing:0.03em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
-                <div style="font-size:12px; color:#cbd5e1; margin-top:3px;">${escapeHtml(weekTitle)}</div>
-              </td>
-              <td style="vertical-align:middle; text-align:right;"></td>
-            </tr>
-          </table>
+          <div style="font-size:23px; font-weight:900; letter-spacing:0.03em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
+          <div style="font-size:12px; color:#cbd5e1; margin-top:3px;">${escapeHtml(weekTitle)}</div>
         </div>
         ${renderKpi()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">1. Решенные задачи за неделю</h2>
