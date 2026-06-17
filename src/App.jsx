@@ -7826,22 +7826,27 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       </div>`;
     };
 
+    const wordCopyFontFamily = "Aptos, Calibri, Arial, sans-serif";
+    const wordCopyFontStyle = `font-family:${wordCopyFontFamily}; mso-ascii-font-family:Aptos; mso-hansi-font-family:Aptos;`;
+
     const renderHtmlCopyTask = (task) => `
-      <tr>
-        <td style="padding:2px 8px 3px 8px; border:0; background:#ffffff; font-family:${wordFontFamily}; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">
-          <div style="font-weight:800; color:#0f172a; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.wordTitle)};</div>
-          ${task.wordDetails ? `<div style="font-size:11px; color:#475569; margin-top:0; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.wordDetails)}</div>` : ''}
-        </td>
-      </tr>`;
+      <div style="margin:0 0 4px 0; padding:0; ${wordCopyFontStyle} color:#0f172a; line-height:1.22; mso-line-height-rule:exactly;">
+        <div style="margin:0; padding:0; ${wordCopyFontStyle} font-weight:bold; color:#0f172a; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.wordTitle)};</div>
+        ${task.wordDetails ? `<div style="margin:0; padding:0; ${wordCopyFontStyle} font-size:11px; font-weight:400; color:#475569; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.wordDetails)}</div>` : ''}
+      </div>`;
 
     const renderHtmlCopyTaskSections = () => compactTasksBySection.map(section => `
-      <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 7px 0; border:0; font-family:${wordFontFamily};">
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 7px 0; border:0; ${wordCopyFontStyle}">
         <tr>
-          <td style="background:#eff6ff; padding:3px 8px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly; border:0;">
+          <td style="background:#eff6ff; padding:3px 8px; ${wordCopyFontStyle} font-weight:bold; color:#1d4ed8; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly; border:0;">
             ${escapeHtml(section.title)}
           </td>
         </tr>
-        ${section.tasks.length ? section.tasks.map(task => renderHtmlCopyTask(task)).join('') : `<tr><td style="padding:4px 8px; color:#94a3b8; font-size:11px; background:#ffffff; border:0;">Нет задач в разделе</td></tr>`}
+        <tr>
+          <td style="padding:4px 8px 5px 8px; border:0; background:#ffffff; ${wordCopyFontStyle}">
+            ${section.tasks.length ? section.tasks.map(task => renderHtmlCopyTask(task)).join('') : `<div style="margin:0; padding:0; ${wordCopyFontStyle} color:#94a3b8; font-size:11px;">Нет задач в разделе</div>`}
+          </td>
+        </tr>
       </table>
     `).join('');
 
@@ -7859,18 +7864,20 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       const headerBg = isDoneGroup ? '#ecfdf5' : '#eff6ff';
       const headerColor = isDoneGroup ? '#0f766e' : '#1d4ed8';
       return `
-        <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 7px 0; border:0; font-family:${wordFontFamily};">
+        <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 7px 0; border:0; ${wordCopyFontStyle}">
           <tr>
-            <td style="background:${headerBg}; padding:3px 8px; font-weight:900; color:${headerColor}; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly; border:0;">${escapeHtml(title)}</td>
+            <td style="background:${headerBg}; padding:3px 8px; ${wordCopyFontStyle} font-weight:bold; color:${headerColor}; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly; border:0;">${escapeHtml(title)}</td>
           </tr>
-          ${tasks.map(task => `
-            <tr>
-              <td style="padding:2px 8px 3px 8px; border:0; background:${isDoneGroup ? '#f8fffc' : '#ffffff'}; font-family:${wordFontFamily}; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">
-                <div style="font-weight:800; color:#0f172a; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.title)}</div>
-                ${task.comment ? `<div style="font-size:11px; color:#475569; margin-top:0; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.comment)}</div>` : ''}
-              </td>
-            </tr>
-          `).join('')}
+          <tr>
+            <td style="padding:4px 8px 5px 8px; border:0; background:${isDoneGroup ? '#f8fffc' : '#ffffff'}; ${wordCopyFontStyle}">
+              ${tasks.map(task => `
+                <div style="margin:0 0 4px 0; padding:0; ${wordCopyFontStyle} color:#0f172a; line-height:1.22; mso-line-height-rule:exactly;">
+                  <div style="margin:0; padding:0; ${wordCopyFontStyle} font-weight:bold; color:#0f172a; font-size:12px; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.title)}</div>
+                  ${task.comment ? `<div style="margin:0; padding:0; ${wordCopyFontStyle} font-size:11px; font-weight:400; color:#475569; line-height:1.22; mso-line-height-rule:exactly;">${escapeHtml(task.comment)}</div>` : ''}
+                </div>
+              `).join('')}
+            </td>
+          </tr>
         </table>`;
     };
 
