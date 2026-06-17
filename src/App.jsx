@@ -7761,6 +7761,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
   const getWordReportHtmlString = (options = {}) => {
     const exportMode = Boolean(options.exportMode);
+    const htmlCopyMode = Boolean(options.htmlCopyMode);
     const overrides = options.memoryOverrides || {};
     const projectOverrides = options.projectOverrides || {};
     const sections = getSections().filter(section => !section.hidden);
@@ -7825,6 +7826,25 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       </div>`;
     };
 
+    const renderHtmlCopyTask = (task) => `
+      <tr>
+        <td style="padding:4px 8px; border-bottom:1px solid #dbeafe; background:#ffffff; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">
+          <div style="font-weight:900; color:#0f172a; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">${escapeHtml(task.wordTitle)};</div>
+          ${task.wordDetails ? `<div style="font-size:11px; color:#475569; margin-top:1px; line-height:1.25; mso-line-height-rule:exactly;">${escapeHtml(task.wordDetails)}</div>` : ''}
+        </td>
+      </tr>`;
+
+    const renderHtmlCopyTaskSections = () => compactTasksBySection.map(section => `
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 8px 0; border-left:5px solid #3b82f6; border-right:1px solid #bfdbfe; border-bottom:1px solid #bfdbfe; font-family:${wordFontFamily};">
+        <tr>
+          <td style="background:#eff6ff; padding:4px 8px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:11px; line-height:1.2; mso-line-height-rule:exactly;">
+            ${escapeHtml(section.title)}
+          </td>
+        </tr>
+        ${section.tasks.length ? section.tasks.map(task => renderHtmlCopyTask(task)).join('') : `<tr><td style="padding:5px 8px; color:#94a3b8; font-size:11px; background:#ffffff;">Нет задач в разделе</td></tr>`}
+      </table>
+    `).join('');
+
     const renderTaskSections = () => compactTasksBySection.map(section => `
       <div style="border:1px solid #bfdbfe; border-left:5px solid #3b82f6; border-radius:8px; margin:0 0 12px 0; overflow:hidden;">
         <div style="background:#eff6ff; padding:7px 10px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:12px; letter-spacing:0.03em;">
@@ -7833,6 +7853,34 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${section.tasks.length ? section.tasks.map(task => renderTask(task)).join('') : `<div style="padding:8px 10px; color:#94a3b8; font-size:12px; background:#ffffff;">Нет задач в разделе</div>`}
       </div>
     `).join('');
+
+    const renderHtmlCopyManagementGroup = (title, tasks, isDoneGroup) => {
+      if (!tasks.length) return '';
+      const accent = isDoneGroup ? '#14b8a6' : '#3b82f6';
+      const border = isDoneGroup ? '#a7f3d0' : '#bfdbfe';
+      const headerBg = isDoneGroup ? '#ecfdf5' : '#eff6ff';
+      const headerColor = isDoneGroup ? '#0f766e' : '#1d4ed8';
+      const rowBorder = isDoneGroup ? '#ccfbf1' : '#dbeafe';
+      return `
+        <table cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:0 0 8px 0; border-left:5px solid ${accent}; border-right:1px solid ${border}; border-bottom:1px solid ${border}; font-family:${wordFontFamily};">
+          <tr>
+            <td style="background:${headerBg}; padding:4px 8px; font-weight:900; color:${headerColor}; text-transform:uppercase; font-size:11px; line-height:1.2; mso-line-height-rule:exactly;">${escapeHtml(title)}</td>
+          </tr>
+          ${tasks.map(task => `
+            <tr>
+              <td style="padding:4px 8px; border-bottom:1px solid ${rowBorder}; background:${isDoneGroup ? '#f8fffc' : '#ffffff'}; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">
+                <div style="font-weight:900; color:#0f172a; font-size:12px; line-height:1.25; mso-line-height-rule:exactly;">${escapeHtml(task.title)}</div>
+                ${task.comment ? `<div style="font-size:11px; color:#475569; margin-top:1px; line-height:1.25; mso-line-height-rule:exactly;">${escapeHtml(task.comment)}</div>` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </table>`;
+    };
+
+    const renderHtmlCopyManagementTasks = () => {
+      if (!managementGroups.done.length && !managementGroups.active.length) return '<div style="font-size:12px; color:#64748b;">Нет активных поручений руководства.</div>';
+      return `${renderHtmlCopyManagementGroup('Выполнено', managementGroups.done, true)}${renderHtmlCopyManagementGroup('В работе по приоритету', managementGroups.active, false)}`;
+    };
 
     const renderManagementTasks = () => {
       const renderGroup = (title, tasks, isDoneGroup) => {
@@ -7986,9 +8034,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         </div>
         ${renderKpi()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">1. Решенные задачи за неделю</h2>
-        ${renderTaskSections()}
+        ${htmlCopyMode ? renderHtmlCopyTaskSections() : renderTaskSections()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">2. Поручения руководства</h2>
-        ${renderManagementTasks()}
+        ${htmlCopyMode ? renderHtmlCopyManagementTasks() : renderManagementTasks()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">3. Показатели команды</h2>
         ${renderTeamMetrics()}
         ${renderFirstLine()}
@@ -8035,7 +8083,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
   const handleDownloadWordHtmlReport = () => {
     const persisted = persistWordPreviewEdits();
-    const htmlContent = getWordReportHtmlString({ exportMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
+    const htmlContent = getWordReportHtmlString({ exportMode: true, htmlCopyMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
     const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
