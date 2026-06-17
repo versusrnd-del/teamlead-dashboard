@@ -8097,6 +8097,34 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const tempClipboardDiv = document.createElement('div');
     tempClipboardDiv.innerHTML = tasksClipboardHtml;
     const tasksClipboardText = tempClipboardDiv.innerText;
+    const tasksClipboardDocHtml = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <meta name="ProgId" content="Word.Document">
+  <meta name="Generator" content="TeamLead Control Room">
+  <meta name="Originator" content="TeamLead Control Room">
+  <title>Tasks Week ${weekData?.weekNumber || ''}</title>
+  <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+  <style>
+    @page WordSection1 { size: 595.3pt 841.9pt; margin: 42.5pt 42.5pt 42.5pt 42.5pt; }
+    div.WordSection1 { page: WordSection1; }
+    body, p, div, table, td {
+      font-family: Aptos, Calibri, Arial, sans-serif;
+      mso-ascii-font-family: Aptos;
+      mso-hansi-font-family: Aptos;
+      color: #0f172a;
+    }
+    p { margin: 0; mso-margin-top-alt: auto; mso-margin-bottom-alt: auto; }
+    table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  </style>
+</head>
+<body>
+  <div class="WordSection1">
+    ${tasksClipboardHtml}
+  </div>
+</body>
+</html>`;
     const toScriptString = (value) => JSON.stringify(value).replace(/<\/script/gi, '<\\/script');
     const html = `<!DOCTYPE html>
 <html lang="ru">
@@ -8210,6 +8238,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       <div class="html-report-actions">
         <div class="html-report-badge">Таблицы — для скриншотов · задачи — для копирования в Lotus</div>
         <button class="html-copy-button" type="button" onclick="copyLotusTasks(this)">Скопировать задачи</button>
+        <button class="html-copy-button" type="button" onclick="downloadLotusTasksDoc(this)">Скачать задачи DOC</button>
       </div>
     </div>
     <article class="html-report-page">
@@ -8220,6 +8249,21 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   <script>
     const lotusTasksHtml = ${toScriptString(tasksClipboardHtml)};
     const lotusTasksText = ${toScriptString(tasksClipboardText)};
+    const lotusTasksDocHtml = ${toScriptString(tasksClipboardDocHtml)};
+    function downloadLotusTasksDoc(button) {
+      const originalText = button.textContent;
+      const blob = new Blob([lotusTasksDocHtml], { type: 'application/msword;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'Tasks_Copy_Week_${weekData?.weekNumber || 'current'}.doc';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      button.textContent = 'DOC скачан';
+      setTimeout(() => { button.textContent = originalText; }, 1800);
+    }
     function copyLotusTasksRichFallback() {
       const holder = document.createElement('div');
       holder.style.position = 'fixed';
