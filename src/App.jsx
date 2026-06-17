@@ -7655,7 +7655,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const summary = getWordKpiSummary();
     const incidentTrendText = summary.incidentTrend === 0
       ? 'без изменений'
-      : `${summary.incidentTrend > 0 ? '+' : '-'}${Math.abs(summary.incidentTrend)} к прошлой нед.`;
+      : `${summary.incidentTrend > 0 ? '+' : '-'}${Math.abs(summary.incidentTrend)} к прошлой неделе`;
     return [
       {
         key: 'incidents',
@@ -7664,8 +7664,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         suffix: 'решено',
         accent: '#10b981',
         progress: Math.min(100, Math.max(8, Math.round((summary.incidentsClosed / Math.max(summary.incidentsClosed + summary.queue, 1)) * 100))),
-        hint: `Очередь: ${summary.queue}`,
-        trend: incidentTrendText,
+        hint: `Очередь: ${summary.queue}. Динамика: ${incidentTrendText}`,
+        trend: '',
         trendTone: summary.incidentTrend > 0 ? 'red' : (summary.incidentTrend < 0 ? 'green' : 'slate')
       },
       {
@@ -7684,9 +7684,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         title: 'Взятие в работу ≤15 мин',
         value: summary.slaFirstReactionPercent,
         suffix: '%',
-        accent: summary.slaFirstReactionPercent >= 95 ? '#10b981' : (summary.slaFirstReactionPercent >= 85 ? '#f59e0b' : '#ef4444'),
+        accent: summary.slaFirstReactionPercent >= 95 ? '#10b981' : (summary.slaFirstReactionPercent >= 80 ? '#f59e0b' : '#ef4444'),
         progress: Math.min(100, Math.max(0, summary.slaFirstReactionPercent)),
-        hint: `Просрочек реакции: ${summary.slaPrimaryCount} | Решение в срок: ${summary.slaResolutionPercent}%`,
+        hint: `Цель: 95%. Просрочек реакции: ${summary.slaPrimaryCount} | Решение в срок: ${summary.slaResolutionPercent}%`,
         trend: '',
         trendTone: 'slate'
       }
@@ -7980,9 +7980,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
     return `
       <div style="font-family: ${wordFontFamily}; color:#0f172a; line-height:1.35;">
-        <div style="background:#0f172a; color:#ffffff; border-radius:12px; padding:16px 18px; margin-bottom:14px;">
-          <div style="font-size:23px; font-weight:900; letter-spacing:0.03em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
-          <div style="font-size:12px; color:#cbd5e1; margin-top:3px;">${escapeHtml(weekTitle)}</div>
+        <div style="border-bottom:4px solid #2563eb; padding-bottom:10px; margin-bottom:14px;">
+          <div style="font-size:24px; color:#0f172a; font-weight:900; letter-spacing:0.01em;">ОТЧЕТ РУКОВОДИТЕЛЮ</div>
+          <div style="font-size:12px; color:#94a3b8; margin-top:3px;">${escapeHtml(weekTitle)}</div>
         </div>
         ${renderKpi()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">1. Решенные задачи за неделю</h2>
