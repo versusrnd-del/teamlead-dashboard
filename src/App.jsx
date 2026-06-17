@@ -8220,6 +8220,25 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   <script>
     const lotusTasksHtml = ${toScriptString(tasksClipboardHtml)};
     const lotusTasksText = ${toScriptString(tasksClipboardText)};
+    function copyLotusTasksRichFallback() {
+      const holder = document.createElement('div');
+      holder.style.position = 'fixed';
+      holder.style.left = '-9999px';
+      holder.style.top = '0';
+      holder.style.width = '760px';
+      holder.style.background = '#ffffff';
+      holder.innerHTML = lotusTasksHtml;
+      document.body.appendChild(holder);
+      const range = document.createRange();
+      range.selectNodeContents(holder);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      const copied = document.execCommand('copy');
+      selection.removeAllRanges();
+      document.body.removeChild(holder);
+      if (!copied) throw new Error('rich-copy-failed');
+    }
     async function copyLotusTasks(button) {
       const originalText = button.textContent;
       try {
@@ -8231,34 +8250,28 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
             })
           ]);
         } else {
-          const holder = document.createElement('div');
-          holder.style.position = 'fixed';
-          holder.style.left = '-9999px';
-          holder.innerHTML = lotusTasksHtml;
-          document.body.appendChild(holder);
-          const range = document.createRange();
-          range.selectNodeContents(holder);
-          const selection = window.getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          document.execCommand('copy');
-          selection.removeAllRanges();
-          document.body.removeChild(holder);
+          copyLotusTasksRichFallback();
         }
         button.textContent = 'Задачи скопированы';
         setTimeout(() => { button.textContent = originalText; }, 1800);
       } catch (error) {
-        const textArea = document.createElement('textarea');
-        textArea.value = lotusTasksText;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        button.textContent = 'Скопировано текстом';
-        setTimeout(() => { button.textContent = originalText; }, 1800);
+        try {
+          copyLotusTasksRichFallback();
+          button.textContent = 'Задачи скопированы';
+          setTimeout(() => { button.textContent = originalText; }, 1800);
+        } catch (fallbackError) {
+          const textArea = document.createElement('textarea');
+          textArea.value = lotusTasksText;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-9999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          button.textContent = 'Скопировано текстом';
+          setTimeout(() => { button.textContent = originalText; }, 1800);
+        }
       }
     }
   </script>
