@@ -7798,15 +7798,17 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const kpiCards = getWordKpiCards();
 
     const renderKpi = () => `
-      <div style="margin:0 0 16px 0;">
+      <div style="border:1px solid #dbeafe; border-left:5px solid #2563eb; background:#ffffff; margin:0 0 16px 0;">
+        <div style="background:#eff6ff; padding:7px 10px; font-weight:900; color:#1d4ed8; text-transform:uppercase; font-size:12px; letter-spacing:0.03em;">Ключевые показатели недели</div>
         ${kpiCards.map(card => `
-          <div style="border:1px solid #dbeafe; border-left:5px solid ${card.accent}; padding:9px 10px; background:#ffffff; margin-bottom:8px;">
-            <div style="font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; font-weight:900;">${escapeHtml(card.title)}</div>
-            <div style="font-size:13px; color:#0f172a; margin-top:3px;">
-              <span style="font-size:20px; color:${card.accent}; font-weight:900;">${escapeHtml(card.value)}</span>
-              <span style="font-size:12px; color:#475569;"> ${escapeHtml(card.suffix)}</span>
-              ${card.trend ? `<span style="font-size:11px; color:${getTrendColor(card.trendTone)}; font-weight:800; margin-left:4px;">${escapeHtml(card.trend)}</span>` : ''}
-              <span style="color:#64748b;"> · ${escapeHtml(card.hint)}</span>
+          <div style="padding:7px 10px; border-top:1px solid #dbeafe; background:#ffffff;">
+            <div style="font-size:13px; color:#0f172a;">
+              <b>${escapeHtml(card.title)}:</b>
+              <span style="font-size:17px; color:${card.accent}; font-weight:900; margin-left:4px;">${escapeHtml(card.value)}</span><span style="font-size:12px; color:#475569;"> ${escapeHtml(card.suffix)}</span>
+              ${card.trend ? `<span style="font-size:11px; color:${getTrendColor(card.trendTone)}; font-weight:800; margin-left:5px;">${escapeHtml(card.trend)}</span>` : ''}
+            </div>
+            <div style="font-size:12px; color:#64748b; margin-top:2px;">
+              ${escapeHtml(card.hint)}
             </div>
           </div>
         `).join('')}
@@ -7970,7 +7972,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${renderTeamMetrics()}
         ${renderFirstLine()}
         ${renderCsatComments()}
-        ${renderFlowControlAppendix()}
       </div>`;
   };
 
@@ -8376,55 +8377,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               </div>
             </section>
 
-            {(wordSystemProblems.length > 0 || wordSlaSnapshot.primaryCount > 0 || wordSlaSnapshot.resolutionCount > 0) && (
-              <section className="mt-6" style={{ fontFamily: wordFontFamily }}>
-                <h3 className="text-lg font-black mb-3">5. Контроль потока инцидентов</h3>
-                {wordSystemProblems.length > 0 && (
-                  <div className="mb-5">
-                    <div className="text-sm font-black text-slate-700 mb-2">Ключевые системные проблемы (Топ-3)</div>
-                    <div className="space-y-2">
-                      {wordSystemProblems.map((item, index) => (
-                        <div key={`${item.title}-${index}`} className="rounded-md bg-slate-50 p-3" style={{ borderLeft: `4px solid ${item.color}` }}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="font-black text-sm">{index + 1}. {item.title}</div>
-                            <div className="text-xs font-black" style={{ color: item.color }}>{item.count} шт. ({item.percent}%)</div>
-                          </div>
-                          <div className="h-1 bg-slate-200 rounded-full overflow-hidden my-2">
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(4, item.percent))}%`, background: item.color }} />
-                          </div>
-                          {item.description && <div className="text-xs text-slate-600">{item.description}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="rounded-lg p-4" style={{ border: `1px solid ${wordSlaSnapshot.heat.border}`, borderLeft: `5px solid ${wordSlaSnapshot.heat.color}`, background: wordSlaSnapshot.heat.bg }}>
-                  <div className="text-sm font-black uppercase mb-3" style={{ color: wordSlaSnapshot.heat.color }}>SLA основной контроль: {wordSlaSnapshot.heat.label}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                      <div className="text-[11px] font-black uppercase text-slate-500">Основной SLA</div>
-                      <div className="text-2xl font-black text-red-800">{wordSlaSnapshot.primaryCount}</div>
-                      <div className="text-xs text-slate-500">Инцидент от момента создания</div>
-                      <div className="text-xs font-bold text-red-600">+{Math.round(wordSlaSnapshot.primaryAvg || 0)} мин</div>
-                    </div>
-                    <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                      <div className="text-[11px] font-black uppercase text-slate-500">До решения</div>
-                      <div className="text-2xl font-black text-orange-700">{wordSlaSnapshot.resolutionCount}</div>
-                      <div className="text-xs text-slate-500">Вторичный контроль</div>
-                      <div className="text-xs font-bold text-orange-700">+{Math.round(wordSlaSnapshot.resolutionAvg || 0)} мин</div>
-                    </div>
-                    <div className="rounded-lg border border-slate-200 bg-white p-3">
-                      <div className="text-[11px] font-black uppercase text-slate-500">Характер просрочки</div>
-                      <div className="text-2xl font-black text-slate-900">{wordSlaSnapshot.simpleShare}%</div>
-                      <div className="text-xs text-slate-500">простые обращения</div>
-                      <div className="text-xs text-slate-500">сложные: {wordSlaSnapshot.complexShare}%</div>
-                    </div>
-                  </div>
-                  <div className="text-sm text-slate-700">{wordSlaSnapshot.diagnosis}</div>
-                  <div className="text-xs text-slate-500 mt-2">Основной SLA: <b>Инцидент от момента создания</b>. Вторичный SLA: <b>До решения</b>.</div>
-                </div>
-              </section>
-            )}
           </div>
         </div>
       </div>
