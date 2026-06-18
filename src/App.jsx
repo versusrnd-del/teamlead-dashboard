@@ -166,8 +166,25 @@ const generateFintechLabReport = ({
       <div class="topic-head"><h3>${index + 1}. ${html(topic.theme || 'Без темы')}</h3><span>${html(count(topic.count))}</span></div>
       <div class="topic-grid"><div><small>Основной маршрут</small><strong>${html(topic.mainRoute || 'данные пока не подключены')}</strong></div><div><small>SLA-просрочки</small><strong>${topic.slaBreaches === null || topic.slaBreaches === undefined ? 'нет данных' : html(count(topic.slaBreaches))}</strong></div><div><small>Чаще требовалась помощь</small><strong>${html(topic.supportLevel || 'данные пока не подключены')}</strong></div><div><small>Тип проблемы</small><strong>${html(topic.problemType || 'нужен разбор типовых тикетов')}</strong></div></div>
       <p><strong>Что делать:</strong> ${html(topic.actionNeeded || 'Разобрать 3-5 типовых тикетов и решить: инструкция, обучение, права или маршрут.')}</p>
-      <p class="check-line"><strong>Проверка:</strong> ${html(topic.check || 'через неделю смотрим помощь старших по теме и показатель «Решение в срок».')}</p>
+      <p class="check-line"><strong>Проверка:</strong> ${html(topic.check || 'через неделю смотрим помощь выше 1-й линии по теме и показатель «Решение в срок».')}</p>
     </article>`).join('') : '<p class="muted">Топ тем пока не подключен. Нужен анализ не-самостоятельных маршрутов.</p>';
+  const bottleneckMax = Math.max(1, ...topNonSelfTopics.slice(0, 4).map(topic => Number(topic.count) || 0));
+  const bottleneckVisual = topNonSelfTopics.length ? topNonSelfTopics.slice(0, 4).map((topic, index) => {
+    const countValue = Number(topic.count) || 0;
+    const breachValue = topic.slaBreaches === null || topic.slaBreaches === undefined ? null : Number(topic.slaBreaches) || 0;
+    const barWidth = width(countValue * 100 / bottleneckMax);
+    return `
+      <article class="bottleneck-card">
+        <div class="bottleneck-top"><span>${index + 1}</span><strong>${html(topic.theme || 'Без темы')}</strong></div>
+        <div class="bottleneck-bar"><i style="width:${barWidth}"></i></div>
+        <div class="bottleneck-meta">
+          <div><small>Тикеты</small><b>${html(count(countValue))}</b></div>
+          <div><small>SLA-просрочки</small><b>${breachValue === null ? 'нет данных' : html(count(breachValue))}</b></div>
+          <div><small>Маршрут</small><b>${html(topic.mainRoute || topic.supportLevel || 'не определен')}</b></div>
+        </div>
+        <p>${html(topic.actionNeeded || 'Разобрать типовые тикеты и уточнить действие.')}</p>
+      </article>`;
+  }).join('') : '<p class="muted">Карта узких мест появится после загрузки bottleneckThemes по не-самостоятельным маршрутам.</p>';
   const seniorRows = seniorWorkRows.length ? seniorWorkRows.map(row => `
     <tr><td>${html(row.level)}</td><td>${html(row.themes || 'Недостаточно данных')}</td><td class="num">${html(count(row.count))}</td><td>${html(row.meaning || 'Недостаточно данных для устойчивого вывода, продолжаем сбор.')}</td><td>${html(row.action || 'Разобрать типовые тикеты и уточнить маршрут.')}</td></tr>`).join('') : '<tr><td colspan="5" class="muted">Недостаточно данных для устойчивого вывода, продолжаем сбор.</td></tr>';
   const temperature = periodAnalytics.temperature || {};
@@ -180,6 +197,7 @@ const generateFintechLabReport = ({
   const recurringThemes = Array.isArray(periodAnalytics.recurringThemes) ? periodAnalytics.recurringThemes : [];
   const firstLineLoad = periodAnalytics.firstLineLoad || {};
   const telephony = periodAnalytics.telephony || {};
+  const seniorTaskFlow = periodAnalytics.seniorTaskFlow || {};
   const seniorReserve = periodAnalytics.seniorReserve || {};
   const planning = periodAnalytics.planning || {};
   const monthPlan = periodAnalytics.monthPlan || {};
@@ -212,37 +230,69 @@ const generateFintechLabReport = ({
   const monthWorkstreamRows = (monthPlan.workstreams || []).length ? monthPlan.workstreams.map(row => `
     <tr><td><strong>${html(row.name)}</strong></td><td>${html(row.howToPlan)}</td><td>${html(row.metrics)}</td><td>${html(row.risk)}</td></tr>
   `).join('') : '<tr><td colspan="4" class="muted">Плановые блоки появятся после расчета нагрузки.</td></tr>';
-  const planningGapRows = planningGaps.length ? planningGaps.map(item => `<li>${html(item)}</li>`).join('') : '<li>Фактическое время помощи выше 1-й линии.</li><li>График дежурств, отпусков и больничных.</li><li>Связка звонок → тикет.</li>';
+  const planningGapRows = planningGaps.length ? planningGaps.map(item => `<li>${html(item)}</li>`).join('') : '<li>Качество заполнения маршрута решения.</li><li>Связка звонок → тикет.</li><li>Повторные обращения.</li>';
+  const seniorTaskCards = (seniorTaskFlow.cards || []).length ? seniorTaskFlow.cards.map(card => `
+    <article class="senior-task-card ${html(card.tone || 'neutral')}">
+      <small>${html(card.label)}</small>
+      <strong>${html(card.value)}</strong>
+      <p>${html(card.hint || '')}</p>
+    </article>
+  `).join('') : '<p class="muted">Данные по задачам старших администраторов пока не подключены.</p>';
+  const seniorTaskBalance = seniorTaskFlow.hasData ? `
+    <div class="balance-card">
+      <div class="balance-head"><span>Баланс недели</span><strong>${html(seniorTaskFlow.balanceLabel || 'база формируется')}</strong></div>
+      <div class="balance-track">
+        <i class="balance-help" style="width:${width(seniorTaskFlow.helpShare || 0)}"></i>
+        <i class="balance-project" style="width:${width(seniorTaskFlow.projectShare || 0)}"></i>
+      </div>
+      <div class="balance-legend"><span><b class="dot help"></b>Помощь 1-й линии: ${html(pct(seniorTaskFlow.helpShare || 0))}</span><span><b class="dot project"></b>Закрытие задач: ${html(pct(seniorTaskFlow.projectShare || 0))}</span></div>
+      <p>${html(seniorTaskFlow.balanceNote || 'Смотрим, не съедает ли поддержка первой линии проектную работу старших администраторов.')}</p>
+    </div>
+  ` : '<div class="note">Баланс появится после загрузки задач и маршрутов решения за неделю.</div>';
+  const heavyTaskGallery = (seniorTaskFlow.heavyTasks || []).length ? seniorTaskFlow.heavyTasks.map(task => `
+    <article class="heavy-task">
+      <div><span>${html(task.sizeLabel || 'Сложно')}</span><strong>${html(task.title || 'Без названия')}</strong></div>
+      <p>${html(task.details || '')}</p>
+    </article>
+  `).join('') : '<p class="muted">Тяжелые закрытые задачи за неделю не найдены или еще не размечены.</p>';
+  const primaryMetric = metrics.find(item => item.label === 'Взятие в работу ≤15 мин');
+  const resolutionMetric = metrics.find(item => item.label === 'Решение в срок');
+  const primaryValue = num(primaryMetric?.value);
+  const resolutionValue = num(resolutionMetric?.value);
+  const weakestSla = Math.min(primaryValue ?? 0, resolutionValue ?? 0);
+  const slaSignalValue = weakestSla >= 95 ? 'в норме' : (weakestSla >= 80 ? 'ниже цели' : 'критично');
+  const slaSignalHint = weakestSla >= 95 ? 'SLA на целевом уровне' : 'нужен разбор причин';
+  const signalRows = [
+    { label: 'Нагрузка', value: traffic.current === null || traffic.current === undefined ? 'нет данных' : `${Math.round(Number(traffic.current) || 0)} инцидентов`, hint: traffic.label || 'данные пока не подключены' },
+    { label: 'SLA', value: slaSignalValue, hint: slaSignalHint },
+    { label: 'Улучшение', value: mainAction.theme || topNonSelfTopics[0]?.theme || 'тема не выбрана', hint: 'тема для улучшения' }
+  ].map(item => `<article class="signal-tile"><span>${html(item.label)}</span><strong>${html(item.value)}</strong><p>${html(item.hint)}</p></article>`).join('');
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Финтехлаб — практика по метрикам</title><style>
-    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--orange:#ea580c;--red:#dc2626;--violet:#7c3aed;--soft-blue:#eff6ff;--soft-amber:#fffbeb;--soft-orange:#fff7ed;--soft-red:#fef2f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:linear-gradient(135deg,#102033,#173a5e);color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.16);margin-bottom:20px}.cover-head{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:24px;align-items:start}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item,.signal-card{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.signal-card{border-top:4px solid #38bdf8;background:rgba(255,255,255,.14);box-shadow:0 16px 36px rgba(0,0,0,.16)}.signal-card.good{border-top-color:#10b981}.signal-card.warn{border-top-color:#f59e0b}.signal-card.risk{border-top-color:#f97316}.signal-card.bad{border-top-color:#ef4444}.signal-value{display:block;font-size:30px;line-height:1;font-weight:950;margin:7px 0;color:#fff}.signal-card p{margin:0;color:#dbeafe;font-size:12px}.cover-item span,.signal-card span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span,.signal-card span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note strong{color:#203044}.status-grid,.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.status-grid{grid-template-columns:1.1fr 1.4fr 1fr}.status-box{border:1px solid var(--line);border-radius:16px;padding:14px;background:#f8fafc}.status-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.status-title{font-size:18px;font-weight:900;color:#1d4ed8}.status-box ul{margin:0;padding-left:18px;color:#475569;font-size:13px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-top:4px solid #dbeafe;border-radius:18px;padding:18px;background:#fff}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:#173a5e;font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-card.good{border-top-color:#10b981}.metric-card.warn{border-top-color:#f59e0b}.metric-card.risk{border-top-color:#f97316}.metric-card.bad{border-top-color:#ef4444}.metric-card.violet{border-top-color:#8b5cf6}.metric-status{display:inline-block;border-radius:999px;background:#f1f5f9;color:#334155;padding:4px 8px;font-size:11px;font-weight:900;margin-bottom:7px}.metric-card.good .metric-status{background:#ecfdf5;color:var(--green)}.metric-card.warn .metric-status{background:var(--soft-amber);color:var(--amber)}.metric-card.risk .metric-status{background:var(--soft-orange);color:var(--orange)}.metric-card.bad .metric-status{background:var(--soft-red);color:var(--red)}.metric-card.violet .metric-status{background:#f5f3ff;color:var(--violet)}.target-row{display:flex;justify-content:space-between;gap:10px;color:#475569;font-size:11px;font-weight:800;margin:8px 0 5px}.progress-track{height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-bottom:9px}.progress-fill{height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.metric-card.good .progress-fill{background:#10b981}.metric-card.warn .progress-fill{background:#f59e0b}.metric-card.risk .progress-fill{background:#f97316}.metric-card.bad .progress-fill{background:#ef4444}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}.topic-card p{color:#475569;font-size:13px;margin:10px 0 0}.check-line{background:#f8fafc;border:1px solid #e7eef6;border-radius:12px;padding:10px}.read-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.read-list div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:12px;color:#475569;font-size:13px}.temp-scale{position:relative;height:44px;margin:12px 0 8px}.temp-track{position:absolute;left:0;right:0;top:17px;height:10px;border-radius:999px;background:linear-gradient(90deg,#d1fae5,#e0f2fe,#fef3c7,#fed7aa,#fecaca)}.temp-marker{position:absolute;top:7px;width:24px;height:24px;border:4px solid #102033;border-radius:999px;background:#fff;transform:translateX(-12px)}.temp-labels{display:flex;justify-content:space-between;color:#64748b;font-size:11px;font-weight:800}.mini-bars{display:grid;gap:8px}.mini-bar-row{display:grid;grid-template-columns:110px 1fr 56px;gap:10px;align-items:center;font-size:12px}.mini-bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.mini-bar span{display:block;height:100%;background:#2563eb;border-radius:999px}.executive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.traffic-badge{display:inline-block;border-radius:999px;padding:5px 10px;font-weight:900;font-size:12px;background:#f1f5f9;color:#334155}@media(max-width:820px){.cover-head,.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.note-grid,.status-grid,.read-list,.executive-grid{grid-template-columns:1fr}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
+    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--orange:#ea580c;--red:#dc2626;--violet:#7c3aed;--soft-blue:#eff6ff;--soft-amber:#fffbeb;--soft-orange:#fff7ed;--soft-red:#fef2f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:#102033;color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.14);margin-bottom:20px}.cover-head{max-width:760px}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid,.signal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.cover-item span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}.signal-tile{border:1px solid var(--line);border-top:4px solid #2563eb;border-radius:18px;padding:18px;background:#fff}.signal-tile span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.signal-tile strong{display:block;color:#102033;font-size:25px;line-height:1.1;margin:8px 0 4px}.signal-tile p{margin:0;color:#64748b;font-size:13px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note strong{color:#203044}.status-grid,.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.status-grid{grid-template-columns:1.1fr 1.4fr 1fr}.status-box{border:1px solid var(--line);border-radius:16px;padding:14px;background:#f8fafc}.status-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.status-title{font-size:18px;font-weight:900;color:#1d4ed8}.status-box ul{margin:0;padding-left:18px;color:#475569;font-size:13px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-top:4px solid #dbeafe;border-radius:18px;padding:18px;background:#fff}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:#173a5e;font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-card.good{border-top-color:#10b981}.metric-card.warn{border-top-color:#f59e0b}.metric-card.risk{border-top-color:#f97316}.metric-card.bad{border-top-color:#ef4444}.metric-card.violet{border-top-color:#8b5cf6}.metric-status{display:inline-block;border-radius:999px;background:#f1f5f9;color:#334155;padding:4px 8px;font-size:11px;font-weight:900;margin-bottom:7px}.metric-card.good .metric-status{background:#ecfdf5;color:var(--green)}.metric-card.warn .metric-status{background:var(--soft-amber);color:var(--amber)}.metric-card.risk .metric-status{background:var(--soft-orange);color:var(--orange)}.metric-card.bad .metric-status{background:var(--soft-red);color:var(--red)}.metric-card.violet .metric-status{background:#f5f3ff;color:var(--violet)}.target-row{display:flex;justify-content:space-between;gap:10px;color:#475569;font-size:11px;font-weight:800;margin:8px 0 5px}.progress-track{height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-bottom:9px}.progress-fill{height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.metric-card.good .progress-fill{background:#10b981}.metric-card.warn .progress-fill{background:#f59e0b}.metric-card.risk .progress-fill{background:#f97316}.metric-card.bad .progress-fill{background:#ef4444}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list,.bottleneck-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}.topic-card p{color:#475569;font-size:13px;margin:10px 0 0}.check-line{background:#f8fafc;border:1px solid #e7eef6;border-radius:12px;padding:10px}.bottleneck-card{border:1px solid #dbeafe;border-radius:18px;padding:16px;background:#fbfdff}.bottleneck-top{display:flex;gap:10px;align-items:flex-start}.bottleneck-top span{display:grid;place-items:center;width:26px;height:26px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-weight:900}.bottleneck-top strong{font-size:15px;color:#102033}.bottleneck-bar{height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:14px 0}.bottleneck-bar i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.bottleneck-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.bottleneck-meta div{background:#fff;border:1px solid #e7eef6;border-radius:12px;padding:9px}.bottleneck-meta b{display:block;font-size:12px;color:#102033}.bottleneck-card p{margin:12px 0 0;color:#475569;font-size:13px}.executive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.traffic-badge{display:inline-block;border-radius:999px;padding:5px 10px;font-weight:900;font-size:12px;background:#f1f5f9;color:#334155}@media(max-width:820px){.cover-head,.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.bottleneck-grid,.note-grid,.status-grid,.signal-grid,.executive-grid{grid-template-columns:1fr}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
+  </style><style>
+    .senior-task-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.senior-task-card{border:1px solid var(--line);border-top:4px solid #94a3b8;border-radius:18px;padding:16px;background:linear-gradient(180deg,#fff,#f8fafc)}.senior-task-card strong{display:block;font-size:29px;line-height:1.05;margin:8px 0 5px;color:#102033}.senior-task-card p{margin:0;color:#64748b;font-size:12px}.senior-task-card.good{border-top-color:#10b981}.senior-task-card.warn{border-top-color:#f59e0b}.senior-task-card.risk{border-top-color:#f97316}.senior-task-card.violet{border-top-color:#8b5cf6}.balance-card{margin-top:14px;border:1px solid #c7d2fe;border-radius:18px;padding:16px;background:linear-gradient(135deg,#eef2ff,#f8fafc)}.balance-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}.balance-head span{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.balance-head strong{color:#102033;font-size:16px}.balance-track{display:flex;height:18px;background:#e2e8f0;border-radius:999px;overflow:hidden;border:1px solid #dbeafe}.balance-track i{display:block;height:100%}.balance-help{background:linear-gradient(90deg,#f97316,#f59e0b)}.balance-project{background:linear-gradient(90deg,#2563eb,#22c55e)}.balance-legend{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;margin:10px 0;color:#475569;font-size:12px;font-weight:800}.dot{display:inline-block;width:9px;height:9px;border-radius:999px;margin-right:5px}.dot.help{background:#f97316}.dot.project{background:#2563eb}.balance-card p{margin:0;color:#475569;font-size:13px}.heavy-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.heavy-task{border:1px solid #e2e8f0;border-radius:14px;padding:12px;background:#fff}.heavy-task span{display:inline-block;margin-bottom:5px;border-radius:999px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;padding:3px 8px;font-size:10px;font-weight:900;text-transform:uppercase}.heavy-task strong{display:block;font-size:13px;color:#102033}.heavy-task p{margin:6px 0 0;color:#64748b;font-size:12px}@media(max-width:820px){.senior-task-grid,.heavy-gallery{grid-template-columns:1fr}}
   </style></head><body><main class="page">
-    <header class="cover"><div class="cover-head"><div><div class="eyebrow">Финтехлаб — практика по метрикам</div><h1>Финтехлаб — практика по метрикам</h1><p class="cover-subtitle">Процесс: Обработка инцидента 1-й линии</p></div><div class="signal-card ${html(executiveSignal.tone || 'warn')}"><span>Главный сигнал периода</span><strong class="signal-value">${html(executiveSignal.valueText || 'база формируется')}</strong><p>${html(executiveSignal.label || 'SLA взятия в работу к базе')}</p><p>${html(executiveSignal.note || 'Появится после накопления полных недель.')}</p></div></div><div class="cover-grid"><div class="cover-item"><span>Неделя / период</span><strong>${html(period)}</strong></div><div class="cover-item"><span>Владелец процесса</span><strong>Виктор</strong></div><div class="cover-item"><span>Направление</span><strong>ОСО / техническая поддержка</strong></div><div class="cover-item"><span>Дата формирования</span><strong>${html(generatedDate.toLocaleDateString('ru-RU'))}</strong></div></div></header>
+    <header class="cover"><div class="cover-head"><div class="eyebrow">Еженедельный управленческий отчет</div><h1>Финтехлаб — контроль 1-й линии</h1><p class="cover-subtitle">Процесс: Обработка инцидента 1-й линии</p></div><div class="cover-grid"><div class="cover-item"><span>Неделя / период</span><strong>${html(period)}</strong></div><div class="cover-item"><span>Владелец процесса</span><strong>Виктор</strong></div><div class="cover-item"><span>Направление</span><strong>ОСО / техническая поддержка</strong></div><div class="cover-item"><span>Дата формирования</span><strong>${html(generatedDate.toLocaleDateString('ru-RU'))}</strong></div></div></header>
+    <section><h2>Ключевые сигналы недели</h2><div class="signal-grid">${signalRows}</div></section>
     <section><h2>Статус недели</h2><div class="status-grid"><div class="status-box"><h3>Общий статус</h3><div class="status-title">${html(statusWeek.title || 'База формируется')}</div><p class="muted">${html(statusWeek.summary || summary || 'Данные пока не подключены.')}</p></div><div class="status-box"><h3>Почему такой статус</h3><ul>${(statusWeek.points || []).map(point => `<li>${html(point)}</li>`).join('')}</ul></div><div class="status-box"><h3>Главное действие</h3><p>${html(statusWeek.nextAction || mainAction.actionNeeded || 'выбрать тему после накопления данных')}</p></div></div></section>
-    <section><h2>План работы команды на месяц — MIN</h2><div class="note" style="margin-bottom:12px">${html(monthPlan.summary || 'План строится по четырем блокам: регулярка, инциденты/аварии, проекты и развитие.')}</div><table><thead><tr><th>Ресурс</th><th>Расчет</th><th>Плановый фонд</th><th>Роль в плане</th></tr></thead><tbody>${monthResourceRows}</tbody></table><div class="note" style="margin-top:12px"><strong>Главный вывод:</strong> ${html(monthPlan.mainConclusion || 'Нужен буфер администраторов 1-й линии и резерв старших уровней для помощи по сложным обращениям.')}</div></section>
-    <section><h2>Как планируем работу</h2><table><thead><tr><th>Блок</th><th>Как планируем</th><th>Метрики</th><th>Риск</th></tr></thead><tbody>${monthWorkstreamRows}</tbody></table></section>
-    <section><h2>Температура процесса</h2><div class="note"><strong>${html(temperature.label || 'Нормально')}</strong><br>${html(temperature.summary || 'Температура формируется по SLA, входящему потоку и типу недели.')}</div>${temperature.unavailable ? '' : `<div class="temp-scale"><div class="temp-track"></div><div class="temp-marker" style="left:${tempMarker}"></div></div><div class="temp-labels">${tempSteps.map(step => `<span>${html(step)}</span>`).join('')}</div>`}</section>
     <section><h2>Ключевые метрики</h2><div class="metric-grid">${metricCards}</div></section>
-    <section><h2>Главное действие на следующую неделю</h2><div class="note"><strong>${html(mainAction.theme || 'Тема пока не выбрана')}</strong><br>${html(mainAction.details || 'Нужны данные по топу не-самостоятельных маршрутов.')}<br><strong>Проверка:</strong> ${html(mainAction.check || 'сравнить помощь старших и решение в срок по выбранной теме через неделю')}</div></section>
-    <section><h2>Здоровое улучшение</h2><div class="note"><strong>${html(healthyImprovement.title || 'Вывод предварительный')}</strong><br>${html(healthyImprovement.summary || 'Повторные обращения и динамика будут надежнее после накопления нескольких недель.')}</div></section>
+    <section><h2>Работа старших администраторов</h2><div class="senior-task-grid">${seniorTaskCards}</div>${seniorTaskBalance}<div class="heavy-gallery">${heavyTaskGallery}</div><p class="muted" style="margin-top:12px">${html(seniorTaskFlow.note || 'Блок показывает результат по задачам и связь с отвлечением на первую линию, без рейтинга сотрудников.')}</p></section>
+    <section><h2>Главное действие на следующую неделю</h2><div class="note"><strong>${html(mainAction.theme || 'Тема пока не выбрана')}</strong><br>${html(mainAction.details || 'Нужны данные по топу не-самостоятельных маршрутов.')}<br><strong>Проверка:</strong> ${html(mainAction.check || 'сравнить помощь выше 1-й линии и решение в срок по выбранной теме через неделю')}</div></section>
+    <section><h2>Карта узких мест</h2><div class="bottleneck-grid">${bottleneckVisual}</div></section>
     <section><h2>Где теряется SLA</h2><table><thead><tr><th>Маршрут</th><th>Кол-во тикетов</th><th>Взятие в работу ≤15 мин</th><th>Решение в срок</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
-    <section><h2>Светофор входящего потока</h2><div class="executive-grid"><div class="note">Входящий поток: <strong>${html(count(traffic.current))}</strong><br><span class="traffic-badge">${html(traffic.label || 'данные пока не подключены')}</span></div><div class="note">Среднее за период: <strong>${html(count(traffic.average))}</strong><br>Медиана: <strong>${html(count(traffic.median))}</strong></div><div class="note">Отклонение от медианы: <strong>${html(traffic.deviationText || 'база формируется')}</strong><br>${html(traffic.note || '')}</div></div></section>
-    <section><h2>Динамика нагрузки и SLA за весь период</h2><table><thead><tr><th>Неделя</th><th>Период</th><th>Тип</th><th>Входящий поток</th><th>Закрыто</th><th>Очередь</th><th>Взятие в работу</th><th>Решение в срок</th><th>Главная тема</th><th>Комментарий</th></tr></thead><tbody>${periodTrendRows}</tbody></table><div class="note" style="margin-top:12px"><strong>База нагрузки и SLA:</strong> ${html(currentComparisons.loadBaselineText || currentComparisons.baselineText || 'База формируется. Надежное сравнение появится после 3-4 полных обычных недель.')}</div></section>
-    <section><h2>Динамика маршрутов решения</h2><div class="note" style="margin-bottom:12px">Метрика маршрута решения появилась с Н23, поэтому динамика маршрутов строится с этой недели. Нагрузка и SLA показываются за весь доступный период.</div><table><thead><tr><th>Неделя</th><th>Самостоятельность</th><th>Помощь старших</th><th>Качество данных</th><th>Старые / некорректные</th><th>Главный маршрут помощи</th><th>Вывод</th></tr></thead><tbody>${routeTrendRows}</tbody></table><div class="note" style="margin-top:12px"><strong>База маршрутов решения:</strong> ${html(currentComparisons.routeBaselineText || 'База маршрутов формируется.')}</div></section>
+    <section><h2>Повторяющиеся темы</h2><table><thead><tr><th>Тема</th><th>Недель в топе</th><th>Всего тикетов</th><th>Основной маршрут</th><th>SLA-просрочки</th><th>Рекомендованное действие</th></tr></thead><tbody>${recurringThemeRows}</tbody></table></section>
+    <section><h2>Динамика нагрузки и SLA за весь период</h2><table><thead><tr><th>Неделя</th><th>Период</th><th>Тип</th><th>Входящий поток</th><th>Закрыто</th><th>Очередь</th><th>Взятие в работу</th><th>Решение в срок</th><th>Главная тема</th><th>Комментарий</th></tr></thead><tbody>${periodTrendRows}</tbody></table><div class="note" style="margin-top:12px"><strong>База нагрузки и SLA:</strong> ${html(currentComparisons.loadBaselineText || currentComparisons.baselineText || 'База формируется. Надежное сравнение появится после 3-4 полных обычных недель.')} Медиана — типичное значение без влияния редких выбросов.</div></section>
+    <section><h2>Динамика маршрутов решения</h2><div class="note" style="margin-bottom:12px">Метрика маршрута решения собирается с Н23, поэтому динамика маршрутов строится с этой недели. Нагрузка и SLA показываются за весь доступный период.</div><table><thead><tr><th>Неделя</th><th>Самостоятельность</th><th>Помощь выше 1-й линии</th><th>Качество данных</th><th>Старые / некорректные</th><th>Главный маршрут помощи</th><th>Вывод</th></tr></thead><tbody>${routeTrendRows}</tbody></table><div class="note" style="margin-top:12px"><strong>База маршрутов решения:</strong> ${html(currentComparisons.routeBaselineText || 'База маршрутов формируется.')}</div></section>
     <section><h2>Аномальные недели</h2><table><thead><tr><th>Неделя</th><th>Поток</th><th>Тип</th><th>Взятие</th><th>Решение</th><th>Помощь</th><th>Вероятная причина</th><th>Главная тема</th><th>Кол-во</th><th>Доля</th><th>Маршрут помощи</th><th>Вывод</th></tr></thead><tbody>${abnormalRows}</tbody></table></section>
-    <section><h2>Повторяющиеся темы за период</h2><table><thead><tr><th>Тема</th><th>Недель в топе</th><th>Всего тикетов</th><th>Основной маршрут</th><th>SLA-просрочки</th><th>Рекомендованное действие</th></tr></thead><tbody>${recurringThemeRows}</tbody></table></section>
-    <section><h2>Оценка нагрузки 1-й линии</h2><div class="executive-grid"><div class="note">Ёмкость стажёров: <strong>${html(firstLineLoad.traineeCapacityText || '60-120 часов в неделю')}</strong></div><div class="note">Оценка нагрузки по инцидентам: <strong>${html(firstLineLoad.incidentHoursText || 'данные пока не подключены')}</strong></div><div class="note">Статус расчёта: <strong>${html(firstLineLoad.qualityNote || 'нужны данные маршрута')}</strong></div></div><p class="muted" style="margin-top:12px">${html(firstLineLoad.note || 'Расчет плановый: первичный разбор каждого обращения плюс дополнительное время на самостоятельные решения.')}</p></section>
-    <section><h2>Телефония</h2><div class="executive-grid"><div class="note">Статус: <strong>${html(telephony.status || 'данные пока не подключены')}</strong></div><div class="note">Звонки за неделю: <strong>${html(count(telephony.callsCount))}</strong><br>Среднее в день: <strong>${html(telephony.avgPerDayText || 'данные пока не подключены')}</strong></div><div class="note">Оценочное время: <strong>${html(telephony.hoursText || 'данные пока не подключены')}</strong></div></div><p class="muted" style="margin-top:12px">${html(telephony.note || 'Телефонию показываем как отдельную нагрузку и не смешиваем со временем решения тикетов без проверки.')}</p></section>
-    <section><h2>Оценка резерва старших уровней</h2><table><thead><tr><th>Уровень поддержки</th><th>Тикеты</th><th>Оценочные часы</th></tr></thead><tbody>${seniorReserveRows}</tbody></table><div class="note" style="margin-top:12px">Итого за неделю: <strong>${html(seniorReserve.totalWeekHoursText || 'данные пока не подключены')}</strong>. Оценка за месяц: <strong>${html(seniorReserve.totalMonthHoursText || 'данные пока не подключены')}</strong>.<br>${html(seniorReserve.note || 'Это плановая оценка, а не точный учет времени.')}</div></section>
-    <section><h2>Что это значит для планирования</h2><div class="note">${html(planning.summary || 'Планировочный вывод появится после накопления данных по маршрутам и обычным неделям.')}</div></section>
+    <section><h2>Маршруты решения текущей недели</h2>${routeRows}</section>
     <section><h2>Топ тем с не-самостоятельным маршрутом</h2><div class="topic-list">${topicCards}</div></section>
-    <section><h2>Что чаще всего уходило к старшим</h2><table><thead><tr><th>Уровень поддержки</th><th>Основные темы</th><th>Кол-во тикетов</th><th>Что это означает</th><th>Что делаем</th></tr></thead><tbody>${seniorRows}</tbody></table></section>
-    <section><h2>Маршруты решения</h2>${routeRows}</section>
+    <section><h2>Телефония как контекст нагрузки</h2><div class="executive-grid"><div class="note">Звонки за неделю: <strong>${html(count(telephony.callsCount))}</strong></div><div class="note">Среднее в день: <strong>${html(telephony.avgPerDayText || 'данные пока не подключены')}</strong></div><div class="note">Изменение: <strong>${html(telephony.deltaText || 'база формируется')}</strong></div></div><p class="muted" style="margin-top:12px">${html(telephony.note || 'Связка звонок → тикет пока не подключена, поэтому звонки показываются как отдельный контекст нагрузки.')}</p></section>
     <section><h2>Контекст нагрузки</h2><div class="note-grid"><div class="note">Входящий поток: <strong>${html(count(loadContext.inflow))}</strong></div><div class="note">Закрыто: <strong>${html(count(loadContext.closed))}</strong> из <strong>${html(count(loadContext.inflow))}</strong>, очередь на конец: <strong>${html(count(loadContext.queue))}</strong></div><div class="note">Тип недели: <strong>${html(loadContext.weekTypeLabel || 'обычная неделя')}</strong></div><div class="note">Изменение потока: <strong>${html(loadContext.inflowChange || 'база формируется')}</strong></div></div><p class="muted" style="margin-top:12px">${html(loadContext.note || 'Эти показатели объясняют нагрузку, но не являются основной оценкой качества процесса.')}</p></section>
-    <section><h2>Гипотеза и план проверки</h2><div class="note-grid"><div class="note"><strong>Гипотеза:</strong> меньше помощи старших без ухудшения SLA и без роста повторов.</div><div class="note"><strong>Проверка:</strong> через неделю смотрим выбранную тему, помощь старших, решение в срок и повторы.</div></div></section>
-    <section><h2>Что нужно добавить для точного планирования</h2><div class="note"><ul style="margin:0;padding-left:18px">${planningGapRows}</ul></div></section>
+    <section><h2>Гипотеза и план проверки</h2><div class="note-grid"><div class="note"><strong>Гипотеза:</strong> меньше помощи выше 1-й линии без ухудшения SLA и без роста повторов.</div><div class="note"><strong>Проверка:</strong> через неделю смотрим выбранную тему, помощь выше 1-й линии, решение в срок и повторы.</div></div></section>
+    <section><h2>Что нужно улучшить в сборе данных</h2><div class="note"><ul style="margin:0;padding-left:18px">${planningGapRows}</ul></div></section>
     <section><h2>Вопросы тренерам</h2><div class="note-grid"><div class="note">Достаточно ли этих метрик для защиты домашнего задания?</div><div class="note">Как правильно учитывать недели с авариями или неполной выгрузкой?</div><div class="note">Как не превратить маршрут решения в формальное заполнение поля?</div><div class="note">SLA по маршрутам показывает процесс, а не рейтинг сотрудников.</div></div></section>
-    <details><summary style="cursor:pointer;font-weight:900;margin:16px 0;color:#102033">Диагностика исполнителей</summary><section><div class="note" style="margin-bottom:12px">Диагностика исполнителей не является рейтингом сотрудников. Время показывается по медиане; среднее доступно как подсказка и используется только для поиска выбросов.</div><table><thead><tr><th>Исполнитель</th><th>Закрыто</th><th>Медианное время</th><th>CSAT</th><th>Профиль нагрузки</th></tr></thead><tbody>${diagnosticsRows}</tbody></table></section></details>
+    <details><summary style="cursor:pointer;font-weight:900;margin:16px 0;color:#102033">Диагностика исполнителей</summary><section><div class="note" style="margin-bottom:12px">Этот блок не является рейтингом сотрудников. Он нужен для анализа типов нагрузки, сложности обращений и потребности в обучении или перераспределении. Время показывается по медиане; среднее доступно как подсказка.</div><table><thead><tr><th>Исполнитель</th><th>Закрыто</th><th>Медианное время</th><th>CSAT</th><th>Профиль нагрузки</th></tr></thead><tbody>${diagnosticsRows}</tbody></table></section></details>
   </main></body></html>`;
 };
 
@@ -2561,7 +2611,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   );
 };
 
-const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect }) => {
+const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, aiTaskMemory }) => {
   const normalizeRoute = (route) => {
     const text = safeString(route).trim();
     if (!text || ['-', '—', 'null', 'undefined'].includes(text.toLowerCase())) return 'Старые / некорректные значения поля';
@@ -2954,7 +3004,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   const hasComparisonBase = Boolean(previousTraining);
   const comparisonRows = [
     { label: 'Самостоятельность', current: selectedTraining.selfPercent, previous: previousTraining?.selfPercent, positiveGood: true },
-    { label: 'Помощь старших', current: selectedTraining.helpPercent, previous: previousTraining?.helpPercent, positiveGood: false },
+    { label: 'Помощь выше 1-й линии', current: selectedTraining.helpPercent, previous: previousTraining?.helpPercent, positiveGood: false },
     { label: 'Взятие в работу ≤15 мин', current: selectedTraining.successRate, previous: previousTraining?.successRate, positiveGood: true },
     { label: 'Решение в срок', current: selectedTraining.resolutionSuccessRate, previous: previousTraining?.resolutionSuccessRate, positiveGood: true },
     { label: 'Качество данных', current: selectedTraining.routeDataQualityPercent, previous: previousTraining?.routeDataQualityPercent, positiveGood: true }
@@ -2969,7 +3019,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     { label: 'Решение в срок', current: selectedTraining.resolutionSuccessRate, target: 95 },
     { label: 'Качество данных маршрута', current: selectedTraining.routeDataQualityPercent, target: 95 },
     { label: 'Самостоятельность', current: selectedTraining.selfPercent, target: null },
-    { label: 'Помощь старших', current: selectedTraining.helpPercent, target: null }
+    { label: 'Помощь выше 1-й линии', current: selectedTraining.helpPercent, target: null }
   ];
 
   const getRouteBucket = (route) => {
@@ -3075,7 +3125,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     { label: 'Взятие в работу ≤15 мин', value: selectedTraining.successRate, suffix: '%', tone: primarySlaStatus.tone, status: primarySlaStatus.label, target: 95, hint: `${formatPercent(selectedTraining.successRate)} обращений взяли в работу за 15 минут. ${selectedTraining.primaryViolations} обращений — позже нормы. До цели 95% ${selectedTraining.successRate >= 95 ? 'разрыва нет' : `не хватает ${roundMetric(95 - selectedTraining.successRate, 1)} ${pointWord(95 - selectedTraining.successRate)}`}.` },
     { label: 'Решение в срок', value: selectedTraining.resolutionSuccessRate, suffix: '%', tone: resolutionSlaStatus.tone, status: resolutionSlaStatus.label, target: 95, hint: `${formatPercent(selectedTraining.resolutionSuccessRate)} обращений решены в рамках SLA. Просрочек решения: ${selectedTraining.resolutionViolations}. До цели 95% ${selectedTraining.resolutionSuccessRate >= 95 ? 'разрыва нет' : `не хватает ${roundMetric(95 - selectedTraining.resolutionSuccessRate, 1)} ${pointWord(95 - selectedTraining.resolutionSuccessRate)}`}.` },
     { label: 'Самостоятельность', value: selectedTraining.selfPercent, suffix: '%', tone: 'text-cyan-300', hint: `Считается по тикетам с валидным маршрутом решения. ${validRouteBaseText}` },
-    { label: 'Помощь старших', value: selectedTraining.helpPercent, suffix: '%', tone: 'text-fuchsia-300', hint: 'Показывает, какая доля инцидентов потребовала участия администратора 1-й линии, дежурного, администратора направления или смежной команды.' },
+    { label: 'Помощь выше 1-й линии', value: selectedTraining.helpPercent, suffix: '%', tone: 'text-fuchsia-300', hint: 'Показывает, какая доля инцидентов потребовала участия уровня выше самостоятельного решения 1-й линии.' },
     { label: 'Качество данных маршрута', value: selectedTraining.routeDataQualityPercent, suffix: '%', tone: selectedTraining.routeDataQualityPercent >= 95 ? 'text-emerald-300' : (selectedTraining.routeDataQualityPercent >= 80 ? 'text-amber-300' : 'text-red-300'), status: selectedTraining.routeDataQualityPercent >= 95 ? 'в норме' : (selectedTraining.routeDataQualityPercent >= 80 ? 'предварительно' : 'нужна очистка'), hint: `${formatPercent(selectedTraining.routeDataQualityPercent)} тикетов имеют корректный маршрут. ${selectedTraining.unknownCount} строк нужно очистить. До очистки выводы по маршрутам предварительные.` }
   ];
 
@@ -3086,7 +3136,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       'Взятие в работу ≤15 мин': previousTraining?.successRate,
       'Решение в срок': previousTraining?.resolutionSuccessRate,
       'Самостоятельность': previousTraining?.selfPercent,
-      'Помощь старших': previousTraining?.helpPercent,
+      'Помощь выше 1-й линии': previousTraining?.helpPercent,
       'Качество данных маршрута': previousTraining?.routeDataQualityPercent
     };
     const previousValue = previousMap[card.label];
@@ -3096,7 +3146,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         ? resolutionSlaStatus.reportTone
         : (card.label === 'Самостоятельность'
       ? 'neutral'
-      : (card.label === 'Помощь старших'
+      : (card.label === 'Помощь выше 1-й линии'
         ? 'violet'
         : (card.tone.includes('emerald') ? 'good' : (card.tone.includes('amber') ? 'warn' : (card.tone.includes('red') ? 'bad' : 'neutral'))))));
     return {
@@ -3108,7 +3158,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       target: card.target,
       previousValue: previousTraining && Number.isFinite(Number(previousValue)) ? Number(previousValue) : null,
       delta: previousTraining && Number.isFinite(Number(previousValue)) ? roundMetric(Number(card.value) - Number(previousValue), 1) : null,
-      goodDirection: card.label === 'Помощь старших' ? 'down' : 'up',
+      goodDirection: card.label === 'Помощь выше 1-й линии' ? 'down' : 'up',
       tone
     };
   });
@@ -3121,7 +3171,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     problemType: getProblemType(item),
     slaBreaches: getThemeSlaBreaches(item),
     actionNeeded: getThemeAction(item),
-    check: safeString(item.check || item.verification || item.howToCheck) || 'Через неделю смотрим: снизилась ли помощь старших по этой теме и улучшилось ли Решение в срок.'
+    check: safeString(item.check || item.verification || item.howToCheck) || 'Через неделю смотрим: снизилась ли помощь выше 1-й линии по этой теме и улучшилось ли Решение в срок.'
   }));
 
   const weakestSlaValue = Math.min(selectedTraining.successRate || 0, selectedTraining.resolutionSuccessRate || 0);
@@ -3158,7 +3208,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       `Взятие в работу ≤15 мин: ${formatPercent(selectedTraining.successRate)}, цель 95%, ${selectedTraining.successRate >= 95 ? 'цель достигнута' : `не хватает ${roundMetric(95 - selectedTraining.successRate, 1)} ${pointWord(95 - selectedTraining.successRate)}`}.`,
       `Решение в срок: ${formatPercent(selectedTraining.resolutionSuccessRate)}, цель 95%, ${selectedTraining.resolutionSuccessRate >= 95 ? 'цель достигнута' : `не хватает ${roundMetric(95 - selectedTraining.resolutionSuccessRate, 1)} ${pointWord(95 - selectedTraining.resolutionSuccessRate)}`}.`,
       `Самостоятельность 1-й линии: ${formatPercent(selectedTraining.selfPercent)} по валидным маршрутам.`,
-      `Помощь старших: ${formatPercent(selectedTraining.helpPercent)} валидных маршрутов — требуется разбор тем и маршрутов.`,
+      `Помощь выше 1-й линии: ${formatPercent(selectedTraining.helpPercent)} валидных маршрутов — требуется разбор тем и маршрутов.`,
       weakestSlaRoute ? `Самая слабая точка по SLA: ${weakestSlaRoute.route}.` : 'По маршрутам пока недостаточно SLA-данных.',
       abnormalWeekNote || (loadBaselineKeys.length < 3 ? 'База нагрузки и SLA формируется: нужно минимум 3 полные обычные недели.' : 'База нагрузки и SLA считается по медиане полных обычных недель.')
     ],
@@ -3171,15 +3221,15 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   const reportHealthyImprovement = !selectedTraining.hasRepeatData
     ? {
       title: 'Вывод предварительный',
-      summary: `Улучшение считается здоровым, если самостоятельность растет, помощь старших снижается, Взятие в работу и Решение в срок не ухудшаются, повторные обращения не растут. Повторные обращения пока не подключены. Вывод предварительный.${weakestSlaValue < 95 ? ' Сначала разбираем SLA: рост самостоятельности нельзя считать успехом, если одновременно ухудшается скорость или качество решения.' : ''}`
+      summary: `Улучшение считается здоровым, если самостоятельность растет, помощь выше 1-й линии снижается, Взятие в работу и Решение в срок не ухудшаются, повторные обращения не растут. Повторные обращения пока не подключены. Вывод предварительный.${weakestSlaValue < 95 ? ' Сначала разбираем SLA: рост самостоятельности нельзя считать успехом, если одновременно ухудшается скорость или качество решения.' : ''}`
     }
     : (selfTrendUp && helpTrendDown && slaNotWorse && repeatNotGrowing
-      ? { title: 'Улучшение выглядит здоровым', summary: 'Самостоятельность растет, помощь старших снижается, SLA и повторы не ухудшаются.' }
+      ? { title: 'Улучшение выглядит здоровым', summary: 'Самостоятельность растет, помощь выше 1-й линии снижается, SLA и повторы не ухудшаются.' }
       : { title: 'Нужно проверить качество улучшения', summary: 'Динамика маршрутов сама по себе недостаточна: проверяем SLA и повторные обращения.' });
   const reportMainAction = mainActionTopic ? {
     theme: mainActionTopic.theme,
-    details: `Почему выбрали: эта тема чаще всего требует помощи старших и дает заметную долю SLA-просрочек. Тикетов: ${mainActionTopic.count}, SLA-просрочки: ${mainActionTopic.slaBreaches === null ? 'нет данных' : mainActionTopic.slaBreaches}, основной маршрут: ${mainActionTopic.mainRoute}. Что делаем: разбираем 5-7 типовых тикетов; выделяем общий сценарий; обновляем инструкцию, чек-лист или маршрут; обсуждаем на коротком синке с 1-й линией.`,
-    check: 'Как проверяем через неделю: доля помощи старших по теме; показатель «Решение в срок» по теме; количество повторных обращений, если данные есть.'
+    details: `Почему выбрали: эта тема чаще всего требует помощи выше 1-й линии и дает заметную долю SLA-просрочек. Тикетов: ${mainActionTopic.count}, SLA-просрочки: ${mainActionTopic.slaBreaches === null ? 'нет данных' : mainActionTopic.slaBreaches}, основной маршрут: ${mainActionTopic.mainRoute}. Что делаем: разбираем 5-7 типовых тикетов; выделяем общий сценарий; обновляем инструкцию, чек-лист или маршрут; обсуждаем на коротком синке с 1-й линией.`,
+    check: 'Как проверяем через неделю: доля помощи выше 1-й линии по теме; показатель «Решение в срок» по теме; количество повторных обращений, если данные есть.'
   } : {};
   const seniorWorkMap = fintechTopics.reduce((acc, topic) => {
     const level = topic.supportLevel || 'Старший уровень не определен';
@@ -3326,17 +3376,26 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   const recurringThemeMap = visibleCollectionKeys.reduce((acc, key) => {
     const data = weeksHistory?.[key] || {};
     const normalized = normalizeTrainingWeek(data, key);
-    (normalized.bottleneckThemes || []).forEach(item => {
+    const addRecurringTheme = (item, fallback = {}) => {
       const theme = safeString(item.theme || item.name || item.title);
       if (!theme) return;
       if (!acc[theme]) acc[theme] = { theme, weeks: new Set(), totalCount: 0, routes: {}, totalSlaBreaches: 0, actionNeeded: '' };
       acc[theme].weeks.add(key);
       acc[theme].totalCount += Number(item.count) || 0;
-      const route = getThemeRoute(item);
+      const route = fallback.route || getThemeRoute(item);
       acc[theme].routes[route] = (acc[theme].routes[route] || 0) + (Number(item.count) || 0);
-      acc[theme].totalSlaBreaches += Number(getThemeSlaBreaches(item)) || 0;
-      if (!acc[theme].actionNeeded) acc[theme].actionNeeded = getThemeAction(item);
-    });
+      acc[theme].totalSlaBreaches += Number(fallback.slaBreaches ?? getThemeSlaBreaches(item)) || 0;
+      if (!acc[theme].actionNeeded) acc[theme].actionNeeded = fallback.actionNeeded || getThemeAction(item);
+    };
+    (normalized.bottleneckThemes || []).forEach(item => addRecurringTheme(item));
+    (Array.isArray(data.topIncidents) ? data.topIncidents : []).forEach(item => addRecurringTheme({
+      theme: item.theme || item.title || item.name || item.category,
+      count: item.count || item.value || item.total
+    }, {
+      route: 'не определен',
+      slaBreaches: 0,
+      actionNeeded: 'Проверить, требует ли тема инструкции, прав, обучения или изменения маршрута.'
+    }));
     return acc;
   }, {});
   const recurringThemes = Object.values(recurringThemeMap)
@@ -3371,12 +3430,127 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   }).filter(row => row.count > 0 || row.label !== 'Другое');
   const totalSeniorSupportHours = seniorReserveRows.reduce((sum, row) => sum + row.hours, 0);
 
-  const telephonyRows = Array.isArray(weekData?.telephonyData) ? weekData.telephonyData : [];
-  const phoneCallsCount = telephonyRows.reduce((sum, row) => {
+  const getPhoneCallsCount = (data) => (Array.isArray(data?.telephonyData) ? data.telephonyData : []).reduce((sum, row) => {
     const value = Number(row?.incoming ?? row?.calls ?? row?.total ?? row?.count ?? row?.answered);
     return sum + (Number.isFinite(value) ? value : 0);
   }, 0);
+  const phoneCallsCount = getPhoneCallsCount(weekData);
+  const previousPhoneCallsCount = previousTrainingKey ? getPhoneCallsCount(weeksHistory?.[previousTrainingKey] || {}) : null;
+  const phoneDeltaText = previousPhoneCallsCount === null
+    ? 'база формируется'
+    : (phoneCallsCount === previousPhoneCallsCount ? 'без изменений' : `${phoneCallsCount > previousPhoneCallsCount ? '+' : '-'}${Math.abs(phoneCallsCount - previousPhoneCallsCount)} звонков к прошлой неделе`);
   const phoneLoadHours = phoneCallsCount * planningCapacityConfig.phoneCallAvgMinutes / 60;
+  const seniorTaskAdmins = new Set([...THIRD_LINE_ADMINS, 'Владимир Приходько'].map(name => safeString(name).toLowerCase()));
+  const isClosedDetailedTask = (task) => {
+    const status = safeString(task?.status).toLowerCase();
+    return Boolean(task?.resolved || task?.resolutionDate || task?.closedAt || ['закрыт', 'готово', 'resolved', 'завершен', 'done'].some(item => status.includes(item)));
+  };
+  const getTaskMemory = (task = {}) => {
+    const id = safeString(task.id || task.key || task.issueKey).trim();
+    return id ? (aiTaskMemory?.[id] || aiTaskMemory?.[id.toUpperCase()] || {}) : {};
+  };
+  const getReportTaskSize = (task = {}) => normalizeTaskSize(getTaskMemory(task).complexity || task.size || task.complexity || task.name) || getMetricTaskSize(task);
+  const getReportTaskValue = (task = {}) => safeString(getTaskMemory(task).priority || task.valueCategory || task.impactCategory || task.category || task.valueType || task.type).toLowerCase();
+  const getTaskAssigneeName = (task = {}) => getFullName(task.assignee || task.executor || task.owner || task.responsible || task['Исполнитель'] || task['Ответственный']);
+  const isSeniorTask = (task = {}) => {
+    const assignee = getTaskAssigneeName(task);
+    return seniorTaskAdmins.has(safeString(assignee).toLowerCase());
+  };
+  const selectedDetailedTasks = Array.isArray(weekData?.detailedTasks) ? weekData.detailedTasks : [];
+  const seniorDetailedTasks = selectedDetailedTasks.filter(task => task && !isNonDeliveryTask(task) && isSeniorTask(task));
+  const seniorClosedTasks = seniorDetailedTasks.filter(isClosedDetailedTask);
+  const seniorBacklogFromTasks = seniorDetailedTasks.filter(task => !isClosedDetailedTask(task)).length;
+  const seniorBacklogFromPerformers = (Array.isArray(weekData?.taskPerformers) ? weekData.taskPerformers : [])
+    .filter(row => seniorTaskAdmins.has(safeString(getFullName(row?.name || row?.assignee)).toLowerCase()))
+    .reduce((sum, row) => sum + (Number(row?.wip || row?.backlog || row?.open || row?.active || 0) || 0), 0);
+  const seniorBacklog = Math.max(seniorBacklogFromTasks, seniorBacklogFromPerformers);
+  const seniorCycleTasks = seniorClosedTasks
+    .map(task => ({ task, size: getReportTaskSize(task), cycleDays: getMetricTaskCycleDays(task) }))
+    .filter(item => Number.isFinite(Number(item.cycleDays)));
+  const seniorAvgCycleDays = seniorCycleTasks.length
+    ? roundMetric(seniorCycleTasks.reduce((sum, item) => sum + Number(item.cycleDays), 0) / seniorCycleTasks.length, 1)
+    : null;
+  const isHeavySeniorTask = (task = {}) => {
+    const size = getReportTaskSize(task);
+    const value = getReportTaskValue(task);
+    const cycleDays = Number(getMetricTaskCycleDays(task));
+    return ['L', 'XL'].includes(size)
+      || value.includes('impact')
+      || value.includes('business')
+      || value.includes('важ')
+      || value.includes('техдолг')
+      || (Number.isFinite(cycleDays) && cycleDays >= 30);
+  };
+  const seniorHeavyClosedTasks = seniorClosedTasks
+    .filter(isHeavySeniorTask)
+    .map(task => {
+      const size = getReportTaskSize(task);
+      const cycleDays = getMetricTaskCycleDays(task);
+      const domain = inferTaskDomain(task);
+      return {
+        id: safeString(task.id || task.key || task.issueKey),
+        title: safeString(task.title || task.summary || task.name || 'Без названия'),
+        size,
+        sizeLabel: getTaskSizeLabel(size),
+        cycleDays,
+        domain,
+        assignee: getTaskAssigneeName(task)
+      };
+    })
+    .sort((a, b) => (Number(b.cycleDays) || 0) - (Number(a.cycleDays) || 0))
+    .slice(0, 4);
+  const seniorHeavyShare = percentOf(seniorHeavyClosedTasks.length, seniorClosedTasks.length);
+  const taskThroughputDelta = previousTrainingKey
+    ? seniorClosedTasks.length - (Array.isArray(weeksHistory?.[previousTrainingKey]?.detailedTasks) ? weeksHistory[previousTrainingKey].detailedTasks : [])
+      .filter(task => task && !isNonDeliveryTask(task) && isSeniorTask(task) && isClosedDetailedTask(task)).length
+    : null;
+  const seniorProjectShare = seniorClosedTasks.length + selectedTraining.helpCount > 0 ? percentOf(seniorClosedTasks.length, seniorClosedTasks.length + selectedTraining.helpCount) : 0;
+  const seniorHelpShare = seniorClosedTasks.length + selectedTraining.helpCount > 0 ? percentOf(selectedTraining.helpCount, seniorClosedTasks.length + selectedTraining.helpCount) : 0;
+  const seniorTaskFlow = {
+    hasData: seniorClosedTasks.length > 0 || seniorBacklog > 0 || selectedTraining.helpCount > 0,
+    closedCount: seniorClosedTasks.length,
+    backlogCount: seniorBacklog,
+    heavyClosedCount: seniorHeavyClosedTasks.length,
+    heavyShare: seniorHeavyShare,
+    avgCycleDays: seniorAvgCycleDays,
+    helpShare: seniorHelpShare,
+    projectShare: seniorProjectShare,
+    balanceLabel: seniorHelpShare >= 45 ? 'поддержка заметно давит на развитие' : (seniorHelpShare >= 25 ? 'баланс под контролем, нужен резерв' : 'проектная работа держится'),
+    balanceNote: selectedTraining.helpCount > 0
+      ? `По маршрутам помощи выше 1-й линии: ${selectedTraining.helpCount} обращений. Это контекст к закрытию задач старшими, а не оценка людей.`
+      : 'Маршруты помощи выше 1-й линии за неделю не зафиксированы или еще не загружены.',
+    cards: [
+      {
+        label: 'Закрыто задач старшими',
+        value: `${seniorClosedTasks.length} шт.`,
+        hint: taskThroughputDelta === null ? 'первая неделя сравнения' : `${taskThroughputDelta === 0 ? 'без изменений' : `${taskThroughputDelta > 0 ? '+' : ''}${taskThroughputDelta}`} к прошлой неделе`,
+        tone: 'good'
+      },
+      {
+        label: 'Бэклог задач',
+        value: `${seniorBacklog} шт.`,
+        hint: seniorBacklog > 30 ? 'нужна приоритизация хвоста' : 'контекст незакрытого потока',
+        tone: seniorBacklog > 30 ? 'risk' : 'warn'
+      },
+      {
+        label: 'Тяжелые закрытия',
+        value: `${seniorHeavyClosedTasks.length} шт.`,
+        hint: `${formatPercent(seniorHeavyShare)} от закрытых задач`,
+        tone: seniorHeavyClosedTasks.length > 0 ? 'violet' : 'neutral'
+      },
+      {
+        label: 'Цикл выполнения',
+        value: seniorAvgCycleDays === null ? 'нет данных' : `${seniorAvgCycleDays} дн.`,
+        hint: 'от взятия в работу до закрытия',
+        tone: seniorAvgCycleDays !== null && seniorAvgCycleDays > 14 ? 'risk' : 'good'
+      }
+    ],
+    heavyTasks: seniorHeavyClosedTasks.map(task => ({
+      ...task,
+      details: `${task.domain || 'Прочее'}${Number.isFinite(Number(task.cycleDays)) ? ` · цикл ${task.cycleDays} дн.` : ''}${task.assignee ? ` · ${task.assignee}` : ''}`
+    })),
+    note: 'Задачи показываются как управленческий контекст: закрытия, хвост, сложность и влияние помощи 1-й линии на проектную работу старших.'
+  };
   const ordinaryKeys = visibleCollectionKeys.filter(key => isBaselineEligibleType(normalizeTrainingWeek(weeksHistory?.[key] || {}, key).weekType));
   const ordinaryHelpCounts = ordinaryKeys.map(key => normalizeTrainingWeek(weeksHistory?.[key] || {}, key).helpCount);
   const abnormalHelpCounts = visibleCollectionKeys
@@ -3507,18 +3681,17 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
           howToPlan: developmentTheme
             ? `Берем одну повторяющуюся тему: ${developmentTheme.theme}.`
             : 'Берем одну повторяющуюся тему после накопления данных по bottleneckThemes.',
-          metrics: 'количество тикетов по теме, помощь старших по теме, решение в срок, повторы',
+          metrics: 'количество тикетов по теме, помощь выше 1-й линии по теме, решение в срок, повторы',
           risk: 'если не выбрать одну тему, улучшения расползутся и эффект будет трудно проверить'
         }
       ]
     },
     planningGaps: [
-      'Фактическое время помощи выше 1-й линии.',
-      'График дежурств, отпусков и больничных.',
+      'Качество заполнения маршрута решения.',
+      'Связка звонок → тикет.',
+      'Повторные обращения.',
       'Кто был дежурным на конкретной неделе.',
-      'Связка звонок → тикет, чтобы не считать телефонию дважды.',
-      'Разделение задач OSO_Support на регулярку, развитие и проекты.',
-      'Фактическая загрузка администраторов 1-й линии типовыми задачами.'
+      'Разделение задач OSO_Support на регулярку, развитие и проекты.'
     ],
     firstLineLoad: {
       traineeCapacityText: `${traineeMinHours}-${traineeMaxHours} часов в неделю`,
@@ -3530,11 +3703,10 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       status: phoneCallsCount > 0 ? 'подключена' : 'данные пока не подключены',
       callsCount: phoneCallsCount || null,
       avgPerDayText: phoneCallsCount > 0 ? `${roundMetric(phoneCallsCount / planningCapacityConfig.workdaysPerWeek, 1)} звонков` : 'данные пока не подключены',
-      hoursText: phoneCallsCount > 0 ? formatHours(phoneLoadHours) : 'данные пока не подключены',
-      note: phoneCallsCount > 0
-        ? 'Телефония учитывается отдельно: звонки не смешиваются с тикетами без проверки связи.'
-        : 'Телефония пока не подключена к расчету. Для точного планирования 1-й линии нужно добавить количество звонков и среднюю длительность звонка.'
+      deltaText: phoneDeltaText,
+      note: 'Связка звонок → тикет пока не подключена, поэтому звонки показываются как отдельный контекст нагрузки.'
     },
+    seniorTaskFlow,
     seniorReserve: {
       rows: seniorReserveRows,
       totalWeekHoursText: formatHours(totalSeniorSupportHours),
@@ -3663,7 +3835,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
               <div className="text-2xl font-black text-slate-200">{selectedTraining.closed}<span className="text-xs text-slate-500 ml-1">шт.</span></div>
             </div>
           </div>
-          <p className="text-xs text-slate-500 leading-relaxed">Самостоятельность и помощь старших считаются только по тикетам с валидным маршрутом решения.</p>
+          <p className="text-xs text-slate-500 leading-relaxed">Самостоятельность и помощь выше 1-й линии считаются только по тикетам с валидным маршрутом решения.</p>
         </div>
 
         <div className="xl:col-span-2 bg-slate-800 rounded-xl p-5 border border-slate-700/50 shadow-sm">
@@ -3713,7 +3885,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
                   <Line type="monotone" dataKey="self" name="Самостоятельность" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="sla" name="Взятие в работу ≤15 мин" stroke="#38bdf8" strokeWidth={3} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="slaResolution" name="Решение в срок" stroke="#818cf8" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="help" name="Помощь старших" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="help" name="Помощь выше 1-й линии" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="quality" name="Качество данных" stroke="#94a3b8" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -10109,7 +10281,7 @@ const App = () => {
       case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} tasksArchive={tasksArchive} teamMetricsMemory={teamMetricsMemory} />;
       case 'wordReport': return <WordReportGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
-      case 'training': return <TrainingBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} />;
+      case 'training': return <TrainingBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} aiTaskMemory={aiTaskMemory} />;
       case 'weeklyCompetencies': return <WeeklyCompetenciesBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} aiTaskMemory={aiTaskMemory} />;
       case 'team': return <TeamAnalytics teamMetricsMemory={teamMetricsMemory} setTeamMetricsMemory={setTeamMetricsMemory} />;
       case 'processes': return <ProcessesMap processes={processes} />; 
