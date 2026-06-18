@@ -245,7 +245,7 @@ const generateFintechLabReport = ({
         <i class="balance-help" style="width:${width(seniorTaskFlow.helpShare || 0)}"></i>
         <i class="balance-project" style="width:${width(seniorTaskFlow.projectShare || 0)}"></i>
       </div>
-      <div class="balance-legend"><span><b class="dot help"></b>Помощь 1-й линии: ${html(pct(seniorTaskFlow.helpShare || 0))}</span><span><b class="dot project"></b>Закрытие задач: ${html(pct(seniorTaskFlow.projectShare || 0))}</span></div>
+      <div class="balance-legend"><span><b class="dot help"></b>Обращения с помощью выше 1-й линии: ${html(Math.round(Number(seniorTaskFlow.helpCount) || 0))} обращ.</span><span><b class="dot project"></b>Закрытые задачи старших: ${html(Math.round(Number(seniorTaskFlow.closedCount) || 0))} задач</span></div>
       <p>${html(seniorTaskFlow.balanceNote || 'Смотрим, не съедает ли поддержка первой линии проектную работу старших администраторов.')}</p>
     </div>
   ` : '<div class="note">Баланс появится после загрузки задач и маршрутов решения за неделю.</div>';
@@ -291,7 +291,6 @@ const generateFintechLabReport = ({
     <section><h2>Контекст нагрузки</h2><div class="note-grid"><div class="note">Входящий поток: <strong>${html(count(loadContext.inflow))}</strong></div><div class="note">Закрыто: <strong>${html(count(loadContext.closed))}</strong> из <strong>${html(count(loadContext.inflow))}</strong>, очередь на конец: <strong>${html(count(loadContext.queue))}</strong></div><div class="note">Тип недели: <strong>${html(loadContext.weekTypeLabel || 'обычная неделя')}</strong></div><div class="note">Изменение потока: <strong>${html(loadContext.inflowChange || 'база формируется')}</strong></div></div><p class="muted" style="margin-top:12px">${html(loadContext.note || 'Эти показатели объясняют нагрузку, но не являются основной оценкой качества процесса.')}</p></section>
     <section><h2>Гипотеза и план проверки</h2><div class="note-grid"><div class="note"><strong>Гипотеза:</strong> меньше помощи выше 1-й линии без ухудшения SLA и без роста повторов.</div><div class="note"><strong>Проверка:</strong> через неделю смотрим выбранную тему, помощь выше 1-й линии, решение в срок и повторы.</div></div></section>
     <section><h2>Что нужно улучшить в сборе данных</h2><div class="note"><ul style="margin:0;padding-left:18px">${planningGapRows}</ul></div></section>
-    <section><h2>Вопросы тренерам</h2><div class="note-grid"><div class="note">Достаточно ли этих метрик для защиты домашнего задания?</div><div class="note">Как правильно учитывать недели с авариями или неполной выгрузкой?</div><div class="note">Как не превратить маршрут решения в формальное заполнение поля?</div><div class="note">SLA по маршрутам показывает процесс, а не рейтинг сотрудников.</div></div></section>
     <details><summary style="cursor:pointer;font-weight:900;margin:16px 0;color:#102033">Диагностика исполнителей</summary><section><div class="note" style="margin-bottom:12px">Этот блок не является рейтингом сотрудников. Он нужен для анализа типов нагрузки, сложности обращений и потребности в обучении или перераспределении. Время показывается по медиане; среднее доступно как подсказка.</div><table><thead><tr><th>Исполнитель</th><th>Закрыто</th><th>Медианное время</th><th>CSAT</th><th>Профиль нагрузки</th></tr></thead><tbody>${diagnosticsRows}</tbody></table></section></details>
   </main></body></html>`;
 };
@@ -3506,18 +3505,21 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     : null;
   const seniorProjectShare = seniorClosedTasks.length + selectedTraining.helpCount > 0 ? percentOf(seniorClosedTasks.length, seniorClosedTasks.length + selectedTraining.helpCount) : 0;
   const seniorHelpShare = seniorClosedTasks.length + selectedTraining.helpCount > 0 ? percentOf(selectedTraining.helpCount, seniorClosedTasks.length + selectedTraining.helpCount) : 0;
+  const totalTaskBacklog = Number(weekData?.backlog || weekData?.backlogTotal || 0) || 0;
   const seniorTaskFlow = {
     hasData: seniorClosedTasks.length > 0 || seniorBacklog > 0 || selectedTraining.helpCount > 0,
     closedCount: seniorClosedTasks.length,
+    helpCount: selectedTraining.helpCount,
+    totalBacklog: totalTaskBacklog,
     backlogCount: seniorBacklog,
     heavyClosedCount: seniorHeavyClosedTasks.length,
     heavyShare: seniorHeavyShare,
     avgCycleDays: seniorAvgCycleDays,
     helpShare: seniorHelpShare,
     projectShare: seniorProjectShare,
-    balanceLabel: seniorHelpShare >= 45 ? 'поддержка заметно давит на развитие' : (seniorHelpShare >= 25 ? 'баланс под контролем, нужен резерв' : 'проектная работа держится'),
+    balanceLabel: selectedTraining.helpCount > seniorClosedTasks.length * 3 ? 'высокий фон поддержки 1-й линии' : (selectedTraining.helpCount > seniorClosedTasks.length ? 'поддержка заметна, нужен резерв' : 'проектная работа держится'),
     balanceNote: selectedTraining.helpCount > 0
-      ? `По маршрутам помощи выше 1-й линии: ${selectedTraining.helpCount} обращений. Это контекст к закрытию задач старшими, а не оценка людей.`
+      ? `Это не самостоятельность 1-й линии. Шкала сравнивает два разных потока недели: ${selectedTraining.helpCount} обращений с помощью выше 1-й линии и ${seniorClosedTasks.length} закрытых задач старших.`
       : 'Маршруты помощи выше 1-й линии за неделю не зафиксированы или еще не загружены.',
     cards: [
       {
@@ -3527,9 +3529,9 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         tone: 'good'
       },
       {
-        label: 'Бэклог задач',
+        label: 'Открыто у старших',
         value: `${seniorBacklog} шт.`,
-        hint: seniorBacklog > 30 ? 'нужна приоритизация хвоста' : 'контекст незакрытого потока',
+        hint: totalTaskBacklog > 0 ? `не общий бэклог; общий бэклог недели: ${totalTaskBacklog}` : 'только незакрытые задачи старших из выгрузки',
         tone: seniorBacklog > 30 ? 'risk' : 'warn'
       },
       {
@@ -3725,7 +3727,10 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       const cleanAverage = Number.isFinite(averageMinutes) && averageMinutes > 0 ? averageMinutes : null;
       const displayMinutes = cleanMedian ?? cleanAverage;
       const isOutlier = cleanAverage !== null && cleanAverage > 10080;
-      const displayName = rawLogin || (rawName ? `Исполнитель ${index + 1}` : 'Исполнитель');
+      const resolvedLoginName = rawLogin ? getFullName(rawLogin) : '';
+      const resolvedRawName = rawName ? getFullName(rawName) : '';
+      const loginWasResolved = rawLogin && safeString(resolvedLoginName).toLowerCase() !== rawLogin.toLowerCase();
+      const displayName = safeString(loginWasResolved ? resolvedLoginName : resolvedRawName).trim() || `Исполнитель ${index + 1}`;
       return {
         displayName,
         name: displayName,
