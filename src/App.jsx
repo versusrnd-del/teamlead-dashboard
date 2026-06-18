@@ -8347,7 +8347,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     };
 
     const renderHtmlCopyManagementTasks = () => {
-      if (!managementGroups.done.length && !managementGroups.active.length) return '<div style="font-size:12px; color:#64748b;">Нет активных поручений руководства.</div>';
+      if (!managementGroups.done.length && !managementGroups.active.length) return '<div style="font-size:12px; color:#64748b;">Нет задач в работе.</div>';
       return `${renderHtmlCopyManagementGroup('Выполнено', managementGroups.done, true)}${renderHtmlCopyManagementGroup('В работе по приоритету', managementGroups.active, false)}`;
     };
 
@@ -8366,7 +8366,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
             }).join('')}
           </div>`;
       };
-      if (!managementGroups.done.length && !managementGroups.active.length) return '<div style="font-size:12px; color:#64748b;">Нет активных поручений руководства.</div>';
+      if (!managementGroups.done.length && !managementGroups.active.length) return '<div style="font-size:12px; color:#64748b;">Нет задач в работе.</div>';
       return `${renderGroup('Выполнено', managementGroups.done, true)}${renderGroup('В работе по приоритету', managementGroups.active, false)}`;
     };
 
@@ -8500,7 +8500,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       <div style="font-family:Aptos, Calibri, Arial, sans-serif; mso-ascii-font-family:Aptos; mso-hansi-font-family:Aptos; color:#0f172a; font-size:12px; line-height:1.25;">
         <h2 style="font-family:Aptos, Calibri, Arial, sans-serif; font-size:14px; margin:0 0 8px 0; color:#0f172a;">1. Решенные задачи за неделю</h2>
         ${renderTaskSections()}
-        <h2 style="font-family:Aptos, Calibri, Arial, sans-serif; font-size:14px; margin:14px 0 8px 0; color:#0f172a;">2. Поручения руководства</h2>
+        <h2 style="font-family:Aptos, Calibri, Arial, sans-serif; font-size:14px; margin:14px 0 8px 0; color:#0f172a;">2. Задачи в работе</h2>
         ${renderManagementTasks()}
       </div>`;
     }
@@ -8514,7 +8514,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${renderKpi()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">1. Решенные задачи за неделю</h2>
         ${htmlCopyMode ? renderHtmlCopyTaskSections() : renderTaskSections()}
-        <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">2. Поручения руководства</h2>
+        <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">2. Задачи в работе</h2>
         ${htmlCopyMode ? renderHtmlCopyManagementTasks() : renderManagementTasks()}
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">3. Показатели команды</h2>
         ${renderTeamMetrics()}
@@ -8563,39 +8563,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const handleDownloadWordHtmlReport = () => {
     const persisted = persistWordPreviewEdits();
     const htmlContent = getWordReportHtmlString({ exportMode: true, htmlCopyMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
-    const tasksClipboardHtml = getWordReportHtmlString({ exportMode: true, htmlCopyMode: true, tasksClipboardMode: true, memoryOverrides: persisted.taskOverrides, projectOverrides: persisted.projectOverrides });
-    const tempClipboardDiv = document.createElement('div');
-    tempClipboardDiv.innerHTML = tasksClipboardHtml;
-    const tasksClipboardText = tempClipboardDiv.innerText;
-    const tasksClipboardDocHtml = `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-  <meta charset="utf-8">
-  <meta name="ProgId" content="Word.Document">
-  <meta name="Generator" content="TeamLead Control Room">
-  <meta name="Originator" content="TeamLead Control Room">
-  <title>Tasks Week ${weekData?.weekNumber || ''}</title>
-  <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
-  <style>
-    @page WordSection1 { size: 595.3pt 841.9pt; margin: 42.5pt 42.5pt 42.5pt 42.5pt; }
-    div.WordSection1 { page: WordSection1; }
-    body, p, div, table, td {
-      font-family: Aptos, Calibri, Arial, sans-serif;
-      mso-ascii-font-family: Aptos;
-      mso-hansi-font-family: Aptos;
-      color: #0f172a;
-    }
-    p { margin: 0; mso-margin-top-alt: auto; mso-margin-bottom-alt: auto; }
-    table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-  </style>
-</head>
-<body>
-  <div class="WordSection1">
-    ${tasksClipboardHtml}
-  </div>
-</body>
-</html>`;
-    const toScriptString = (value) => JSON.stringify(value).replace(/<\/script/gi, '<\\/script');
     const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -8655,26 +8622,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       font-weight: 800;
       white-space: nowrap;
     }
-    .html-report-actions {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 8px;
-    }
-    .html-copy-button {
-      border: 1px solid rgba(16, 185, 129, 0.45);
-      background: rgba(16, 185, 129, 0.16);
-      color: #d1fae5;
-      border-radius: 10px;
-      padding: 9px 12px;
-      font: 800 12px Aptos, Calibri, Arial, sans-serif;
-      cursor: pointer;
-      transition: background 0.15s ease, border-color 0.15s ease;
-    }
-    .html-copy-button:hover {
-      background: rgba(16, 185, 129, 0.24);
-      border-color: rgba(16, 185, 129, 0.70);
-    }
     .html-report-page {
       background: #ffffff;
       max-width: 920px;
@@ -8705,90 +8652,13 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         <h1>Отчет руководителю</h1>
         <p>${escapeHtml(`Неделя ${weekData?.weekNumber || ''}${weekData?.dates ? ` (${weekData.dates})` : ''}`)}</p>
       </div>
-      <div class="html-report-actions">
-        <div class="html-report-badge">Таблицы — для скриншотов · задачи — для копирования в Lotus</div>
-        <button class="html-copy-button" type="button" onclick="copyLotusTasks(this)">Скопировать задачи</button>
-        <button class="html-copy-button" type="button" onclick="downloadLotusTasksDoc(this)">Скачать задачи DOC</button>
-      </div>
+      <div class="html-report-badge">Таблицы — для скриншотов · задачи — для копирования в Lotus</div>
     </div>
     <article class="html-report-page">
       ${htmlContent}
     </article>
-    <div class="copy-note">Для письма в Lotus выделяй только блоки задач и поручений. KPI и таблицы удобнее вставлять скриншотами.</div>
+    <div class="copy-note">Для письма в Lotus выделяй блоки задач в отчете. KPI и таблицы удобнее вставлять скриншотами.</div>
   </main>
-  <script>
-    const lotusTasksHtml = ${toScriptString(tasksClipboardHtml)};
-    const lotusTasksText = ${toScriptString(tasksClipboardText)};
-    const lotusTasksDocHtml = ${toScriptString(tasksClipboardDocHtml)};
-    function downloadLotusTasksDoc(button) {
-      const originalText = button.textContent;
-      const blob = new Blob([lotusTasksDocHtml], { type: 'application/msword;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'Tasks_Copy_Week_${weekData?.weekNumber || 'current'}.doc';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      button.textContent = 'DOC скачан';
-      setTimeout(() => { button.textContent = originalText; }, 1800);
-    }
-    function copyLotusTasksRichFallback() {
-      const holder = document.createElement('div');
-      holder.style.position = 'fixed';
-      holder.style.left = '-9999px';
-      holder.style.top = '0';
-      holder.style.width = '760px';
-      holder.style.background = '#ffffff';
-      holder.innerHTML = lotusTasksHtml;
-      document.body.appendChild(holder);
-      const range = document.createRange();
-      range.selectNodeContents(holder);
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      const copied = document.execCommand('copy');
-      selection.removeAllRanges();
-      document.body.removeChild(holder);
-      if (!copied) throw new Error('rich-copy-failed');
-    }
-    async function copyLotusTasks(button) {
-      const originalText = button.textContent;
-      try {
-        if (navigator.clipboard && window.ClipboardItem) {
-          await navigator.clipboard.write([
-            new ClipboardItem({
-              'text/html': new Blob([lotusTasksHtml], { type: 'text/html' }),
-              'text/plain': new Blob([lotusTasksText], { type: 'text/plain' })
-            })
-          ]);
-        } else {
-          copyLotusTasksRichFallback();
-        }
-        button.textContent = 'Задачи скопированы';
-        setTimeout(() => { button.textContent = originalText; }, 1800);
-      } catch (error) {
-        try {
-          copyLotusTasksRichFallback();
-          button.textContent = 'Задачи скопированы';
-          setTimeout(() => { button.textContent = originalText; }, 1800);
-        } catch (fallbackError) {
-          const textArea = document.createElement('textarea');
-          textArea.value = lotusTasksText;
-          textArea.style.position = 'fixed';
-          textArea.style.left = '-9999px';
-          document.body.appendChild(textArea);
-          textArea.focus();
-          textArea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textArea);
-          button.textContent = 'Скопировано текстом';
-          setTimeout(() => { button.textContent = originalText; }, 1800);
-        }
-      }
-    }
-  </script>
 </body>
 </html>`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -8877,7 +8747,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           </div>
 
           <div className="bg-slate-800 rounded-xl border border-slate-700/50 p-4">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Поручения руководства</h2>
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Задачи в работе</h2>
             <div className="space-y-2 mb-3">
               <input
                 value={newProjectTaskTitle}
@@ -9017,9 +8887,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
             </section>
 
             <section className="mb-6" style={{ fontFamily: wordFontFamily }}>
-              <h3 className="text-lg font-black mb-3">2. Поручения руководства</h3>
+              <h3 className="text-lg font-black mb-3">2. Задачи в работе</h3>
               <div className="space-y-2">
-                {(!managementGroups.done.length && !managementGroups.active.length) && <div className="text-sm text-slate-500">Нет активных поручений руководства.</div>}
+                {(!managementGroups.done.length && !managementGroups.active.length) && <div className="text-sm text-slate-500">Нет задач в работе.</div>}
                 {[
                   { title: 'Выполнено', tasks: managementGroups.done, done: true },
                   { title: 'В работе по приоритету', tasks: managementGroups.active, done: false }
