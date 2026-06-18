@@ -33,6 +33,7 @@ const BASE_CAPACITY = 50;
 const TEAM_LEAD_ID = "u01002"; // ID тимлида для исключения из таблиц отчета
 const TEAM_LEAD_NAME = "Виктор С.";
 const THIRD_LINE_ADMINS = ["Антон Лысов", "Петр Скляренко", "Максим Нестеров", "Роман Нор", "e0197"];
+const FIRST_LINE_REPORT_EXCLUDED_ADMINS = ["Владимир Приходько", "u05112"];
 const EXCLUDED_USER_IDS = ["u0557", "u0549"];
 
 const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -181,6 +182,8 @@ const generateFintechLabReport = ({
   const telephony = periodAnalytics.telephony || {};
   const seniorReserve = periodAnalytics.seniorReserve || {};
   const planning = periodAnalytics.planning || {};
+  const monthPlan = periodAnalytics.monthPlan || {};
+  const planningGaps = Array.isArray(periodAnalytics.planningGaps) ? periodAnalytics.planningGaps : [];
   const performerDiagnostics = Array.isArray(periodAnalytics.performerDiagnostics) ? periodAnalytics.performerDiagnostics : [];
   const tempSteps = ['Спокойно', 'Нормально', 'Зона внимания', 'Горячо', 'Перегрев'];
   const tempIndex = Math.max(0, tempSteps.indexOf(temperature.label || 'Нормально'));
@@ -203,12 +206,21 @@ const generateFintechLabReport = ({
   const diagnosticsRows = performerDiagnostics.length ? performerDiagnostics.slice(0, 8).map(row => `
     <tr><td>${html(row.displayName || row.name)}</td><td class="num">${html(count(row.closed))}</td><td class="num" title="${html(row.avgTimeHint || '')}">${html(row.medianTimeText || row.avgTimeText)}</td><td class="num">${html(row.csatText)}</td><td>${html(row.profile)}</td></tr>
   `).join('') : '<tr><td colspan="5" class="muted">Данные исполнителей пока не подключены.</td></tr>';
+  const monthResourceRows = (monthPlan.resources || []).length ? monthPlan.resources.map(row => `
+    <tr><td>${html(row.resource)}</td><td>${html(row.calculation)}</td><td class="num">${html(row.monthFund)}</td><td>${html(row.role)}</td></tr>
+  `).join('') : '<tr><td colspan="4" class="muted">Ресурс команды пока не рассчитан.</td></tr>';
+  const monthWorkstreamRows = (monthPlan.workstreams || []).length ? monthPlan.workstreams.map(row => `
+    <tr><td><strong>${html(row.name)}</strong></td><td>${html(row.howToPlan)}</td><td>${html(row.metrics)}</td><td>${html(row.risk)}</td></tr>
+  `).join('') : '<tr><td colspan="4" class="muted">Плановые блоки появятся после расчета нагрузки.</td></tr>';
+  const planningGapRows = planningGaps.length ? planningGaps.map(item => `<li>${html(item)}</li>`).join('') : '<li>Фактическое время помощи выше 1-й линии.</li><li>График дежурств, отпусков и больничных.</li><li>Связка звонок → тикет.</li>';
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Финтехлаб — практика по метрикам</title><style>
     :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--orange:#ea580c;--red:#dc2626;--violet:#7c3aed;--soft-blue:#eff6ff;--soft-amber:#fffbeb;--soft-orange:#fff7ed;--soft-red:#fef2f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:linear-gradient(135deg,#102033,#173a5e);color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.16);margin-bottom:20px}.cover-head{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:24px;align-items:start}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item,.signal-card{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.signal-card{border-top:4px solid #38bdf8;background:rgba(255,255,255,.14);box-shadow:0 16px 36px rgba(0,0,0,.16)}.signal-card.good{border-top-color:#10b981}.signal-card.warn{border-top-color:#f59e0b}.signal-card.risk{border-top-color:#f97316}.signal-card.bad{border-top-color:#ef4444}.signal-value{display:block;font-size:30px;line-height:1;font-weight:950;margin:7px 0;color:#fff}.signal-card p{margin:0;color:#dbeafe;font-size:12px}.cover-item span,.signal-card span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span,.signal-card span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note strong{color:#203044}.status-grid,.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.status-grid{grid-template-columns:1.1fr 1.4fr 1fr}.status-box{border:1px solid var(--line);border-radius:16px;padding:14px;background:#f8fafc}.status-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.status-title{font-size:18px;font-weight:900;color:#1d4ed8}.status-box ul{margin:0;padding-left:18px;color:#475569;font-size:13px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-top:4px solid #dbeafe;border-radius:18px;padding:18px;background:#fff}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:#173a5e;font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-card.good{border-top-color:#10b981}.metric-card.warn{border-top-color:#f59e0b}.metric-card.risk{border-top-color:#f97316}.metric-card.bad{border-top-color:#ef4444}.metric-card.violet{border-top-color:#8b5cf6}.metric-status{display:inline-block;border-radius:999px;background:#f1f5f9;color:#334155;padding:4px 8px;font-size:11px;font-weight:900;margin-bottom:7px}.metric-card.good .metric-status{background:#ecfdf5;color:var(--green)}.metric-card.warn .metric-status{background:var(--soft-amber);color:var(--amber)}.metric-card.risk .metric-status{background:var(--soft-orange);color:var(--orange)}.metric-card.bad .metric-status{background:var(--soft-red);color:var(--red)}.metric-card.violet .metric-status{background:#f5f3ff;color:var(--violet)}.target-row{display:flex;justify-content:space-between;gap:10px;color:#475569;font-size:11px;font-weight:800;margin:8px 0 5px}.progress-track{height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-bottom:9px}.progress-fill{height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.metric-card.good .progress-fill{background:#10b981}.metric-card.warn .progress-fill{background:#f59e0b}.metric-card.risk .progress-fill{background:#f97316}.metric-card.bad .progress-fill{background:#ef4444}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}.topic-card p{color:#475569;font-size:13px;margin:10px 0 0}.check-line{background:#f8fafc;border:1px solid #e7eef6;border-radius:12px;padding:10px}.read-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.read-list div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:12px;color:#475569;font-size:13px}.temp-scale{position:relative;height:44px;margin:12px 0 8px}.temp-track{position:absolute;left:0;right:0;top:17px;height:10px;border-radius:999px;background:linear-gradient(90deg,#d1fae5,#e0f2fe,#fef3c7,#fed7aa,#fecaca)}.temp-marker{position:absolute;top:7px;width:24px;height:24px;border:4px solid #102033;border-radius:999px;background:#fff;transform:translateX(-12px)}.temp-labels{display:flex;justify-content:space-between;color:#64748b;font-size:11px;font-weight:800}.mini-bars{display:grid;gap:8px}.mini-bar-row{display:grid;grid-template-columns:110px 1fr 56px;gap:10px;align-items:center;font-size:12px}.mini-bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.mini-bar span{display:block;height:100%;background:#2563eb;border-radius:999px}.executive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.traffic-badge{display:inline-block;border-radius:999px;padding:5px 10px;font-weight:900;font-size:12px;background:#f1f5f9;color:#334155}@media(max-width:820px){.cover-head,.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.note-grid,.status-grid,.read-list,.executive-grid{grid-template-columns:1fr}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
   </style></head><body><main class="page">
     <header class="cover"><div class="cover-head"><div><div class="eyebrow">Финтехлаб — практика по метрикам</div><h1>Финтехлаб — практика по метрикам</h1><p class="cover-subtitle">Процесс: Обработка инцидента 1-й линии</p></div><div class="signal-card ${html(executiveSignal.tone || 'warn')}"><span>Главный сигнал периода</span><strong class="signal-value">${html(executiveSignal.valueText || 'база формируется')}</strong><p>${html(executiveSignal.label || 'SLA взятия в работу к базе')}</p><p>${html(executiveSignal.note || 'Появится после накопления полных недель.')}</p></div></div><div class="cover-grid"><div class="cover-item"><span>Неделя / период</span><strong>${html(period)}</strong></div><div class="cover-item"><span>Владелец процесса</span><strong>Виктор</strong></div><div class="cover-item"><span>Направление</span><strong>ОСО / техническая поддержка</strong></div><div class="cover-item"><span>Дата формирования</span><strong>${html(generatedDate.toLocaleDateString('ru-RU'))}</strong></div></div></header>
     <section><h2>Статус недели</h2><div class="status-grid"><div class="status-box"><h3>Общий статус</h3><div class="status-title">${html(statusWeek.title || 'База формируется')}</div><p class="muted">${html(statusWeek.summary || summary || 'Данные пока не подключены.')}</p></div><div class="status-box"><h3>Почему такой статус</h3><ul>${(statusWeek.points || []).map(point => `<li>${html(point)}</li>`).join('')}</ul></div><div class="status-box"><h3>Главное действие</h3><p>${html(statusWeek.nextAction || mainAction.actionNeeded || 'выбрать тему после накопления данных')}</p></div></div></section>
+    <section><h2>План работы команды на месяц — MIN</h2><div class="note" style="margin-bottom:12px">${html(monthPlan.summary || 'План строится по четырем блокам: регулярка, инциденты/аварии, проекты и развитие.')}</div><table><thead><tr><th>Ресурс</th><th>Расчет</th><th>Плановый фонд</th><th>Роль в плане</th></tr></thead><tbody>${monthResourceRows}</tbody></table><div class="note" style="margin-top:12px"><strong>Главный вывод:</strong> ${html(monthPlan.mainConclusion || 'Нужен буфер администраторов 1-й линии и резерв старших уровней для помощи по сложным обращениям.')}</div></section>
+    <section><h2>Как планируем работу</h2><table><thead><tr><th>Блок</th><th>Как планируем</th><th>Метрики</th><th>Риск</th></tr></thead><tbody>${monthWorkstreamRows}</tbody></table></section>
     <section><h2>Температура процесса</h2><div class="note"><strong>${html(temperature.label || 'Нормально')}</strong><br>${html(temperature.summary || 'Температура формируется по SLA, входящему потоку и типу недели.')}</div>${temperature.unavailable ? '' : `<div class="temp-scale"><div class="temp-track"></div><div class="temp-marker" style="left:${tempMarker}"></div></div><div class="temp-labels">${tempSteps.map(step => `<span>${html(step)}</span>`).join('')}</div>`}</section>
     <section><h2>Ключевые метрики</h2><div class="metric-grid">${metricCards}</div></section>
     <section><h2>Главное действие на следующую неделю</h2><div class="note"><strong>${html(mainAction.theme || 'Тема пока не выбрана')}</strong><br>${html(mainAction.details || 'Нужны данные по топу не-самостоятельных маршрутов.')}<br><strong>Проверка:</strong> ${html(mainAction.check || 'сравнить помощь старших и решение в срок по выбранной теме через неделю')}</div></section>
@@ -228,6 +240,7 @@ const generateFintechLabReport = ({
     <section><h2>Маршруты решения</h2>${routeRows}</section>
     <section><h2>Контекст нагрузки</h2><div class="note-grid"><div class="note">Входящий поток: <strong>${html(count(loadContext.inflow))}</strong></div><div class="note">Закрыто: <strong>${html(count(loadContext.closed))}</strong> из <strong>${html(count(loadContext.inflow))}</strong>, очередь на конец: <strong>${html(count(loadContext.queue))}</strong></div><div class="note">Тип недели: <strong>${html(loadContext.weekTypeLabel || 'обычная неделя')}</strong></div><div class="note">Изменение потока: <strong>${html(loadContext.inflowChange || 'база формируется')}</strong></div></div><p class="muted" style="margin-top:12px">${html(loadContext.note || 'Эти показатели объясняют нагрузку, но не являются основной оценкой качества процесса.')}</p></section>
     <section><h2>Гипотеза и план проверки</h2><div class="note-grid"><div class="note"><strong>Гипотеза:</strong> меньше помощи старших без ухудшения SLA и без роста повторов.</div><div class="note"><strong>Проверка:</strong> через неделю смотрим выбранную тему, помощь старших, решение в срок и повторы.</div></div></section>
+    <section><h2>Что нужно добавить для точного планирования</h2><div class="note"><ul style="margin:0;padding-left:18px">${planningGapRows}</ul></div></section>
     <section><h2>Вопросы тренерам</h2><div class="note-grid"><div class="note">Достаточно ли этих метрик для защиты домашнего задания?</div><div class="note">Как правильно учитывать недели с авариями или неполной выгрузкой?</div><div class="note">Как не превратить маршрут решения в формальное заполнение поля?</div><div class="note">SLA по маршрутам показывает процесс, а не рейтинг сотрудников.</div></div></section>
     <details><summary style="cursor:pointer;font-weight:900;margin:16px 0;color:#102033">Диагностика исполнителей</summary><section><div class="note" style="margin-bottom:12px">Диагностика исполнителей не является рейтингом сотрудников. Время показывается по медиане; среднее доступно как подсказка и используется только для поиска выбросов.</div><table><thead><tr><th>Исполнитель</th><th>Закрыто</th><th>Медианное время</th><th>CSAT</th><th>Профиль нагрузки</th></tr></thead><tbody>${diagnosticsRows}</tbody></table></section></details>
   </main></body></html>`;
@@ -267,6 +280,15 @@ const isExcludedUser = (value) => {
   if (!raw) return false;
   const fullName = safeString(getFullName(raw)).trim().toLowerCase();
   return EXCLUDED_USER_IDS.includes(raw) || EXCLUDED_USER_IDS.includes(fullName);
+};
+
+const isExcludedFromFirstLineReport = (value) => {
+  const raw = safeString(value).trim().toLowerCase();
+  const fullName = safeString(getFullName(value)).trim().toLowerCase();
+  return FIRST_LINE_REPORT_EXCLUDED_ADMINS.some(name => {
+    const normalized = safeString(name).trim().toLowerCase();
+    return normalized === raw || normalized === fullName;
+  });
 };
 
 const isKnownTeamMember = (value) => {
@@ -1558,7 +1580,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
   const FIRST_LINE_PULSE_NAMES = ['Халеддинов Руслан', 'Руслан Халеддинов', 'Никита Лысов', 'Максим Отрошко', 'Максим Гуртов', 'Марк Соколов'];
   const isFirstLinePulseOperator = (name) => FIRST_LINE_PULSE_NAMES.some(target => isSamePersonForPulse(name, target));
-  const visiblePulseTelephony = (weekData.telephonyData || []).filter(row => isFirstLinePulseOperator(row.name));
+  const visiblePulseTelephony = (weekData.telephonyData || []).filter(row => isFirstLinePulseOperator(row.name) && !isExcludedFromFirstLineReport(row.name));
   const pulseTalkDurations = visiblePulseTelephony.map(row => parseDurationToSeconds(row.avgTalk)).filter(Boolean);
   const pulseAvgTalk = pulseTalkDurations.length > 0 ? Math.round(pulseTalkDurations.reduce((sum, value) => sum + value, 0) / pulseTalkDurations.length) : 0;
   const findPulseIncidentPerformer = (operatorName) => filteredTopPerformers.find(p => isSamePersonForPulse(p.name, operatorName));
@@ -3364,6 +3386,22 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   const planningSummary = selectedTraining.weekType === 'incident' || selectedTraining.inflow > 300
     ? `Неделя аномальная. Для планирования базовой емкости ее не используем, но используем для расчета аварийного резерва и анализа причины всплеска. При текущем входящем потоке ${selectedTraining.inflow} инцидентов оценочная нагрузка 1-й линии составляет ${formatHours(firstLineIncidentHours)}, резерв помощи старших за неделю — ${formatHours(totalSeniorSupportHours)}.`
     : `При текущем входящем потоке ${selectedTraining.inflow} инцидентов в неделю минимальная емкость стажеров составляет ${traineeMinHours} часов, максимальная — ${traineeMaxHours} часов. Оценочная нагрузка 1-й линии по тикетам составляет ${formatHours(firstLineIncidentHours)}. По маршрутам решения резерв помощи старших за неделю составляет ${formatHours(totalSeniorSupportHours)}, за месяц около ${formatHours(totalSeniorSupportHours * 4.3)}. Эти часы нужно учитывать при планировании задач развития, иначе проектные задачи будут проседать.`;
+  const workdaysPerMonth = 20;
+  const monthMultiplier = 4.3;
+  const traineeMonthMinHours = planningCapacityConfig.traineeCount * planningCapacityConfig.traineeHoursPerDayMin * workdaysPerMonth;
+  const traineeMonthMaxHours = planningCapacityConfig.traineeCount * planningCapacityConfig.traineeHoursPerDayMax * workdaysPerMonth;
+  const firstLineAdminMonthHours = planningCapacityConfig.firstLineAdminCount * 140;
+  const seniorAdminCount = 5;
+  const seniorMonthHours = seniorAdminCount * 140;
+  const regularWeekHours = firstLineIncidentHours + phoneLoadHours;
+  const regularMonthHours = regularWeekHours * monthMultiplier;
+  const seniorMonthReserveHours = totalSeniorSupportHours * monthMultiplier;
+  const developmentTheme = recurringThemes[0] || fintechTopics[0] || null;
+  const traineeLoadStatus = regularWeekHours > traineeMinHours
+    ? 'минимальный график стажеров почти без запаса'
+    : 'минимального графика стажеров достаточно с запасом';
+  const monthPlanSummary = `Регулярку держим как поток, инциденты и аварии планируем через резерв, проекты — от остаточной емкости старших администраторов, развитие — через одну повторяющуюся тему.`;
+  const monthPlanConclusion = `Текущая оценка регулярной нагрузки: ${formatHours(regularWeekHours)} в неделю, около ${formatHours(regularMonthHours)} в месяц. Резерв помощи выше 1-й линии: ${formatHours(totalSeniorSupportHours)} в неделю, около ${formatHours(seniorMonthReserveHours)} в месяц. ${traineeLoadStatus}.`;
 
   const classifyTemperature = () => {
     if (selectedTraining.weekType === 'partial') {
@@ -3422,6 +3460,66 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     routeTrend: routeTrendRows,
     abnormalWeeks: abnormalWeekRows.slice(-6),
     recurringThemes,
+    monthPlan: {
+      summary: monthPlanSummary,
+      mainConclusion: monthPlanConclusion,
+      resources: [
+        {
+          resource: `${planningCapacityConfig.traineeCount} стажера`,
+          calculation: `${planningCapacityConfig.traineeCount} × ${planningCapacityConfig.traineeHoursPerDayMin}-${planningCapacityConfig.traineeHoursPerDayMax} ч × ${workdaysPerMonth} рабочих дней`,
+          monthFund: `${traineeMonthMinHours}-${traineeMonthMaxHours} ч/мес`,
+          role: 'основной поток звонков и инцидентов'
+        },
+        {
+          resource: `${planningCapacityConfig.firstLineAdminCount} администратора 1-й линии`,
+          calculation: `${planningCapacityConfig.firstLineAdminCount} × 140 ч`,
+          monthFund: `${firstLineAdminMonthHours} ч/мес`,
+          role: 'буфер для стажеров, типовые задачи и права'
+        },
+        {
+          resource: `${seniorAdminCount} старших администраторов`,
+          calculation: `${seniorAdminCount} × 140 ч`,
+          monthFund: `${seniorMonthHours} ч/мес`,
+          role: 'сложные случаи, дежурства, срочная линия, развитие и проекты'
+        }
+      ],
+      workstreams: [
+        {
+          name: 'Регулярные работы',
+          howToPlan: `Планируем как поток. Ориентир: 200-250 входящих в неделю — норма, 250-300 — повышенная нагрузка, выше 300 — аномалия.`,
+          metrics: 'входящий поток, взятие в работу, решение в срок, нагрузка тикеты + телефония, самостоятельность',
+          risk: 'при минимальном графике стажеров нужен буфер администраторов 1-й линии'
+        },
+        {
+          name: 'Инциденты / аварии',
+          howToPlan: `Планируем через резерв ролей. Текущий резерв помощи выше 1-й линии: ${formatHours(totalSeniorSupportHours)} в неделю.`,
+          metrics: 'помощь выше 1-й линии, SLA по маршрутам, топ тем с не-самостоятельным маршрутом',
+          risk: 'если резерв не заложить, старшие администраторы уходят из задач развития'
+        },
+        {
+          name: 'Проекты',
+          howToPlan: 'Планируем от остаточной емкости после регулярки, дежурств, срочной линии и помощи 1-й линии.',
+          metrics: 'доступная емкость старших, фактическая помощь 1-й линии, доля аварийных недель',
+          risk: 'без учета поддержки проектные и спринтовые задачи будут проседать'
+        },
+        {
+          name: 'Развитие',
+          howToPlan: developmentTheme
+            ? `Берем одну повторяющуюся тему: ${developmentTheme.theme}.`
+            : 'Берем одну повторяющуюся тему после накопления данных по bottleneckThemes.',
+          metrics: 'количество тикетов по теме, помощь старших по теме, решение в срок, повторы',
+          risk: 'если не выбрать одну тему, улучшения расползутся и эффект будет трудно проверить'
+        }
+      ]
+    },
+    planningGaps: [
+      'Фактическое время помощи выше 1-й линии.',
+      'График дежурств, отпусков и больничных.',
+      'Кто был дежурным на конкретной неделе.',
+      'Связка звонок → тикет, чтобы не считать телефонию дважды.',
+      'Разделение задач OSO_Support на регулярку, развитие и проекты.',
+      'Фактическая загрузка администраторов 1-й линии типовыми задачами.'
+    ],
     firstLineLoad: {
       traineeCapacityText: `${traineeMinHours}-${traineeMaxHours} часов в неделю`,
       incidentHoursText: formatHours(firstLineIncidentHours),
@@ -5540,7 +5638,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
       // В отчете по телефонии показываем только целевую 1-ю линию; 2-3 линия может помогать, но не попадает в управленческий контроль.
       const visibleTelephony = (weekData.telephonyData || []).filter(row => {
          const fName = getFullName(row.name);
-         return fName !== TEAM_LEAD_NAME && row.name !== TEAM_LEAD_ID && !String(row.name).includes('Виктор') && !isExcludedUser(row.name) && isReportFirstLineOperator(row.name);
+         return fName !== TEAM_LEAD_NAME && row.name !== TEAM_LEAD_ID && !String(row.name).includes('Виктор') && !isExcludedUser(row.name) && !isExcludedFromFirstLineReport(row.name) && isReportFirstLineOperator(row.name);
       });
 
       const buildReportTelephonyInsight = () => {
@@ -8031,7 +8129,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           availability
         };
       })
-      .filter(item => item.name && !THIRD_LINE_ADMINS.includes(item.name))
+      .filter(item => item.name && !THIRD_LINE_ADMINS.includes(item.name) && !isExcludedFromFirstLineReport(item.name))
       .sort((a, b) => b.closed - a.closed)
       .slice(0, 6);
   };
