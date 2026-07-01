@@ -268,12 +268,12 @@ const generateFintechLabReport = ({
     { label: 'Улучшение', value: mainAction.theme || topNonSelfTopics[0]?.theme || 'тема не выбрана', hint: 'тема для улучшения' }
   ].map(item => `<article class="signal-tile"><span>${html(item.label)}</span><strong>${html(item.value)}</strong><p>${html(item.hint)}</p></article>`).join('');
 
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Еженедельный отчет НТП ОСО</title><style>
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Финтехлаб — практика по метрикам</title><style>
     :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--orange:#ea580c;--red:#dc2626;--violet:#7c3aed;--soft-blue:#eff6ff;--soft-amber:#fffbeb;--soft-orange:#fff7ed;--soft-red:#fef2f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:#102033;color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.14);margin-bottom:20px}.cover-head{max-width:760px}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid,.signal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.cover-item span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}.signal-tile{border:1px solid var(--line);border-top:4px solid #2563eb;border-radius:18px;padding:18px;background:#fff}.signal-tile span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.signal-tile strong{display:block;color:#102033;font-size:25px;line-height:1.1;margin:8px 0 4px}.signal-tile p{margin:0;color:#64748b;font-size:13px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note strong{color:#203044}.status-grid,.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.status-grid{grid-template-columns:1.1fr 1.4fr 1fr}.status-box{border:1px solid var(--line);border-radius:16px;padding:14px;background:#f8fafc}.status-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.status-title{font-size:18px;font-weight:900;color:#1d4ed8}.status-box ul{margin:0;padding-left:18px;color:#475569;font-size:13px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-top:4px solid #dbeafe;border-radius:18px;padding:18px;background:#fff}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:#173a5e;font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-card.good{border-top-color:#10b981}.metric-card.warn{border-top-color:#f59e0b}.metric-card.risk{border-top-color:#f97316}.metric-card.bad{border-top-color:#ef4444}.metric-card.violet{border-top-color:#8b5cf6}.metric-status{display:inline-block;border-radius:999px;background:#f1f5f9;color:#334155;padding:4px 8px;font-size:11px;font-weight:900;margin-bottom:7px}.metric-card.good .metric-status{background:#ecfdf5;color:var(--green)}.metric-card.warn .metric-status{background:var(--soft-amber);color:var(--amber)}.metric-card.risk .metric-status{background:var(--soft-orange);color:var(--orange)}.metric-card.bad .metric-status{background:var(--soft-red);color:var(--red)}.metric-card.violet .metric-status{background:#f5f3ff;color:var(--violet)}.target-row{display:flex;justify-content:space-between;gap:10px;color:#475569;font-size:11px;font-weight:800;margin:8px 0 5px}.progress-track{height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-bottom:9px}.progress-fill{height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.metric-card.good .progress-fill{background:#10b981}.metric-card.warn .progress-fill{background:#f59e0b}.metric-card.risk .progress-fill{background:#f97316}.metric-card.bad .progress-fill{background:#ef4444}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list,.bottleneck-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}.topic-card p{color:#475569;font-size:13px;margin:10px 0 0}.check-line{background:#f8fafc;border:1px solid #e7eef6;border-radius:12px;padding:10px}.bottleneck-card{border:1px solid #dbeafe;border-radius:18px;padding:16px;background:#fbfdff}.bottleneck-top{display:flex;gap:10px;align-items:flex-start}.bottleneck-top span{display:grid;place-items:center;width:26px;height:26px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-weight:900}.bottleneck-top strong{font-size:15px;color:#102033}.bottleneck-bar{height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:14px 0}.bottleneck-bar i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.bottleneck-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.bottleneck-meta div{background:#fff;border:1px solid #e7eef6;border-radius:12px;padding:9px}.bottleneck-meta b{display:block;font-size:12px;color:#102033}.bottleneck-card p{margin:12px 0 0;color:#475569;font-size:13px}.executive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.traffic-badge{display:inline-block;border-radius:999px;padding:5px 10px;font-weight:900;font-size:12px;background:#f1f5f9;color:#334155}@media(max-width:820px){.cover-head,.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.bottleneck-grid,.note-grid,.status-grid,.signal-grid,.executive-grid{grid-template-columns:1fr}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
   </style><style>
     .senior-task-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.senior-task-card{border:1px solid var(--line);border-top:4px solid #94a3b8;border-radius:18px;padding:16px;background:linear-gradient(180deg,#fff,#f8fafc)}.senior-task-card strong{display:block;font-size:29px;line-height:1.05;margin:8px 0 5px;color:#102033}.senior-task-card p{margin:0;color:#64748b;font-size:12px}.senior-task-card.good{border-top-color:#10b981}.senior-task-card.warn{border-top-color:#f59e0b}.senior-task-card.risk{border-top-color:#f97316}.senior-task-card.violet{border-top-color:#8b5cf6}.balance-card{margin-top:14px;border:1px solid #c7d2fe;border-radius:18px;padding:16px;background:linear-gradient(135deg,#eef2ff,#f8fafc)}.balance-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}.balance-head span{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.balance-head strong{color:#102033;font-size:16px}.balance-track{display:flex;height:18px;background:#e2e8f0;border-radius:999px;overflow:hidden;border:1px solid #dbeafe}.balance-track i{display:block;height:100%}.balance-help{background:linear-gradient(90deg,#f97316,#f59e0b)}.balance-project{background:linear-gradient(90deg,#2563eb,#22c55e)}.balance-legend{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;margin:10px 0;color:#475569;font-size:12px;font-weight:800}.dot{display:inline-block;width:9px;height:9px;border-radius:999px;margin-right:5px}.dot.help{background:#f97316}.dot.project{background:#2563eb}.balance-card p{margin:0;color:#475569;font-size:13px}.heavy-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.heavy-task{border:1px solid #e2e8f0;border-radius:14px;padding:12px;background:#fff}.heavy-task span{display:inline-block;margin-bottom:5px;border-radius:999px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;padding:3px 8px;font-size:10px;font-weight:900;text-transform:uppercase}.heavy-task strong{display:block;font-size:13px;color:#102033}.heavy-task p{margin:6px 0 0;color:#64748b;font-size:12px}@media(max-width:820px){.senior-task-grid,.heavy-gallery{grid-template-columns:1fr}}
   </style></head><body><main class="page">
-    <header class="cover"><div class="cover-head"><div class="eyebrow">Еженедельный управленческий отчет</div><h1>Еженедельный отчет НТП ОСО</h1><p class="cover-subtitle">Процесс: Обработка инцидента 1-й линии</p></div><div class="cover-grid"><div class="cover-item"><span>Неделя / период</span><strong>${html(period)}</strong></div><div class="cover-item"><span>Владелец процесса</span><strong>Виктор</strong></div><div class="cover-item"><span>Направление</span><strong>ОСО / техническая поддержка</strong></div><div class="cover-item"><span>Дата формирования</span><strong>${html(generatedDate.toLocaleDateString('ru-RU'))}</strong></div></div></header>
+    <header class="cover"><div class="cover-head"><div class="eyebrow">Еженедельный управленческий отчет</div><h1>Финтехлаб — контроль 1-й линии</h1><p class="cover-subtitle">Процесс: Обработка инцидента 1-й линии</p></div><div class="cover-grid"><div class="cover-item"><span>Неделя / период</span><strong>${html(period)}</strong></div><div class="cover-item"><span>Владелец процесса</span><strong>Виктор</strong></div><div class="cover-item"><span>Направление</span><strong>ОСО / техническая поддержка</strong></div><div class="cover-item"><span>Дата формирования</span><strong>${html(generatedDate.toLocaleDateString('ru-RU'))}</strong></div></div></header>
     <section><h2>Ключевые сигналы недели</h2><div class="signal-grid">${signalRows}</div></section>
     <section><h2>Статус недели</h2><div class="status-grid"><div class="status-box"><h3>Общий статус</h3><div class="status-title">${html(statusWeek.title || 'База формируется')}</div><p class="muted">${html(statusWeek.summary || summary || 'Данные пока не подключены.')}</p></div><div class="status-box"><h3>Почему такой статус</h3><ul>${(statusWeek.points || []).map(point => `<li>${html(point)}</li>`).join('')}</ul></div><div class="status-box"><h3>Главное действие</h3><p>${html(statusWeek.nextAction || mainAction.actionNeeded || 'выбрать тему после накопления данных')}</p></div></div></section>
     <section><h2>Ключевые метрики</h2><div class="metric-grid">${metricCards}</div></section>
@@ -292,6 +292,129 @@ const generateFintechLabReport = ({
     <section><h2>Гипотеза и план проверки</h2><div class="note-grid"><div class="note"><strong>Гипотеза:</strong> меньше помощи выше 1-й линии без ухудшения SLA и без роста повторов.</div><div class="note"><strong>Проверка:</strong> через неделю смотрим выбранную тему, помощь выше 1-й линии, решение в срок и повторы.</div></div></section>
     <section><h2>Что нужно улучшить в сборе данных</h2><div class="note"><ul style="margin:0;padding-left:18px">${planningGapRows}</ul></div></section>
     <details><summary style="cursor:pointer;font-weight:900;margin:16px 0;color:#102033">Диагностика исполнителей</summary><section><div class="note" style="margin-bottom:12px">Этот блок не является рейтингом сотрудников. Он нужен для анализа типов нагрузки, сложности обращений и потребности в обучении или перераспределении. Время показывается по медиане; среднее доступно как подсказка.</div><table><thead><tr><th>Исполнитель</th><th>Закрыто</th><th>Медианное время</th><th>CSAT</th><th>Профиль нагрузки</th></tr></thead><tbody>${diagnosticsRows}</tbody></table></section></details>
+  </main></body></html>`;
+};
+
+const generateTopProblemPostmortemReport = ({
+  week = {},
+  topic = {},
+  training = {},
+  routes = [],
+  slaByRoute = [],
+  relatedCases = [],
+  subProblems = [],
+  generatedAt = new Date()
+} = {}) => {
+  const html = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+  const num = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const pct = (value) => `${num(value).toFixed(1).replace('.0', '')}%`;
+  const count = (value) => `${Math.round(num(value))} шт.`;
+  const period = week?.dates || `Неделя ${week?.weekNumber || ''}`.trim() || 'текущий период';
+  const generatedDate = generatedAt instanceof Date ? generatedAt : new Date(generatedAt);
+  const topicName = topic.theme || 'Топ-проблема недели';
+  const topicCount = num(topic.count);
+  const totalClosed = num(training.closed);
+  const topicShare = totalClosed > 0 ? topicCount * 100 / totalClosed : 0;
+  const helpPercent = num(training.helpPercent);
+  const primarySla = num(training.successRate);
+  const resolutionSla = num(training.resolutionSuccessRate);
+  const worstSla = Math.min(primarySla || 0, resolutionSla || 0);
+  const slaBreaches = topic.slaBreaches === null || topic.slaBreaches === undefined ? null : num(topic.slaBreaches);
+  const breachShare = topicCount > 0 && slaBreaches !== null ? slaBreaches * 100 / topicCount : 0;
+  const pressureScore = Math.max(0, Math.min(100,
+    (100 - worstSla) * 0.45 +
+    helpPercent * 0.25 +
+    Math.min(topicShare, 45) * 0.45 +
+    Math.min(breachShare, 60) * 0.25
+  ));
+  const trafficStates = [
+    { key: 'very_bad', label: 'Очень плохо', from: 70, color: '#dc2626', bg: '#fef2f2', note: 'срочный разбор и ручной контроль' },
+    { key: 'bad', label: 'Плохо', from: 50, color: '#ea580c', bg: '#fff7ed', note: 'нужен план снижения нагрузки' },
+    { key: 'normal', label: 'Норма', from: 30, color: '#f59e0b', bg: '#fffbeb', note: 'держим фокус и проверяем динамику' },
+    { key: 'good', label: 'Хорошо', from: 12, color: '#10b981', bg: '#ecfdf5', note: 'процесс под контролем' },
+    { key: 'excellent', label: 'Очень хорошо', from: 0, color: '#06b6d4', bg: '#ecfeff', note: 'тему можно закреплять в стандарт' }
+  ];
+  const currentState = trafficStates.find(state => pressureScore >= state.from) || trafficStates[trafficStates.length - 1];
+  const routeRows = routes.length ? routes.slice(0, 6).map(route => `
+    <tr>
+      <td>${html(route.displayRoute || route.route || 'Маршрут не указан')}</td>
+      <td class="num">${html(count(route.count))}</td>
+      <td class="num">${html(pct(route.percentage))}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="3" class="muted">Данные по маршрутам пока не подключены.</td></tr>';
+  const slaRows = slaByRoute.length ? slaByRoute.slice(0, 6).map(row => `
+    <tr>
+      <td>${html(row.route || 'Маршрут')}</td>
+      <td class="num">${html(count(row.count))}</td>
+      <td class="num">${row.primarySla === null || row.primarySla === undefined ? 'нет данных' : html(pct(row.primarySla))}</td>
+      <td class="num">${row.resolutionSla === null || row.resolutionSla === undefined ? 'нет данных' : html(pct(row.resolutionSla))}</td>
+      <td>${html(row.conclusion || 'нужен разбор')}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" class="muted">SLA по маршрутам пока не подключен.</td></tr>';
+  const subProblemRows = subProblems.length ? subProblems.map((item, index) => `
+    <tr>
+      <td><strong>${index + 1}. ${html(item.name)}</strong></td>
+      <td class="num">${html(count(item.count))}</td>
+      <td class="num">${html(pct(item.share))}</td>
+      <td>${html(item.meaning)}</td>
+      <td>${html(item.action)}</td>
+    </tr>
+  `).join('') : `
+    <tr><td><strong>1. Основная тема</strong></td><td class="num">${html(count(topicCount))}</td><td class="num">${html(pct(topicShare))}</td><td>${html(topic.problemType || 'тип проблемы требует уточнения')}</td><td>${html(topic.actionNeeded || 'разобрать 3-5 типовых тикетов и закрепить инструкцию')}</td></tr>
+    <tr><td><strong>2. Маршрут помощи</strong></td><td class="num">${html(count(training.helpCount))}</td><td class="num">${html(pct(helpPercent))}</td><td>${html(topic.mainRoute || topic.supportLevel || 'маршрут помощи требует уточнения')}</td><td>Уточнить, что 1-я линия может делать сама, а что сразу передавать выше.</td></tr>
+  `;
+  const caseRows = relatedCases.length ? relatedCases.slice(0, 12).map(item => `
+    <tr>
+      <td><strong>${html(item.id || item.key || item.issueKey || 'без номера')}</strong></td>
+      <td>${html(item.title || item.summary || item.reason || 'Описание не передано')}</td>
+      <td>${html(item.assignee || item.executor || item.responsible || 'не указан')}</td>
+      <td>${html(item.slaType || item.route || item.domain || 'контекст')}</td>
+      <td class="num">${item.overdueMin !== undefined && item.overdueMin !== null ? `${html(Math.round(num(item.overdueMin)))} мин` : '—'}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" class="muted">Список кейсов не найден в JSON. Для следующей выгрузки желательно добавить примеры тикетов по топ-теме.</td></tr>';
+  const actionNeeded = topic.actionNeeded || 'Разобрать типовые тикеты, обновить инструкцию в БЗ и проверить эффект через неделю.';
+  const checkText = topic.check || 'Через неделю сравнить количество тикетов по теме, SLA взятия в работу, решение в срок и долю помощи выше 1-й линии.';
+  const dataGaps = [
+    relatedCases.length ? '' : 'Добавить в JSON примеры тикетов по топ-теме: id, title, route, assignee, SLA.',
+    topic.slaBreaches === null || topic.slaBreaches === undefined ? 'Передавать SLA-просрочки внутри bottleneckThemes.' : '',
+    'Фиксировать итог постмортема: причина, действие, владелец, дата проверки.'
+  ].filter(Boolean).map(item => `<li>${html(item)}</li>`).join('');
+
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Постмортем ТОП-1 проблемы</title><style>
+    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--blue:#2563eb}
+    *{box-sizing:border-box}body{margin:0;background:#eef2f7;color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.48}.page{max-width:1120px;margin:0 auto;padding:34px 28px 56px}
+    .hero{background:radial-gradient(circle at 78% 18%,rgba(56,189,248,.30),transparent 28%),linear-gradient(135deg,#0f172a,#102033 54%,#13294b);color:#fff;border-radius:28px;padding:34px;box-shadow:0 28px 70px rgba(15,23,42,.22);overflow:hidden}
+    .hero-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:24px;align-items:center}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:900;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 10px}.subtitle{margin:0;color:#dbeafe;font-size:16px}.pulse{position:relative;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);border-radius:24px;padding:22px;min-height:230px}.orb{width:168px;height:168px;border-radius:50%;margin:0 auto 14px;background:radial-gradient(circle at 36% 32%,#fff,${currentState.color} 24%,#111827 72%);box-shadow:0 0 42px ${currentState.color},inset 0 0 28px rgba(255,255,255,.18)}.pulse-title{text-align:center;font-size:22px;font-weight:900;color:#fff}.pulse-note{text-align:center;color:#cbd5e1;font-size:13px;margin-top:4px}.traffic{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:22px}.state{border:1px solid rgba(255,255,255,.12);border-top:5px solid var(--c);border-radius:16px;padding:10px;background:rgba(255,255,255,.08)}.state b{display:block;font-size:12px}.state span{display:block;color:#cbd5e1;font-size:10px;margin-top:3px}.kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}.card,section{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 28px rgba(15,23,42,.05)}.card{padding:16px}.card small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.card strong{display:block;font-size:27px;margin-top:6px;color:#102033}section{padding:22px;margin:16px 0}h2{font-size:21px;margin:0 0 12px}p{margin:0 0 10px}.note{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px;color:#334155}.focus{border-left:6px solid ${currentState.color};background:${currentState.bg};padding:16px;border-radius:16px;color:#102033}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:900}.muted{color:#64748b}.plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.plan div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px}.plan b{display:block;color:#1d4ed8;margin-bottom:6px}@media(max-width:820px){.hero-grid,.kpi,.traffic,.plan{grid-template-columns:1fr}h1{font-size:30px}}@media print{body{background:#fff}.page{padding:0}.hero,section,.card{box-shadow:none;break-inside:avoid}}
+  </style></head><body><main class="page">
+    <header class="hero">
+      <div class="hero-grid">
+        <div><div class="eyebrow">Понедельничный пульс команды</div><h1>Постмортем ТОП-1 проблемы недели</h1><p class="subtitle">${html(topicName)} · ${html(period)} · сформировано ${html(generatedDate.toLocaleDateString('ru-RU'))}</p></div>
+        <div class="pulse"><div class="orb"></div><div class="pulse-title">${html(currentState.label)}</div><div class="pulse-note">${html(currentState.note)} · индекс давления ${Math.round(pressureScore)}/100</div></div>
+      </div>
+      <div class="traffic">${trafficStates.map(state => `<div class="state" style="--c:${state.color};${state.key === currentState.key ? 'background:rgba(255,255,255,.18);' : ''}"><b>${html(state.label)}</b><span>${html(state.note)}</span></div>`).join('')}</div>
+    </header>
+    <div class="kpi">
+      <div class="card"><small>Топ-проблема</small><strong>${html(count(topicCount))}</strong><span class="muted">${html(pct(topicShare))} от закрытых</span></div>
+      <div class="card"><small>Взятие в работу</small><strong>${html(pct(primarySla))}</strong><span class="muted">цель 95%</span></div>
+      <div class="card"><small>Решение в срок</small><strong>${html(pct(resolutionSla))}</strong><span class="muted">цель 95%</span></div>
+      <div class="card"><small>Помощь выше 1-й линии</small><strong>${html(pct(helpPercent))}</strong><span class="muted">${html(topic.mainRoute || topic.supportLevel || 'маршрут уточняется')}</span></div>
+    </div>
+    <section><h2>Короткий вывод для команды</h2><div class="focus"><strong>${html(topicName)}</strong><br>Тема стала главным фокусом недели: ${html(count(topicCount))}, ${html(pct(topicShare))} от закрытого потока. Главная задача команды — понять повторяемую причину, закрепить стандарт решения и проверить эффект на следующей неделе.</div></section>
+    <section><h2>Распределение внутри ТОП-1</h2><table><thead><tr><th>Подтема / сигнал</th><th>Кол-во</th><th>Доля</th><th>Что видно по смыслу</th><th>Что делаем</th></tr></thead><tbody>${subProblemRows}</tbody></table></section>
+    <section><h2>SLA и маршруты</h2><div class="plan"><div><b>Основной SLA</b>Взятие в работу ≤15 мин: ${html(pct(primarySla))}. Просрочек: ${html(count(training.primaryViolations))}.</div><div><b>Вторичный SLA</b>Решение в срок: ${html(pct(resolutionSla))}. Просрочек: ${html(count(training.resolutionViolations))}.</div><div><b>Маршрут помощи</b>${html(topic.mainRoute || topic.supportLevel || 'нужно уточнить по тикетам')}.</div></div><table style="margin-top:12px"><thead><tr><th>Маршрут</th><th>Тикеты</th><th>Взятие</th><th>Решение</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
+    <section><h2>Маршруты решения недели</h2><table><thead><tr><th>Маршрут</th><th>Кол-во</th><th>Доля</th></tr></thead><tbody>${routeRows}</tbody></table></section>
+    <section><h2>Примеры кейсов для разбора</h2><table><thead><tr><th>Тикет</th><th>Суть</th><th>Исполнитель</th><th>Контекст</th><th>Просрочка</th></tr></thead><tbody>${caseRows}</tbody></table></section>
+    <section><h2>Задача команде на неделю</h2><div class="plan"><div><b>1. Разобрать</b>Взять 3-5 типовых тикетов по теме и найти общий повторяемый сценарий.</div><div><b>2. Закрепить</b>${html(actionNeeded)}</div><div><b>3. Проверить</b>${html(checkText)}</div></div></section>
+    <section><h2>Что не перегружаем</h2><div class="note">Не ищем виноватых и не делаем рейтинг сотрудников. Смотрим процесс: где не хватает инструкции, прав, маршрута или первичной диагностики.</div></section>
+    <section><h2>Что улучшить в данных</h2><div class="note"><ul style="margin:0;padding-left:18px">${dataGaps}</ul></div></section>
   </main></body></html>`;
 };
 
@@ -3744,6 +3867,85 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     })
   };
 
+  const getPostmortemKeywords = (value) => {
+    const stopWords = new Set(['проблем', 'обращ', 'заявк', 'пользоват', 'требует', 'решение', 'настройк', 'недел', 'прочие', 'другое', 'инцидент']);
+    return safeString(value)
+      .toLowerCase()
+      .replace(/ё/g, 'е')
+      .split(/[^a-zа-я0-9]+/i)
+      .map(word => word.trim())
+      .filter(word => word.length >= 4 && !stopWords.has(word))
+      .slice(0, 8);
+  };
+
+  const getPostmortemCaseText = (item = {}) => safeString([
+    item.title,
+    item.summary,
+    item.name,
+    item.reason,
+    item.domain,
+    item.category,
+    item.comments,
+    item.description,
+    item.slaType
+  ].filter(Boolean).join(' ')).toLowerCase().replace(/ё/g, 'е');
+
+  const classifyPostmortemSubtype = (item = {}, fallbackTopic = '') => {
+    const text = `${getPostmortemCaseText(item)} ${safeString(fallbackTopic).toLowerCase()}`;
+    if (text.includes('печ') || text.includes('принт') || text.includes('мфу') || text.includes('скан')) return { name: 'Печать / МФУ / сканирование', meaning: 'Повторяются обращения по печати, доступности устройств или сканированию.', action: 'Собрать чек-лист первичной диагностики и типовые шаги восстановления.' };
+    if (text.includes('доступ') || text.includes('прав') || text.includes('учет') || text.includes('парол')) return { name: 'Доступы / права / учетные записи', meaning: 'Тема упирается в доступы, права или учетные записи.', action: 'Проверить права 1-й линии и маршрут согласования в IDM.' };
+    if (text.includes('lotus') || text.includes('bpm') || text.includes('citrix') || text.includes('вход') || text.includes('запуск')) return { name: 'Вход / запуск бизнес-приложений', meaning: 'Проблема связана с запуском, входом или первичной диагностикой приложения.', action: 'Обновить карточку диагностики и критерии передачи выше.' };
+    if (text.includes('диск') || text.includes('файл') || text.includes('папк') || text.includes('сетев')) return { name: 'Файлы / сетевые ресурсы', meaning: 'Повторяются обращения по файлам, папкам или сетевым ресурсам.', action: 'Зафиксировать типовые проверки доступа и доступности ресурса.' };
+    if (text.includes('звон') || text.includes('голос') || text.includes('телефон')) return { name: 'Телефония / голосовые обращения', meaning: 'Нагрузка приходит через голосовой канал или связана с маршрутизацией звонков.', action: 'Уточнить связь звонок -> тикет и шаблон регистрации.' };
+    if (text.includes('ошиб') || text.includes('сбой') || text.includes('недоступ') || text.includes('не работает')) return { name: 'Сбой / недоступность сервиса', meaning: 'Пользователь видит отказ или нестабильность сервиса.', action: 'Разделить массовый сбой и индивидуальный кейс, добавить признаки эскалации.' };
+    return { name: 'Типовые обращения без уточненной подкатегории', meaning: 'Данных достаточно для фокуса, но подтип нужно уточнить по примерам тикетов.', action: 'На постмортеме разметить 3-5 кейсов и обновить правило классификации.' };
+  };
+
+  const buildTopProblemPostmortemData = () => {
+    const topic = fintechTopics[0] || {
+      theme: selectedTraining.bottleneckThemes?.[0]?.theme || 'Топ-проблема недели не определена',
+      count: selectedTraining.bottleneckThemes?.[0]?.count || 0,
+      mainRoute: 'нужно накопить bottleneckThemes',
+      actionNeeded: 'Добавить анализ топ-тем с не-самостоятельным маршрутом в JSON.',
+      check: 'После следующей выгрузки проверить топ-1 тему и маршруты помощи.'
+    };
+    const keywords = getPostmortemKeywords(topic.theme);
+    const rawCases = [
+      ...(Array.isArray(weekData?.topIncidents) ? weekData.topIncidents : []),
+      ...(Array.isArray(weekData?.slaBreachDetails) ? weekData.slaBreachDetails : []),
+      ...(Array.isArray(weekData?.trainingSection?.bottleneckThemes) ? weekData.trainingSection.bottleneckThemes.flatMap(item => Array.isArray(item?.examples) ? item.examples : []) : [])
+    ];
+    const scoredCases = rawCases
+      .map(item => {
+        const text = getPostmortemCaseText(item);
+        const score = keywords.reduce((sum, word) => sum + (text.includes(word) ? 1 : 0), 0);
+        return { item, score };
+      })
+      .filter(entry => entry.score > 0 || rawCases.length <= 8)
+      .sort((a, b) => b.score - a.score)
+      .map(entry => entry.item);
+    const relatedCases = scoredCases.slice(0, 16);
+    const subtypeMap = new Map();
+    relatedCases.forEach(item => {
+      const meta = classifyPostmortemSubtype(item, topic.theme);
+      const current = subtypeMap.get(meta.name) || { ...meta, count: 0 };
+      current.count += Number(item.count || item.total || item.incidents || 1) || 1;
+      subtypeMap.set(meta.name, current);
+    });
+    if (subtypeMap.size === 0 && topic.count > 0) {
+      const meta = classifyPostmortemSubtype(topic, topic.theme);
+      subtypeMap.set(meta.name, { ...meta, count: Number(topic.count) || 0 });
+    }
+    const subProblems = [...subtypeMap.values()]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+      .map(item => ({
+        ...item,
+        share: Number(topic.count) > 0 ? roundMetric(item.count * 100 / Number(topic.count), 1) : 0
+      }));
+    return { topic, relatedCases, subProblems };
+  };
+
   const handleDownloadFintechLabReport = () => {
     const html = generateFintechLabReport({
       week: {
@@ -3782,6 +3984,34 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadTopProblemPostmortem = () => {
+    const postmortem = buildTopProblemPostmortemData();
+    const html = generateTopProblemPostmortemReport({
+      week: {
+        weekNumber: weekData?.weekNumber,
+        dates: weekData?.dates
+      },
+      topic: postmortem.topic,
+      training: selectedTraining,
+      routes: routeChartData,
+      slaByRoute: routeSlaRows.filter(row => row.count > 0 || row.primarySla !== null || row.resolutionSla !== null),
+      relatedCases: postmortem.relatedCases,
+      subProblems: postmortem.subProblems,
+      generatedAt: new Date()
+    });
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const weekNumber = weekData?.weekNumber || selectedWeekKey?.split('-')?.[1];
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = weekNumber ? `top_problem_postmortem_week_${weekNumber}.html` : `top_problem_postmortem_${dateStamp}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="animate-in fade-in duration-500 max-w-7xl pb-10">
       <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 mb-8">
@@ -3796,6 +4026,14 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
           >
             <DownloadCloud size={18} />
             Финтехлаб
+          </button>
+          <button
+            onClick={handleDownloadTopProblemPostmortem}
+            className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-lg shadow-lg shadow-amber-950/20 transition-colors"
+            title="Скачать HTML-постмортем по топ-1 проблеме недели для команды и Lotus"
+          >
+            <FileSearch size={18} />
+            Постмортем ТОП-1
           </button>
           <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
         </div>
@@ -8516,6 +8754,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       ...section,
       tasks: tasks.filter(task => task.wordSectionId === section.id)
     })).filter(section => section.tasks.length > 0 || !exportMode);
+    const htmlCopyTasksBySection = exportMode
+      ? tasksBySection.filter(section => section.tasks.length > 0)
+      : tasksBySection;
     const compactTasksBySection = (() => {
       const filled = tasksBySection.filter(section => section.tasks.length > 0);
       const major = filled.filter(section => section.tasks.length > 1);
@@ -8581,8 +8822,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ${task.wordDetails ? `<p style="margin:0; padding:0; ${wordCopyFontStyle} font-size:11px; font-weight:400; color:#475569; line-height:1.25; mso-line-height-rule:exactly;"><font face="Aptos, Calibri, Arial" style="font-size:11px; color:#475569;">${escapeHtml(task.wordDetails)}</font></p>` : ''}
       </div>`;
 
-    const renderHtmlCopyTaskSections = () => compactTasksBySection.map(section => `
-      <div style="margin:0 0 8px 0; padding:0; border:0; background:#ffffff; ${wordCopyFontStyle}">
+    const renderHtmlCopyTaskSections = () => htmlCopyTasksBySection.map((section, index) => `
+      ${index > 0 ? `<div style="height:8px; line-height:8px; font-size:1px; margin:0; padding:0;">&nbsp;</div>` : ''}
+      <div style="margin:0 0 10px 0; padding:0; border:0; background:#ffffff; ${wordCopyFontStyle}">
         <div style="margin:0 0 4px 0; padding:3px 8px; background:#eff6ff; ${wordCopyFontStyle} color:#1d4ed8; text-transform:uppercase; font-size:11px; line-height:1.15; mso-line-height-rule:exactly;">
           <font face="Aptos, Calibri, Arial" style="font-size:11px; color:#1d4ed8;"><b>${escapeHtml(section.title)}</b></font>
         </div>
@@ -8623,7 +8865,10 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
     const renderHtmlCopyManagementTasks = () => {
       if (!managementGroups.done.length && !managementGroups.active.length) return '<div style="font-size:12px; color:#64748b;">Нет задач в работе.</div>';
-      return `${renderHtmlCopyManagementGroup('Выполнено', managementGroups.done, true)}${renderHtmlCopyManagementGroup('В работе по приоритету', managementGroups.active, false)}`;
+      const doneHtml = renderHtmlCopyManagementGroup('Выполнено', managementGroups.done, true);
+      const activeHtml = renderHtmlCopyManagementGroup('В работе по приоритету', managementGroups.active, false);
+      const spacer = doneHtml && activeHtml ? '<div style="height:8px; line-height:8px; font-size:1px; margin:0; padding:0;">&nbsp;</div>' : '';
+      return `${doneHtml}${spacer}${activeHtml}`;
     };
 
     const renderManagementTasks = () => {
