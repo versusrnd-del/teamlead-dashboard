@@ -303,6 +303,8 @@ const generateTopProblemPostmortemReport = ({
   slaByRoute = [],
   relatedCases = [],
   subProblems = [],
+  medianResolutionMinutes = null,
+  phoneAvgMinutes = 5,
   generatedAt = new Date()
 } = {}) => {
   const html = (value) => String(value ?? '')
@@ -327,6 +329,20 @@ const generateTopProblemPostmortemReport = ({
   const primarySla = num(training.successRate);
   const resolutionSla = num(training.resolutionSuccessRate);
   const worstSla = Math.min(primarySla || 0, resolutionSla || 0);
+  const primaryGap = Math.max(0, 95 - primarySla);
+  const resolutionGap = Math.max(0, 95 - resolutionSla);
+  const caseResolutionValues = relatedCases
+    .map(item => num(item.totalResolutionMin ?? item.resolutionMinutes ?? item.resolveMinutes ?? item.durationMin))
+    .filter(value => value > 0)
+    .sort((a, b) => a - b);
+  const medianFromCases = caseResolutionValues.length
+    ? (caseResolutionValues.length % 2
+      ? caseResolutionValues[Math.floor(caseResolutionValues.length / 2)]
+      : (caseResolutionValues[caseResolutionValues.length / 2 - 1] + caseResolutionValues[caseResolutionValues.length / 2]) / 2)
+    : null;
+  const resolutionMedianText = num(medianResolutionMinutes) > 0
+    ? `${Math.round(num(medianResolutionMinutes))} мин`
+    : (medianFromCases ? `${Math.round(medianFromCases)} мин` : 'нет данных');
   const slaBreaches = topic.slaBreaches === null || topic.slaBreaches === undefined ? null : num(topic.slaBreaches);
   const breachShare = topicCount > 0 && slaBreaches !== null ? slaBreaches * 100 / topicCount : 0;
   const pressureScore = Math.max(0, Math.min(100,
@@ -336,13 +352,17 @@ const generateTopProblemPostmortemReport = ({
     Math.min(breachShare, 60) * 0.25
   ));
   const trafficStates = [
-    { key: 'very_bad', label: 'Очень плохо', from: 70, color: '#dc2626', bg: '#fef2f2', note: 'срочный разбор и ручной контроль' },
-    { key: 'bad', label: 'Плохо', from: 50, color: '#ea580c', bg: '#fff7ed', note: 'нужен план снижения нагрузки' },
-    { key: 'normal', label: 'Норма', from: 30, color: '#f59e0b', bg: '#fffbeb', note: 'держим фокус и проверяем динамику' },
-    { key: 'good', label: 'Хорошо', from: 12, color: '#10b981', bg: '#ecfdf5', note: 'процесс под контролем' },
-    { key: 'excellent', label: 'Очень хорошо', from: 0, color: '#06b6d4', bg: '#ecfeff', note: 'тему можно закреплять в стандарт' }
+    { key: 'very_bad', label: 'Очень плохо по SLA', min: 0, max: 79.9, color: '#dc2626', bg: '#fef2f2', note: 'SLA ниже 80%, срочный разбор' },
+    { key: 'bad', label: 'Плохо по SLA', min: 80, max: 89.9, color: '#ea580c', bg: '#fff7ed', note: 'SLA 80-89,9%, нужен план исправления' },
+    { key: 'normal', label: 'Ниже цели SLA', min: 90, max: 94.9, color: '#f59e0b', bg: '#fffbeb', note: 'SLA 90-94,9%, зона внимания' },
+    { key: 'good', label: 'Хорошо по SLA', min: 95, max: 97.9, color: '#10b981', bg: '#ecfdf5', note: 'SLA 95-97,9%, цель выполнена' },
+    { key: 'excellent', label: 'Очень хорошо по SLA', min: 98, max: 100, color: '#06b6d4', bg: '#ecfeff', note: 'SLA от 98%, можно закреплять стандарт' }
   ];
-  const currentState = trafficStates.find(state => pressureScore >= state.from) || trafficStates[trafficStates.length - 1];
+  const currentState = trafficStates.find(state => worstSla >= state.min && worstSla <= state.max) || trafficStates[0];
+  const worstSlaLabel = primarySla <= resolutionSla ? 'Взятие в работу ≤15 мин' : 'Решение в срок';
+  const weakRoute = [...slaByRoute]
+    .filter(row => (num(row.count) >= 5) && (row.primarySla !== null || row.resolutionSla !== null))
+    .sort((a, b) => Math.min(num(a.primarySla || 100), num(a.resolutionSla || 100)) - Math.min(num(b.primarySla || 100), num(b.resolutionSla || 100)))[0];
   const routeRows = routes.length ? routes.slice(0, 6).map(route => `
     <tr>
       <td>${html(route.displayRoute || route.route || 'Маршрут не указан')}</td>
@@ -371,6 +391,8 @@ const generateTopProblemPostmortemReport = ({
     <tr><td><strong>1. Основная тема</strong></td><td class="num">${html(count(topicCount))}</td><td class="num">${html(pct(topicShare))}</td><td>${html(topic.problemType || 'тип проблемы требует уточнения')}</td><td>${html(topic.actionNeeded || 'разобрать 3-5 типовых тикетов и закрепить инструкцию')}</td></tr>
     <tr><td><strong>2. Маршрут помощи</strong></td><td class="num">${html(count(training.helpCount))}</td><td class="num">${html(pct(helpPercent))}</td><td>${html(topic.mainRoute || topic.supportLevel || 'маршрут помощи требует уточнения')}</td><td>Уточнить, что 1-я линия может делать сама, а что сразу передавать выше.</td></tr>
   `;
+  const actionNeeded = topic.actionNeeded || 'Разобрать типовые тикеты, обновить инструкцию в БЗ и проверить эффект через неделю.';
+  const checkText = topic.check || 'Через неделю сравнить количество тикетов по теме, SLA взятия в работу, решение в срок и долю помощи выше 1-й линии.';
   const caseRows = relatedCases.length ? relatedCases.slice(0, 12).map(item => `
     <tr>
       <td><strong>${html(item.id || item.key || item.issueKey || 'без номера')}</strong></td>
@@ -380,8 +402,27 @@ const generateTopProblemPostmortemReport = ({
       <td class="num">${item.overdueMin !== undefined && item.overdueMin !== null ? `${html(Math.round(num(item.overdueMin)))} мин` : '—'}</td>
     </tr>
   `).join('') : '<tr><td colspan="5" class="muted">Список кейсов не найден в JSON. Для следующей выгрузки желательно добавить примеры тикетов по топ-теме.</td></tr>';
-  const actionNeeded = topic.actionNeeded || 'Разобрать типовые тикеты, обновить инструкцию в БЗ и проверить эффект через неделю.';
-  const checkText = topic.check || 'Через неделю сравнить количество тикетов по теме, SLA взятия в работу, решение в срок и долю помощи выше 1-й линии.';
+  const slaDropCards = [
+    {
+      title: 'Где просело',
+      value: worstSlaLabel,
+      text: worstSla >= 95
+        ? 'SLA достиг цели 95%. На дейли показываем это как стандарт, который нужно удержать.'
+        : `До цели 95% не хватает ${Math.max(primaryGap, resolutionGap).toFixed(1).replace('.0', '')} п.п. Смотрим причины по маршрутам и топ-теме.`
+    },
+    {
+      title: 'Самый слабый маршрут',
+      value: weakRoute?.route || topic.mainRoute || topic.supportLevel || 'нужно уточнить',
+      text: weakRoute
+        ? `По этому маршруту хуже всего выглядит SLA: взятие ${weakRoute.primarySla === null ? 'нет данных' : pct(weakRoute.primarySla)}, решение ${weakRoute.resolutionSla === null ? 'нет данных' : pct(weakRoute.resolutionSla)}.`
+        : 'Пока недостаточно SLA-данных по маршрутам. Используем топ-тему и примеры кейсов.'
+    },
+    {
+      title: 'Главная причина недели',
+      value: topicName,
+      text: `${count(topicCount)}, ${pct(topicShare)} от закрытых. Действие недели: ${actionNeeded}.`
+    }
+  ];
   const dataGaps = [
     relatedCases.length ? '' : 'Добавить в JSON примеры тикетов по топ-теме: id, title, route, assignee, SLA.',
     topic.slaBreaches === null || topic.slaBreaches === undefined ? 'Передавать SLA-просрочки внутри bottleneckThemes.' : '',
@@ -392,29 +433,31 @@ const generateTopProblemPostmortemReport = ({
     :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--blue:#2563eb}
     *{box-sizing:border-box}body{margin:0;background:#eef2f7;color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.48}.page{max-width:1120px;margin:0 auto;padding:34px 28px 56px}
     .hero{background:radial-gradient(circle at 78% 18%,rgba(56,189,248,.30),transparent 28%),linear-gradient(135deg,#0f172a,#102033 54%,#13294b);color:#fff;border-radius:28px;padding:34px;box-shadow:0 28px 70px rgba(15,23,42,.22);overflow:hidden}
-    .hero-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:24px;align-items:center}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:900;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 10px}.subtitle{margin:0;color:#dbeafe;font-size:16px}.pulse{position:relative;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);border-radius:24px;padding:22px;min-height:230px}.orb{width:168px;height:168px;border-radius:50%;margin:0 auto 14px;background:radial-gradient(circle at 36% 32%,#fff,${currentState.color} 24%,#111827 72%);box-shadow:0 0 42px ${currentState.color},inset 0 0 28px rgba(255,255,255,.18)}.pulse-title{text-align:center;font-size:22px;font-weight:900;color:#fff}.pulse-note{text-align:center;color:#cbd5e1;font-size:13px;margin-top:4px}.traffic{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:22px}.state{border:1px solid rgba(255,255,255,.12);border-top:5px solid var(--c);border-radius:16px;padding:10px;background:rgba(255,255,255,.08)}.state b{display:block;font-size:12px}.state span{display:block;color:#cbd5e1;font-size:10px;margin-top:3px}.kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}.card,section{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 28px rgba(15,23,42,.05)}.card{padding:16px}.card small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.card strong{display:block;font-size:27px;margin-top:6px;color:#102033}section{padding:22px;margin:16px 0}h2{font-size:21px;margin:0 0 12px}p{margin:0 0 10px}.note{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px;color:#334155}.focus{border-left:6px solid ${currentState.color};background:${currentState.bg};padding:16px;border-radius:16px;color:#102033}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:900}.muted{color:#64748b}.plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.plan div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px}.plan b{display:block;color:#1d4ed8;margin-bottom:6px}@media(max-width:820px){.hero-grid,.kpi,.traffic,.plan{grid-template-columns:1fr}h1{font-size:30px}}@media print{body{background:#fff}.page{padding:0}.hero,section,.card{box-shadow:none;break-inside:avoid}}
+    .hero-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:24px;align-items:center}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:900;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 10px}.subtitle{margin:0;color:#dbeafe;font-size:16px}.pulse{position:relative;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);border-radius:24px;padding:22px;min-height:230px}.orb{width:168px;height:168px;border-radius:50%;margin:0 auto 14px;background:radial-gradient(circle at 36% 32%,#fff,${currentState.color} 24%,#111827 72%);box-shadow:0 0 42px ${currentState.color},inset 0 0 28px rgba(255,255,255,.18)}.pulse-title{text-align:center;font-size:22px;font-weight:900;color:#fff}.pulse-note{text-align:center;color:#cbd5e1;font-size:13px;margin-top:4px}.sla-target{margin-top:12px;text-align:center;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:10px}.sla-target b{display:block;font-size:34px;color:#fff}.sla-target span{font-size:12px;color:#dbeafe;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.traffic{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:22px}.state{border:1px solid rgba(255,255,255,.12);border-top:5px solid var(--c);border-radius:16px;padding:10px;background:rgba(255,255,255,.08)}.state b{display:block;font-size:12px}.state span{display:block;color:#cbd5e1;font-size:10px;margin-top:3px}.kpi{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0}.card,section{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 28px rgba(15,23,42,.05)}.card{padding:16px}.card small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.card strong{display:block;font-size:27px;margin-top:6px;color:#102033}.flow{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr 34px 1fr;align-items:stretch;gap:8px;margin:16px 0}.flow-step{border:1px solid var(--line);border-top:5px solid var(--c);border-radius:18px;padding:16px;background:#fff}.flow-step small{display:block;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.flow-step b{display:block;font-size:21px;margin:6px 0;color:#102033}.flow-step p{font-size:12px;color:#475569}.arrow{display:grid;place-items:center;color:#64748b;font-size:28px;font-weight:900}.drop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.drop-card{border:1px solid var(--line);border-left:6px solid ${currentState.color};border-radius:16px;padding:14px;background:#fff}.drop-card small{display:block;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.drop-card b{display:block;font-size:16px;margin:5px 0;color:#102033}section{padding:22px;margin:16px 0}h2{font-size:21px;margin:0 0 12px}p{margin:0 0 10px}.note{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px;color:#334155}.focus{border-left:6px solid ${currentState.color};background:${currentState.bg};padding:16px;border-radius:16px;color:#102033}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:900}.muted{color:#64748b}.plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.plan div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px}.plan b{display:block;color:#1d4ed8;margin-bottom:6px}@media(max-width:820px){.hero-grid,.kpi,.traffic,.plan,.flow,.drop-grid{grid-template-columns:1fr}.arrow{display:none}h1{font-size:30px}}@media print{body{background:#fff}.page{padding:0}.hero,section,.card{box-shadow:none;break-inside:avoid}}
   </style></head><body><main class="page">
     <header class="hero">
       <div class="hero-grid">
         <div><div class="eyebrow">Понедельничный пульс команды</div><h1>Постмортем ТОП-1 проблемы недели</h1><p class="subtitle">${html(topicName)} · ${html(period)} · сформировано ${html(generatedDate.toLocaleDateString('ru-RU'))}</p></div>
-        <div class="pulse"><div class="orb"></div><div class="pulse-title">${html(currentState.label)}</div><div class="pulse-note">${html(currentState.note)} · индекс давления ${Math.round(pressureScore)}/100</div></div>
+        <div class="pulse"><div class="orb"></div><div class="pulse-title">${html(currentState.label)}</div><div class="pulse-note">${html(currentState.note)} · смотрим худший SLA недели</div><div class="sla-target"><span>Наша цель SLA</span><b>95%</b></div></div>
       </div>
-      <div class="traffic">${trafficStates.map(state => `<div class="state" style="--c:${state.color};${state.key === currentState.key ? 'background:rgba(255,255,255,.18);' : ''}"><b>${html(state.label)}</b><span>${html(state.note)}</span></div>`).join('')}</div>
+      <div class="traffic">${trafficStates.map(state => `<div class="state" style="--c:${state.color};${state.key === currentState.key ? 'background:rgba(255,255,255,.18);' : ''}"><b>${html(state.label)}</b><span>${html(state.min)}-${html(state.max)}%</span></div>`).join('')}</div>
     </header>
     <div class="kpi">
       <div class="card"><small>Топ-проблема</small><strong>${html(count(topicCount))}</strong><span class="muted">${html(pct(topicShare))} от закрытых</span></div>
       <div class="card"><small>Взятие в работу</small><strong>${html(pct(primarySla))}</strong><span class="muted">цель 95%</span></div>
       <div class="card"><small>Решение в срок</small><strong>${html(pct(resolutionSla))}</strong><span class="muted">цель 95%</span></div>
       <div class="card"><small>Помощь выше 1-й линии</small><strong>${html(pct(helpPercent))}</strong><span class="muted">${html(topic.mainRoute || topic.supportLevel || 'маршрут уточняется')}</span></div>
+      <div class="card"><small>Медиана решения / телефон</small><strong>${html(resolutionMedianText)}</strong><span class="muted">телефон: ${html(Math.round(num(phoneAvgMinutes)))} мин</span></div>
     </div>
-    <section><h2>Короткий вывод для команды</h2><div class="focus"><strong>${html(topicName)}</strong><br>Тема стала главным фокусом недели: ${html(count(topicCount))}, ${html(pct(topicShare))} от закрытого потока. Главная задача команды — понять повторяемую причину, закрепить стандарт решения и проверить эффект на следующей неделе.</div></section>
-    <section><h2>Распределение внутри ТОП-1</h2><table><thead><tr><th>Подтема / сигнал</th><th>Кол-во</th><th>Доля</th><th>Что видно по смыслу</th><th>Что делаем</th></tr></thead><tbody>${subProblemRows}</tbody></table></section>
+    <div class="flow"><div class="flow-step" style="--c:#2563eb"><small>Поток</small><b>${html(count(totalClosed))}</b><p>закрыто за неделю</p></div><div class="arrow">→</div><div class="flow-step" style="--c:${primarySla >= 95 ? '#10b981' : currentState.color}"><small>Взятие ≤15 мин</small><b>${html(pct(primarySla))}</b><p>${primaryGap > 0 ? `не хватает ${primaryGap.toFixed(1).replace('.0', '')} п.п.` : 'цель выполнена'}</p></div><div class="arrow">→</div><div class="flow-step" style="--c:${resolutionSla >= 95 ? '#10b981' : currentState.color}"><small>Решение в срок</small><b>${html(pct(resolutionSla))}</b><p>${resolutionGap > 0 ? `не хватает ${resolutionGap.toFixed(1).replace('.0', '')} п.п.` : 'цель выполнена'}</p></div><div class="arrow">→</div><div class="flow-step" style="--c:#8b5cf6"><small>ТОП-1 узкое место</small><b>${html(count(topicCount))}</b><p>${html(topicName)}</p></div></div>
+    <section><h2>Почему просел SLA на прошлой неделе</h2><div class="drop-grid">${slaDropCards.map(item => `<div class="drop-card"><small>${html(item.title)}</small><b>${html(item.value)}</b><p>${html(item.text)}</p></div>`).join('')}</div></section>
+    <section><h2>Короткий вывод для команды</h2><div class="focus"><strong>${html(topicName)}</strong><br>Измеряем поток, SLA, маршруты и темы. На эту неделю берем одно узкое место: ${html(topicName)}. Улучшение должно быть конкретным: инструкция, права, обучение или маршрут. Эффект проверяем по SLA и доле помощи выше 1-й линии.</div></section>
+    <section><h2>Задача команде на неделю</h2><div class="plan"><div><b>1. Разобрать</b>Взять 3-5 типовых тикетов по теме и найти общий повторяемый сценарий.</div><div><b>2. Закрепить</b>${html(actionNeeded)}</div><div><b>3. Проверить</b>${html(checkText)}</div></div></section>
     <section><h2>SLA и маршруты</h2><div class="plan"><div><b>Основной SLA</b>Взятие в работу ≤15 мин: ${html(pct(primarySla))}. Просрочек: ${html(count(training.primaryViolations))}.</div><div><b>Вторичный SLA</b>Решение в срок: ${html(pct(resolutionSla))}. Просрочек: ${html(count(training.resolutionViolations))}.</div><div><b>Маршрут помощи</b>${html(topic.mainRoute || topic.supportLevel || 'нужно уточнить по тикетам')}.</div></div><table style="margin-top:12px"><thead><tr><th>Маршрут</th><th>Тикеты</th><th>Взятие</th><th>Решение</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
+    <section><h2>Расшифровка ТОП-1 проблемы</h2><table><thead><tr><th>Подтема / сигнал</th><th>Кол-во</th><th>Доля</th><th>Что видно по смыслу</th><th>Что делаем</th></tr></thead><tbody>${subProblemRows}</tbody></table></section>
     <section><h2>Маршруты решения недели</h2><table><thead><tr><th>Маршрут</th><th>Кол-во</th><th>Доля</th></tr></thead><tbody>${routeRows}</tbody></table></section>
     <section><h2>Примеры кейсов для разбора</h2><table><thead><tr><th>Тикет</th><th>Суть</th><th>Исполнитель</th><th>Контекст</th><th>Просрочка</th></tr></thead><tbody>${caseRows}</tbody></table></section>
-    <section><h2>Задача команде на неделю</h2><div class="plan"><div><b>1. Разобрать</b>Взять 3-5 типовых тикетов по теме и найти общий повторяемый сценарий.</div><div><b>2. Закрепить</b>${html(actionNeeded)}</div><div><b>3. Проверить</b>${html(checkText)}</div></div></section>
-    <section><h2>Что не перегружаем</h2><div class="note">Не ищем виноватых и не делаем рейтинг сотрудников. Смотрим процесс: где не хватает инструкции, прав, маршрута или первичной диагностики.</div></section>
-    <section><h2>Что улучшить в данных</h2><div class="note"><ul style="margin:0;padding-left:18px">${dataGaps}</ul></div></section>
+    <section><h2>Правило разбора</h2><div class="note">Не ищем виноватых и не делаем рейтинг сотрудников. Смотрим процесс: где не хватает инструкции, прав, маршрута или первичной диагностики.</div></section>
   </main></body></html>`;
 };
 
@@ -3997,6 +4040,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       slaByRoute: routeSlaRows.filter(row => row.count > 0 || row.primarySla !== null || row.resolutionSla !== null),
       relatedCases: postmortem.relatedCases,
       subProblems: postmortem.subProblems,
+      medianResolutionMinutes: null,
+      phoneAvgMinutes: planningCapacityConfig.phoneCallAvgMinutes,
       generatedAt: new Date()
     });
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
