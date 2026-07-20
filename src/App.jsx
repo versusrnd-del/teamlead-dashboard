@@ -2816,7 +2816,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
   );
 };
 
-const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, aiTaskMemory }) => {
+const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, aiTaskMemory, embedded = false }) => {
   const normalizeRoute = (route) => {
     const text = safeString(route).trim();
     if (!text || ['-', '—', 'null', 'undefined'].includes(text.toLowerCase())) return 'Старые / некорректные значения поля';
@@ -4166,8 +4166,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     <div className="animate-in fade-in duration-500 max-w-7xl pb-10">
       <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Обучение</h1>
-          <p className="text-slate-400 text-sm">Метрики самостоятельности 1-й линии, теневой эскалации и тем для инструкций.</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">{embedded ? 'Постмортемы и разбор команды' : 'Обучение'}</h1>
+          <p className="text-slate-400 text-sm">{embedded ? 'Финтехлаб, ТОП-1 проблема недели и диагностические метрики для командного разбора.' : 'Метрики самостоятельности 1-й линии, теневой эскалации и тем для инструкций.'}</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
           <button
@@ -8277,7 +8277,7 @@ const ReportsGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, on
 
 // --- WORD-ОРИЕНТИРОВАННЫЙ ОТЧЕТ ДЛЯ КОПИРОВАНИЯ РУКОВОДСТВУ ---
 
-const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, projectTasks, setProjectTasks, csatReviews, aiTaskMemory, setAiTaskMemory, wordReportConfig, setWordReportConfig, teamMetricsMemory }) => {
+const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey, onWeekSelect, projectTasks, setProjectTasks, csatReviews, aiTaskMemory, setAiTaskMemory, wordReportConfig, setWordReportConfig, teamMetricsMemory, embedded = false }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [newProjectTaskTitle, setNewProjectTaskTitle] = useState('');
@@ -9357,8 +9357,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     <div className="animate-in fade-in duration-500 pb-10 max-w-7xl">
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Word-отчет</h1>
-          <p className="text-slate-400 text-sm">Лаконичный отчет для Word, письма и копирования руководителю выше</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">{embedded ? 'Еженедельный отчёт руководству' : 'Word-отчет'}</h1>
+          <p className="text-slate-400 text-sm">{embedded ? 'Распределите задачи по категориям, проверьте итог и выгрузите HTML или Word.' : 'Лаконичный отчет для Word, письма и копирования руководителю выше'}</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
@@ -9416,7 +9416,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
             <p>Задачи раскладываются автоматически. Заголовок и детали можно править прямо в карточке; раздел меняется выпадающим списком или перетаскиванием задачи.</p>
           </div>
 
-          <div className="bg-slate-800 rounded-xl border border-slate-700/50 p-4">
+          {!embedded && <div className="bg-slate-800 rounded-xl border border-slate-700/50 p-4">
             <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Задачи в работе</h2>
             <div className="space-y-2 mb-3">
               <input
@@ -9460,7 +9460,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 );
               })}
             </div>
-          </div>
+          </div>}
         </div>
 
         <div ref={previewRef} className="bg-slate-300 rounded-xl p-6 overflow-auto custom-scrollbar" style={{ maxHeight: '78vh' }}>
@@ -9762,6 +9762,310 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+// --- ЕДИНЫЙ ЦЕНТР ОТЧЕТОВ ---
+
+const ManagementTasksBoard = ({ projectTasks, setProjectTasks, selectedKey, historyKeys, weeksHistory, weekData, onWeekSelect }) => {
+  const [newTitle, setNewTitle] = useState('');
+  const [newComment, setNewComment] = useState('');
+  const [newColor, setNewColor] = useState('#3b82f6');
+
+  const compareWeekKeys = (leftKey, rightKey) => {
+    const [leftYear, leftWeek] = safeString(leftKey).split('-').map(Number);
+    const [rightYear, rightWeek] = safeString(rightKey).split('-').map(Number);
+    if (!leftYear || !leftWeek || !rightYear || !rightWeek) return 0;
+    if (leftYear !== rightYear) return leftYear - rightYear;
+    return leftWeek - rightWeek;
+  };
+
+  const visibleTasks = (projectTasks || [])
+    .filter(task => {
+      const createdKey = task?.createdWeekKey || selectedKey;
+      if (compareWeekKeys(createdKey, selectedKey) > 0) return false;
+      if (task?.completedWeekKey) return compareWeekKeys(selectedKey, task.completedWeekKey) <= 0;
+      return task?.status === 'active';
+    })
+    .sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0));
+
+  const activeCount = visibleTasks.filter(task => task.status !== 'completed').length;
+  const completedCount = visibleTasks.length - activeCount;
+  const riskCount = visibleTasks.filter(task => task.status !== 'completed' && safeString(task.color).toLowerCase() === '#ef4444').length;
+
+  const handleAdd = () => {
+    const title = safeString(newTitle).trim();
+    if (!title) return;
+    setProjectTasks(prev => [
+      ...(prev || []),
+      {
+        id: `pt-${Date.now()}`,
+        title,
+        comment: safeString(newComment).trim(),
+        color: newColor,
+        status: 'active',
+        createdWeekKey: selectedKey,
+        completedWeekKey: null,
+        priority: (prev || []).length,
+        createdAt: new Date().toISOString()
+      }
+    ]);
+    setNewTitle('');
+    setNewComment('');
+    setNewColor('#3b82f6');
+  };
+
+  const handleUpdate = (taskId, field, value) => {
+    setProjectTasks(prev => (prev || []).map(task => task.id === taskId ? { ...task, [field]: value } : task));
+  };
+
+  const handleToggle = (task) => {
+    const nextStatus = task.status === 'completed' ? 'active' : 'completed';
+    setProjectTasks(prev => (prev || []).map(item => item.id === task.id ? {
+      ...item,
+      status: nextStatus,
+      completedWeekKey: nextStatus === 'completed' ? selectedKey : null
+    } : item));
+  };
+
+  const handleMove = (taskId, direction) => {
+    const currentIndex = visibleTasks.findIndex(task => task.id === taskId);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= visibleTasks.length) return;
+    const reordered = [...visibleTasks];
+    [reordered[currentIndex], reordered[targetIndex]] = [reordered[targetIndex], reordered[currentIndex]];
+    const orderMap = new Map(reordered.map((task, index) => [task.id, index]));
+    setProjectTasks(prev => (prev || []).map(task => orderMap.has(task.id) ? { ...task, priority: orderMap.get(task.id) } : task));
+  };
+
+  const handleDelete = (taskId) => {
+    if (!window.confirm('Удалить поручение навсегда?')) return;
+    setProjectTasks(prev => (prev || []).filter(task => task.id !== taskId).map((task, index) => ({ ...task, priority: index })));
+  };
+
+  const statusOptions = [
+    { value: '#3b82f6', label: '🔵 В работе' },
+    { value: '#10b981', label: '🟢 Рабочий режим' },
+    { value: '#f59e0b', label: '🟡 Контроль срока' },
+    { value: '#ef4444', label: '🔴 Риск / эскалация' },
+    { value: '#0f172a', label: '⚫ Пауза / ожидание' }
+  ];
+
+  return (
+    <div className="animate-in fade-in duration-500 pb-10 max-w-6xl mx-auto">
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-6">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.2em] font-black text-fuchsia-300 mb-2">Рабочий контур отчёта</div>
+          <h2 className="text-3xl font-bold text-white tracking-tight mb-1">Поручения руководства</h2>
+          <p className="text-slate-400 text-sm max-w-2xl">Единый глобальный список. Порядок задаёт важность в еженедельном отчёте, а выполненные поручения фиксируются в выбранной неделе.</p>
+        </div>
+        <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedKey} onSelect={onWeekSelect} activeData={weekData} />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        {[
+          { label: 'В работе', value: activeCount, tone: 'text-blue-300', border: 'border-blue-500/30' },
+          { label: 'Выполнено в срезе', value: completedCount, tone: 'text-emerald-300', border: 'border-emerald-500/30' },
+          { label: 'Риск / эскалация', value: riskCount, tone: 'text-red-300', border: 'border-red-500/30' }
+        ].map(item => (
+          <div key={item.label} className={`bg-slate-800 rounded-xl border ${item.border} p-4`}>
+            <div className="text-[10px] uppercase tracking-widest font-black text-slate-500 mb-1">{item.label}</div>
+            <div className={`text-3xl font-black ${item.tone}`}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-slate-800 rounded-xl border border-slate-700/60 overflow-hidden mb-6">
+        <div className="px-5 py-4 border-b border-slate-700/60 bg-fuchsia-500/10">
+          <h3 className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2"><Plus size={16} className="text-fuchsia-300" /> Новое поручение</h3>
+        </div>
+        <div className="p-5 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr_220px_auto] gap-3 items-end">
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500 mb-1">Что нужно сделать</label>
+            <input value={newTitle} onChange={event => setNewTitle(event.target.value)} placeholder="Суть поручения..." className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-fuchsia-500" />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500 mb-1">Текущий статус</label>
+            <input value={newComment} onChange={event => setNewComment(event.target.value)} placeholder="Короткий комментарий..." className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-fuchsia-500" />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500 mb-1">Состояние</label>
+            <select value={newColor} onChange={event => setNewColor(event.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white outline-none">
+              {statusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </div>
+          <button onClick={handleAdd} disabled={!newTitle.trim()} className="bg-fuchsia-600 hover:bg-fuchsia-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg px-5 py-2.5 font-black text-sm flex items-center justify-center gap-2">
+            <Plus size={16} /> Добавить
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {visibleTasks.map((task, index) => {
+          const isDone = task.status === 'completed';
+          return (
+            <div key={task.id} className={`bg-slate-800 rounded-xl border p-4 ${isDone ? 'border-emerald-500/30' : 'border-slate-700/60'}`}>
+              <div className="flex flex-col xl:flex-row gap-4">
+                <div className="flex gap-2 xl:flex-col">
+                  <button onClick={() => handleMove(task.id, -1)} disabled={index === 0} className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-700 text-slate-400 disabled:opacity-25">↑</button>
+                  <button onClick={() => handleMove(task.id, 1)} disabled={index === visibleTasks.length - 1} className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-700 text-slate-400 disabled:opacity-25">↓</button>
+                </div>
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1.3fr_1fr_210px] gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500 mb-1">Поручение #{index + 1}</label>
+                    <input value={task.title || ''} onChange={event => handleUpdate(task.id, 'title', event.target.value)} className={`w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-fuchsia-500 ${isDone ? 'text-emerald-300 line-through' : 'text-white'}`} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500 mb-1">Комментарий</label>
+                    <input value={task.comment || ''} onChange={event => handleUpdate(task.id, 'comment', event.target.value)} placeholder="Текущий статус..." className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 outline-none focus:border-fuchsia-500" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-black text-slate-500 mb-1">Состояние</label>
+                    <select value={task.color || '#3b82f6'} onChange={event => handleUpdate(task.id, 'color', event.target.value)} disabled={isDone} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none disabled:opacity-50">
+                      {statusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex xl:flex-col gap-2 xl:w-36 justify-end">
+                  <button onClick={() => handleToggle(task)} className={`flex-1 rounded-lg px-3 py-2 text-xs font-black border ${isDone ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'}`}>
+                    {isDone ? 'Вернуть' : 'Выполнено'}
+                  </button>
+                  <button onClick={() => handleDelete(task.id)} className="rounded-lg px-3 py-2 text-xs font-black bg-red-500/10 border border-red-500/30 text-red-300 flex items-center justify-center gap-1">
+                    <Trash2 size={14} /> Удалить
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {visibleTasks.length === 0 && (
+          <div className="bg-slate-800/60 border border-dashed border-slate-700 rounded-xl p-10 text-center">
+            <Target size={34} className="text-slate-600 mx-auto mb-3" />
+            <div className="font-bold text-slate-300">Поручений для выбранной недели нет</div>
+            <div className="text-sm text-slate-500 mt-1">Добавьте первое поручение через форму выше.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ReportsWorkspace = ({
+  weekData,
+  historyKeys,
+  weeksHistory,
+  selectedKey,
+  onWeekSelect,
+  projectTasks,
+  setProjectTasks,
+  csatReviews,
+  aiTaskMemory,
+  setAiTaskMemory,
+  wordReportConfig,
+  setWordReportConfig,
+  teamMetricsMemory
+}) => {
+  const [workspaceTab, setWorkspaceTab] = useState('weekly');
+  const workspaceTabs = [
+    {
+      id: 'weekly',
+      step: '01',
+      title: 'Еженедельный отчёт',
+      description: 'Разметить задачи по разделам и выгрузить HTML или Word.',
+      icon: FileText,
+      activeClass: 'border-sky-400 bg-sky-500/15 text-sky-100',
+      iconClass: 'text-sky-300'
+    },
+    {
+      id: 'management',
+      step: '02',
+      title: 'Поручения руководства',
+      description: 'Добавить, обновить и приоритизировать задачи руководства.',
+      icon: Target,
+      activeClass: 'border-fuchsia-400 bg-fuchsia-500/15 text-fuchsia-100',
+      iconClass: 'text-fuchsia-300'
+    },
+    {
+      id: 'postmortems',
+      step: '03',
+      title: 'Постмортемы',
+      description: 'Выгрузить Финтехлаб и разбор ТОП-1 проблемы недели.',
+      icon: FileSearch,
+      activeClass: 'border-amber-400 bg-amber-500/15 text-amber-100',
+      iconClass: 'text-amber-300'
+    }
+  ];
+
+  return (
+    <div className="max-w-7xl mx-auto pb-10">
+      <div className="mb-7">
+        <div className="text-[10px] uppercase tracking-[0.24em] font-black text-emerald-300 mb-2">Единый рабочий процесс</div>
+        <h1 className="text-3xl font-bold text-white tracking-tight mb-2">Центр отчётов</h1>
+        <p className="text-slate-400 text-sm max-w-3xl">Все регулярные сценарии собраны в одном месте: подготовка еженедельного отчёта, ведение поручений руководства и материалы для разбора с командой.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-8">
+        {workspaceTabs.map(item => {
+          const Icon = item.icon;
+          const isActive = workspaceTab === item.id;
+          return (
+            <button key={item.id} onClick={() => setWorkspaceTab(item.id)} className={`text-left rounded-xl border p-4 transition-all ${isActive ? item.activeClass : 'border-slate-700/60 bg-slate-800/70 text-slate-300 hover:border-slate-600 hover:bg-slate-800'}`}>
+              <div className="flex items-start gap-3">
+                <div className={`w-10 h-10 rounded-lg bg-slate-950/60 border border-white/5 flex items-center justify-center ${item.iconClass}`}><Icon size={20} /></div>
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-widest font-black opacity-60">Шаг {item.step}</div>
+                  <div className="font-black mt-0.5">{item.title}</div>
+                  <div className="text-xs opacity-65 mt-1 leading-relaxed">{item.description}</div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {workspaceTab === 'weekly' && (
+        <WordReportGenerator
+          weekData={weekData}
+          historyKeys={historyKeys}
+          weeksHistory={weeksHistory}
+          selectedKey={selectedKey}
+          onWeekSelect={onWeekSelect}
+          projectTasks={projectTasks}
+          setProjectTasks={setProjectTasks}
+          csatReviews={csatReviews}
+          aiTaskMemory={aiTaskMemory}
+          setAiTaskMemory={setAiTaskMemory}
+          wordReportConfig={wordReportConfig}
+          setWordReportConfig={setWordReportConfig}
+          teamMetricsMemory={teamMetricsMemory}
+          embedded
+        />
+      )}
+
+      {workspaceTab === 'management' && (
+        <ManagementTasksBoard
+          projectTasks={projectTasks}
+          setProjectTasks={setProjectTasks}
+          selectedKey={selectedKey}
+          historyKeys={historyKeys}
+          weeksHistory={weeksHistory}
+          weekData={weekData}
+          onWeekSelect={onWeekSelect}
+        />
+      )}
+
+      {workspaceTab === 'postmortems' && (
+        <TrainingBoard
+          weekData={weekData}
+          historyKeys={historyKeys}
+          weeksHistory={weeksHistory}
+          selectedWeekKey={selectedKey}
+          onWeekSelect={onWeekSelect}
+          aiTaskMemory={aiTaskMemory}
+          embedded
+        />
+      )}
     </div>
   );
 };
@@ -10678,7 +10982,7 @@ const App = () => {
     switch(activeTab) {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} projectTasks={projectTasks} tasksArchive={tasksArchive} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} setTeamMetricsMemory={setTeamMetricsMemory} />;
-      case 'reports': return <ReportsGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} tasksArchive={tasksArchive} teamMetricsMemory={teamMetricsMemory} />;
+      case 'reports': return <ReportsWorkspace weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} />;
       case 'wordReport': return <WordReportGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'training': return <TrainingBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} aiTaskMemory={aiTaskMemory} />;
@@ -10704,15 +11008,8 @@ const App = () => {
   const navItems = [
     { id: 'pulse', icon: Activity, label: 'Пульс команды', roles: ['admin', 'viewer'] },
     { id: 'fill', icon: Pencil, label: 'Заполнить неделю', roles: ['admin'] },
-    { id: 'reports', icon: FileText, label: 'Отчеты', roles: ['admin', 'viewer'] },
-    { id: 'wordReport', icon: BookOpen, label: 'Word-отчет', roles: ['admin', 'viewer'] },
-    { id: 'archive', icon: Archive, label: 'Техдолг / Архив', roles: ['admin', 'viewer'] },
-    { id: 'training', icon: BookOpen, label: 'Обучение', roles: ['admin', 'viewer'] },
-    { id: 'weeklyCompetencies', icon: Award, label: 'Компетенции недели', roles: ['admin', 'viewer'] },
+    { id: 'reports', icon: FileText, label: 'Центр отчетов', roles: ['admin', 'viewer'] },
     { id: 'team', icon: Users, label: 'Команда', roles: ['admin', 'viewer'] },
-    { id: 'processes', icon: GitMerge, label: 'Процессы и эскалации', roles: ['admin', 'viewer'] },
-    { id: 'achievements', icon: Activity, label: 'Кайдзен и улучшения', roles: ['admin', 'viewer'] },
-    { id: 'profiles', icon: Users, label: 'Профили / Bus Factor', roles: ['admin', 'viewer'] },
     { id: 'settings', icon: Settings, label: 'Настройки доступа', roles: ['admin'] },
   ].filter(item => item.roles.includes(currentUser.role));
 
