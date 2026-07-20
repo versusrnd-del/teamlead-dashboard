@@ -91,6 +91,7 @@ const generateFintechLabReport = ({
   loadContext = {},
   periodAnalytics = {},
   summary = '',
+  commentAudit = {},
   generatedAt = new Date()
 } = {}) => {
   const html = (value) => String(value ?? '')
@@ -268,6 +269,10 @@ const generateFintechLabReport = ({
     <tr><td><strong>${html(row.name)}</strong></td><td>${html(row.howToPlan)}</td><td>${html(row.metrics)}</td><td>${html(row.risk)}</td></tr>
   `).join('') : '<tr><td colspan="4" class="muted">Плановые блоки появятся после расчета нагрузки.</td></tr>';
   const planningGapRows = planningGaps.length ? planningGaps.map(item => `<li>${html(item)}</li>`).join('') : '<li>Качество заполнения маршрута решения.</li><li>Связка звонок → тикет.</li><li>Повторные обращения.</li>';
+  const commentAuditPatterns = Array.isArray(commentAudit.patterns) ? commentAudit.patterns.filter(Boolean).slice(0, 7) : [];
+  const commentAuditPatternRows = commentAuditPatterns.length
+    ? commentAuditPatterns.map(item => `<div><b>${html(item.name || item.resolution || 'Способ решения')}</b><span class="muted">${html(count(item.count))}${Array.isArray(item.evidenceIds) && item.evidenceIds.length ? ` · ${html(item.evidenceIds.slice(0, 5).join(', '))}` : ''}</span></div>`).join('')
+    : '<div><b>Паттерны пока не выделены</b><span class="muted">Появятся после новой выгрузки с аудитом комментариев.</span></div>';
   const seniorTaskCards = (seniorTaskFlow.cards || []).length ? seniorTaskFlow.cards.map(card => `
     <article class="senior-task-card ${html(card.tone || 'neutral')}">
       <small>${html(card.label)}</small>
@@ -315,6 +320,7 @@ const generateFintechLabReport = ({
     <section><h2>Что именно улучшаем</h2>${improvementDetail}</section>
     <section><h2>Статус недели</h2><div class="status-grid"><div class="status-box"><h3>Общий статус</h3><div class="status-title">${html(statusWeek.title || 'База формируется')}</div><p class="muted">${html(statusWeek.summary || summary || 'Данные пока не подключены.')}</p></div><div class="status-box"><h3>Почему такой статус</h3><ul>${(statusWeek.points || []).map(point => `<li>${html(point)}</li>`).join('')}</ul></div><div class="status-box"><h3>Главное действие</h3><p>${html(statusWeek.nextAction || mainAction.actionNeeded || 'выбрать тему после накопления данных')}</p></div></div></section>
     <section><h2>Ключевые метрики</h2><div class="metric-grid">${metricCards}</div></section>
+    <section><h2>Качество итоговых комментариев</h2><div class="quality-grid"><div class="quality-box"><small>Содержательный ход решения</small><strong>${commentAudit.coveragePercent === null || commentAudit.coveragePercent === undefined ? 'нет данных' : html(pct(commentAudit.coveragePercent))}</strong><span class="muted">${html(count(commentAudit.meaningfulCount))} из ${html(count(commentAudit.totalClosed))}</span></div><div class="quality-box"><small>Без полезного комментария</small><strong>${html(count(commentAudit.missingOrInvalidCount))}</strong><span class="muted">после удаления служебных сообщений</span></div><div class="quality-box"><small>Отфильтровано</small><strong>${html(count((Number(commentAudit.automationFilteredCount) || 0) + (Number(commentAudit.ratingFilteredCount) || 0) + (Number(commentAudit.formalFilteredCount) || 0)))}</strong><span class="muted">автоматизация, оценка и формальные ответы</span></div></div><div class="plan" style="margin-top:14px">${commentAuditPatternRows}</div></section>
     <section><h2>Работа старших администраторов</h2><div class="senior-task-grid">${seniorTaskCards}</div>${seniorTaskBalance}<div class="heavy-gallery">${heavyTaskGallery}</div><p class="muted" style="margin-top:12px">${html(seniorTaskFlow.note || 'Блок показывает результат по задачам и связь с отвлечением на первую линию, без рейтинга сотрудников.')}</p></section>
     <section><h2>Главное действие на следующую неделю</h2><div class="note"><strong>${html(improvementFocus)}</strong><br>${html(mainAction.details || mainAction.actionNeeded || 'Нужны данные по топу не-самостоятельных маршрутов.')}<br><strong>Проверка:</strong> ${html(mainAction.check || 'сравнить помощь выше 1-й линии и решение в срок по выбранной теме через неделю')}</div></section>
     <section><h2>Карта узких мест</h2><div class="bottleneck-grid">${bottleneckVisual}</div></section>
@@ -475,6 +481,12 @@ const generateTopProblemPostmortemReport = ({
   const resolutionPatternCards = resolutionPatterns.length
     ? resolutionPatterns.map(item => `<div><b>${html(typeof item === 'string' ? item : (item.name || item.resolution || 'Способ не описан'))}</b><span class="muted">${typeof item === 'object' && item.count !== undefined ? `${html(count(item.count))} подтверждено` : 'подтверждено примерами'}${typeof item === 'object' && Array.isArray(item.evidenceIds) && item.evidenceIds.length ? ` · ${html(item.evidenceIds.slice(0, 4).join(', '))}` : ''}</span></div>`).join('')
     : '<div><b>Способы решения пока не выделены</b><span class="muted">После внедрения обязательного поля JiraSD здесь появятся повторяемые действия команды.</span></div>';
+  const commentAudit = training.resolutionCommentAudit && typeof training.resolutionCommentAudit === 'object'
+    ? training.resolutionCommentAudit
+    : {};
+  const commentAuditFiltered = (Number(commentAudit.automationFilteredCount) || 0)
+    + (Number(commentAudit.ratingFilteredCount) || 0)
+    + (Number(commentAudit.formalFilteredCount) || 0);
   const topicEvidenceText = [
     `${Math.round(topicCount)} тикетов`,
     slaBreaches === null ? '' : `${Math.round(slaBreaches)} SLA-просрочек`,
@@ -566,6 +578,7 @@ const generateTopProblemPostmortemReport = ({
     <section><h2>SLA и маршруты</h2><div class="plan"><div><b>Основной SLA</b>Взятие в работу ≤15 мин: ${html(pct(primarySla))}. Просрочек: ${html(count(training.primaryViolations))}.</div><div><b>Вторичный SLA</b>Решение в срок: ${html(pct(resolutionSla))}. Просрочек: ${html(count(training.resolutionViolations))}.</div><div><b>Маршрут помощи</b>${html(topic.mainRoute || topic.supportLevel || 'нужно уточнить по тикетам')}.</div></div><table style="margin-top:12px"><thead><tr><th>Маршрут</th><th>Тикеты</th><th>Взятие</th><th>Решение</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
     <section><h2>Расшифровка ТОП-1 проблемы</h2><div class="note">Подробная таблица открывается кнопкой «Открыть расшифровку ТОП-проблемы» в верхней части отчета. Для письма в Lotus можно копировать таблицу из окна или использовать блок ниже с примерами кейсов.</div></section>
     <section><h2>Маршруты решения недели</h2><table><thead><tr><th>Маршрут</th><th>Кол-во</th><th>Доля</th></tr></thead><tbody>${routeRows}</tbody></table></section>
+    <section><h2>Качество итоговых комментариев</h2><div class="plan"><div><b>Содержательный ход решения</b>${commentAudit.coveragePercent === null || commentAudit.coveragePercent === undefined ? 'Нет данных новой выгрузки' : html(pct(commentAudit.coveragePercent))} · ${html(count(commentAudit.meaningfulCount))} из ${html(count(commentAudit.totalClosed))}</div><div><b>Без полезного комментария</b>${html(count(commentAudit.missingOrInvalidCount))} после очистки служебных сообщений</div><div><b>Отфильтровано автоматикой</b>${html(count(commentAuditFiltered))}: переоткрытие, просьба оценить и формальные ответы</div></div></section>
     <section><h2>Как команда решала проблему</h2><div class="note" style="margin-bottom:12px"><strong>Заполненность хода решения:</strong> ${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}. В этот блок попадают только подтвержденные действия, а не статусы «Готово» или «Решено».</div><div class="plan">${resolutionPatternCards}</div></section>
     <section><h2>Примеры кейсов: что было и как решено</h2><table><thead><tr><th>Тикет</th><th>Что произошло</th><th>Как решено</th><th>Исполнитель</th><th>Контекст</th><th>Просрочка</th></tr></thead><tbody>${caseRows}</tbody></table></section>
     <section><h2>Правило разбора</h2><div class="note">Не ищем виноватых и не делаем рейтинг сотрудников. Смотрим процесс: где не хватает инструкции, прав, маршрута или первичной диагностики.</div></section>
@@ -3105,6 +3118,28 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     const repeatCount = getRepeatCount(data, section);
     const repeatRate = getRepeatRate(data, closed, section);
     const bottleneckThemes = Array.isArray(section?.bottleneckThemes) ? section.bottleneckThemes : [];
+    const rawCommentAudit = section?.resolutionCommentAudit && typeof section.resolutionCommentAudit === 'object'
+      ? section.resolutionCommentAudit
+      : {};
+    const hasResolutionCommentAudit = Object.keys(rawCommentAudit).length > 0;
+    const commentAuditTotal = Number(rawCommentAudit.totalClosed) || closed || 0;
+    const commentAuditMeaningful = Number(rawCommentAudit.meaningfulCount) || 0;
+    const resolutionCommentAudit = {
+      totalClosed: commentAuditTotal,
+      meaningfulCount: commentAuditMeaningful,
+      missingOrInvalidCount: Number.isFinite(Number(rawCommentAudit.missingOrInvalidCount))
+        ? Number(rawCommentAudit.missingOrInvalidCount)
+        : Math.max(0, commentAuditTotal - commentAuditMeaningful),
+      automationFilteredCount: Number(rawCommentAudit.automationFilteredCount) || 0,
+      ratingFilteredCount: Number(rawCommentAudit.ratingFilteredCount) || 0,
+      formalFilteredCount: Number(rawCommentAudit.formalFilteredCount) || 0,
+      coveragePercent: hasResolutionCommentAudit && Number.isFinite(Number(rawCommentAudit.coveragePercent))
+        ? roundMetric(Number(rawCommentAudit.coveragePercent), 1)
+        : (hasResolutionCommentAudit ? percentOf(commentAuditMeaningful, commentAuditTotal) : null),
+      patterns: Array.isArray(rawCommentAudit.patterns) ? rawCommentAudit.patterns : [],
+      examples: Array.isArray(rawCommentAudit.examples) ? rawCommentAudit.examples : [],
+      hasData: hasResolutionCommentAudit
+    };
     return {
       hasTraining: Boolean(section),
       weekType,
@@ -3136,6 +3171,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       repeatRate,
       hasRepeatData: repeatCount > 0 || repeatRate > 0,
       bottleneckThemes,
+      resolutionCommentAudit,
       routeSlaBreaches: Array.isArray(section?.routeSlaBreaches) ? section.routeSlaBreaches : []
     };
   };
@@ -4218,6 +4254,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       loadContext,
       periodAnalytics,
       summary: selectedTraining.sectionSummary,
+      commentAudit: selectedTraining.resolutionCommentAudit,
       generatedAt: new Date()
     });
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -4462,6 +4499,42 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
             </table>
           </div>
         </div>
+      </div>
+
+      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700/50 shadow-sm mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-5">
+          <div>
+            <h2 className="text-lg font-medium text-white flex items-center gap-2"><FileText size={20} className="text-emerald-400" /> Качество итоговых комментариев</h2>
+            <p className="text-xs text-slate-500 mt-1">Служебные сообщения ServiceDesk, проверки маршрута, переоткрытие, просьбы оценить и формальные ответы исключаются.</p>
+          </div>
+          <span className="w-fit rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-300">
+            {selectedTraining.resolutionCommentAudit.hasData ? `${selectedTraining.resolutionCommentAudit.coveragePercent}% содержательных` : 'Появится после новой выгрузки'}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {[
+            { label: 'Содержательные', value: selectedTraining.resolutionCommentAudit.meaningfulCount, hint: `из ${selectedTraining.resolutionCommentAudit.totalClosed} закрытых` },
+            { label: 'Без полезного итога', value: selectedTraining.resolutionCommentAudit.missingOrInvalidCount, hint: 'после очистки комментариев' },
+            { label: 'Автоматизация', value: selectedTraining.resolutionCommentAudit.automationFilteredCount, hint: 'проверки и переоткрытие' },
+            { label: 'Оценка / формальные', value: selectedTraining.resolutionCommentAudit.ratingFilteredCount + selectedTraining.resolutionCommentAudit.formalFilteredCount, hint: 'CSAT, 123, готово, решено' }
+          ].map(item => (
+            <div key={item.label} className="rounded-xl border border-slate-700 bg-slate-950/50 p-4">
+              <div className="text-[10px] uppercase tracking-wider font-black text-slate-500">{item.label}</div>
+              <div className="text-2xl font-black text-white mt-2">{item.value}</div>
+              <div className="text-xs text-slate-500 mt-1">{item.hint}</div>
+            </div>
+          ))}
+        </div>
+        {selectedTraining.resolutionCommentAudit.patterns.length > 0 && (
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {selectedTraining.resolutionCommentAudit.patterns.slice(0, 6).map((item, index) => (
+              <div key={`${item.name}-${index}`} className="rounded-xl border border-slate-700 bg-slate-950/40 px-4 py-3">
+                <div className="text-xs font-bold text-slate-200">{safeString(item.name || item.resolution)}</div>
+                <div className="text-[10px] text-slate-500 mt-1">{Number(item.count) || 0} подтверждений{Array.isArray(item.evidenceIds) && item.evidenceIds.length ? ` · ${item.evidenceIds.slice(0, 4).join(', ')}` : ''}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
