@@ -10053,7 +10053,7 @@ const ManagementTasksBoard = ({ projectTasks, setProjectTasks, selectedKey, hist
   );
 };
 
-const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
+const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey, dbStatus }) => {
   const trainees = [
     { id: 'u0607', name: 'Максим Отрошко', reportName: 'Отрошко Максим', direction: 'Специалист тех.поддержки', startDate: '03.04.2026' },
     { id: 'u0608', name: 'Максим Гуртов', reportName: 'Гуртов Максим', direction: 'Специалист тех.поддержки', startDate: '03.04.2026' },
@@ -10216,6 +10216,45 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
   const importedPeriodMetrics = weekEntries
     .flatMap(([, data]) => Array.isArray(data?.traineePeriodMetrics) ? data.traineePeriodMetrics : [])
     .filter(item => safeString(item?.from) === fromDate && safeString(item?.to) === toDate);
+  const getIsoWeekStart = (weekKey) => {
+    const match = safeString(weekKey).match(/^(\d{4})-(\d{1,2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const week = Number(match[2]);
+    const januaryFourth = new Date(year, 0, 4);
+    const januaryFourthDay = januaryFourth.getDay() || 7;
+    const firstMonday = new Date(year, 0, 4 - januaryFourthDay + 1);
+    const monday = new Date(firstMonday);
+    monday.setDate(firstMonday.getDate() + (week - 1) * 7);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  };
+  const fullPeriodWeekEntries = weekEntries
+    .map(([weekKey, data]) => {
+      const weekStart = getIsoWeekStart(weekKey);
+      if (!weekStart) return null;
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+      return { weekKey, data, weekStart, weekEnd };
+    })
+    .filter(item => item && item.weekStart >= from && item.weekEnd <= to)
+    .sort((left, right) => left.weekStart - right.weekStart);
+  const weeklyMetricByTrainee = trainees.reduce((acc, trainee) => {
+    const rows = fullPeriodWeekEntries
+      .map(item => (Array.isArray(item.data?.topPerformers) ? item.data.topPerformers : [])
+        .find(performer => safeString(performer?.name) === trainee.id))
+      .filter(Boolean);
+    acc[trainee.id] = {
+      available: rows.length > 0,
+      incidents: rows.reduce((sum, performer) => sum + (Number(performer?.closed) || 0), 0),
+      weeks: rows.length
+    };
+    return acc;
+  }, {});
+  const weeklyCoverageText = fullPeriodWeekEntries.length
+    ? `${toInputDate(fullPeriodWeekEntries[0].weekStart)} — ${toInputDate(fullPeriodWeekEntries[fullPeriodWeekEntries.length - 1].weekEnd)}`
+    : '';
   const getRequestWord = (count) => {
     const value = Math.abs(Number(count)) % 100;
     const tail = value % 10;
@@ -10244,16 +10283,24 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
       : importedMetric?.requests;
     const parsedIncidentCount = Number(rawIncidentCount);
     const hasExactIncidents = rawIncidentCount !== undefined && rawIncidentCount !== '' && Number.isFinite(parsedIncidentCount);
+    const weeklyMetric = weeklyMetricByTrainee[trainee.id] || { available: false, incidents: 0, weeks: 0 };
+    const hasWeeklyIncidents = !hasExactIncidents && weeklyMetric.available;
     const metrics = {
-      incidents: hasExactIncidents ? parsedIncidentCount : null,
+      incidents: hasExactIncidents ? parsedIncidentCount : (hasWeeklyIncidents ? weeklyMetric.incidents : null),
       tasks: [...exactTaskMap.values()].filter(task => safeString(task?.assignee) === trainee.id).length,
       calls: null,
       missed: null,
-      hasExactIncidents
+      hasExactIncidents,
+      hasWeeklyIncidents,
+      source: hasExactIncidents ? 'exact' : (hasWeeklyIncidents ? 'weekly' : 'none'),
+      coveredWeeks: weeklyMetric.weeks
     };
     const workLines = [
       `За период с ${fromDate.split('-').reverse().join('.')} по ${toDate.split('-').reverse().join('.')}`,
-      metrics.hasExactIncidents ? `обработано ${metrics.incidents} ${getRequestWord(metrics.incidents)} Jira` : 'количество запросов Jira не заполнено: нужна точная выгрузка за выбранный период',
+      metrics.hasExactIncidents ? `обработано ${metrics.incidents} ${getRequestWord(metrics.incidents)} Jira` : '',
+      metrics.hasWeeklyIncidents ? `по базе закрыто ${metrics.incidents} инцидентов за ${metrics.coveredWeeks} полностью входящих недель` : '',
+      metrics.hasWeeklyIncidents && weeklyCoverageText ? `покрытие недельных данных: ${weeklyCoverageText}; неполные пограничные недели не включены` : '',
+      metrics.source === 'none' ? 'количество запросов Jira не заполнено: в базе нет подходящих полных недель или точной выгрузки периода' : '',
       metrics.tasks > 0 ? `выполнено ${metrics.tasks} задач` : '',
     ].filter(Boolean);
     const qualificationText = qualifications.length
@@ -10270,11 +10317,13 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
       meta: traineeMeta[trainee.id] || {}
     };
   });
-  const exactIncidentCounts = traineeRows.filter(item => item.metrics.hasExactIncidents).map(item => item.metrics.incidents);
-  const maxIncidentCount = exactIncidentCounts.length ? Math.max(...exactIncidentCounts) : 0;
+  const comparableIncidentCounts = traineeRows.filter(item => item.metrics.source !== 'none').map(item => item.metrics.incidents);
+  const maxIncidentCount = comparableIncidentCounts.length ? Math.max(...comparableIncidentCounts) : 0;
   traineeRows.forEach(item => {
     const highlights = [
-      item.metrics.hasExactIncidents && maxIncidentCount > 0 && item.metrics.incidents === maxIncidentCount ? 'ТОП-1 по количеству запросов Jira среди стажёров' : ''
+      item.metrics.source !== 'none' && maxIncidentCount > 0 && item.metrics.incidents === maxIncidentCount
+        ? `ТОП-1 среди стажёров ${item.metrics.hasExactIncidents ? 'по количеству запросов Jira' : 'по закрытым инцидентам в покрытых неделях'}`
+        : ''
     ].filter(Boolean);
     if (highlights.length) item.workText += `\n- ${highlights.join('\n- ')}`;
   });
@@ -10333,6 +10382,15 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
         </div>
       </div>
 
+      {dbStatus !== 'connected' && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
+          <strong className="block text-amber-300">Облачная база не подключена</strong>
+          <span className="block mt-1 text-xs leading-relaxed text-amber-100/70">
+            Сейчас отчёт читает только локальный кэш этого компьютера. Для загрузки сохранённой истории Supabase нужны `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.local`, затем следует перезапустить сайт.
+          </span>
+        </div>
+      )}
+
       <div className="bg-slate-800 rounded-2xl border border-slate-700/60 p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
           <div>
@@ -10350,11 +10408,24 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
               <input
                 type="number"
                 min="0"
-                value={metricSnapshots[periodKey]?.[trainee.id] ?? ''}
+                value={
+                  metricSnapshots[periodKey]?.[trainee.id]
+                  ?? importedPeriodMetrics.find(item => safeString(item?.assignee) === trainee.id)?.requests
+                  ?? (weeklyMetricByTrainee[trainee.id]?.available ? weeklyMetricByTrainee[trainee.id].incidents : '')
+                }
                 onChange={event => updateMetricSnapshot(trainee.id, event.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-lg font-black text-white"
                 placeholder="Запросов за период"
               />
+              <span className="block mt-2 text-[10px] leading-relaxed text-slate-500">
+                {metricSnapshots[periodKey]?.[trainee.id] !== undefined
+                  ? 'Сохранённый точный снимок периода'
+                  : importedPeriodMetrics.some(item => safeString(item?.assignee) === trainee.id)
+                    ? 'Точная месячная выгрузка из базы'
+                    : weeklyMetricByTrainee[trainee.id]?.available
+                      ? `Авто из базы: ${weeklyMetricByTrainee[trainee.id].weeks} полных недель`
+                      : 'В сохранённой истории нет подходящих недель'}
+              </span>
             </label>
           ))}
         </div>
@@ -10437,7 +10508,8 @@ const ReportsWorkspace = ({
   setAiTaskMemory,
   wordReportConfig,
   setWordReportConfig,
-  teamMetricsMemory
+  teamMetricsMemory,
+  dbStatus
 }) => {
   const [workspaceTab, setWorkspaceTab] = useState('weekly');
   const workspaceTabs = [
@@ -10554,6 +10626,7 @@ const ReportsWorkspace = ({
           weekData={weekData}
           weeksHistory={weeksHistory}
           selectedKey={selectedKey}
+          dbStatus={dbStatus}
         />
       )}
     </div>
@@ -11472,7 +11545,7 @@ const App = () => {
     switch(activeTab) {
       case 'pulse': return <PulseDashboard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} projectTasks={projectTasks} tasksArchive={tasksArchive} />;
       case 'fill': return <FillWeekForm weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} onSaveWeek={handleSaveWeek} setProfiles={setProfiles} setTasksArchive={setTasksArchive} csatReviews={csatReviews} setCsatReviews={setCsatReviews} setTeamMetricsMemory={setTeamMetricsMemory} />;
-      case 'reports': return <ReportsWorkspace weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} />;
+      case 'reports': return <ReportsWorkspace weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} dbStatus={dbStatus} />;
       case 'wordReport': return <WordReportGenerator weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} projectTasks={projectTasks} setProjectTasks={setProjectTasks} csatReviews={csatReviews} aiTaskMemory={aiTaskMemory} setAiTaskMemory={setAiTaskMemory} wordReportConfig={wordReportConfig} setWordReportConfig={setWordReportConfig} teamMetricsMemory={teamMetricsMemory} />;
       case 'archive': return <TasksArchiveBoard tasksArchive={tasksArchive} />;
       case 'training': return <TrainingBoard weekData={activeWeekData} historyKeys={historyKeys} weeksHistory={weeksHistory} selectedWeekKey={selectedWeekKey} onWeekSelect={setSelectedWeekKey} aiTaskMemory={aiTaskMemory} />;
