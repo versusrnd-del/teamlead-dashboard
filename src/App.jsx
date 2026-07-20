@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
   LineChart, Line
@@ -550,10 +551,45 @@ const generateTopProblemPostmortemReport = ({
       .sla-target{display:flex;align-items:end;justify-content:space-between;gap:12px}.sla-target b{font-size:24px}
 	      .team-snapshot{display:grid;grid-template-columns:.75fr 1.1fr 1.15fr 1.15fr;gap:0;margin:16px 0;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 12px 28px rgba(15,23,42,.06)}
       .snapshot-item{padding:17px;border-right:1px solid var(--line)}.snapshot-item:last-child{border-right:0}.snapshot-item small{display:block;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.snapshot-item strong{display:block;margin:6px 0 3px;font-size:17px;line-height:1.2}.snapshot-item span{display:block;color:#64748b;font-size:12px}.snapshot-status{border-top:5px solid ${currentState.color};background:${currentState.bg}}.snapshot-cause{border-top:5px solid #8b5cf6}.snapshot-action{border-top:5px solid #2563eb}
+	      .weekly-showcase{position:relative;isolation:isolate;overflow:hidden;aspect-ratio:16/9;min-height:610px;border:1px solid rgba(103,232,249,.28);border-radius:28px;padding:34px;color:#fff;background:radial-gradient(circle at 12% 12%,rgba(34,211,238,.34),transparent 28%),radial-gradient(circle at 88% 18%,rgba(249,115,22,.42),transparent 30%),radial-gradient(circle at 72% 90%,rgba(168,85,247,.34),transparent 30%),linear-gradient(135deg,#020817 0%,#08182b 44%,#11112d 72%,#251025 100%);box-shadow:0 34px 90px rgba(2,8,23,.38)}.weekly-showcase:before{content:"";position:absolute;z-index:-2;inset:0;background-image:linear-gradient(rgba(125,211,252,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.06) 1px,transparent 1px);background-size:32px 32px;mask-image:linear-gradient(to bottom,#000,transparent 88%)}.weekly-showcase:after{content:"";position:absolute;z-index:-1;width:420px;height:420px;right:-160px;bottom:-210px;border:1px solid rgba(255,255,255,.18);border-radius:50%;box-shadow:0 0 0 42px rgba(255,255,255,.025),0 0 0 84px rgba(255,255,255,.018)}.showcase-top{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.14)}.showcase-brand{display:flex;align-items:center;gap:12px;font:900 11px/1 Consolas,"Courier New",monospace;letter-spacing:.18em;text-transform:uppercase;color:#67e8f9}.showcase-brand i{display:block;width:12px;height:12px;border-radius:3px;background:linear-gradient(135deg,#22d3ee,#a855f7);box-shadow:0 0 24px #22d3ee}.showcase-period{font:800 11px/1.2 Consolas,"Courier New",monospace;color:#cbd5e1;text-align:right}.showcase-period b{display:block;margin-top:4px;color:#fff;font-size:13px}.showcase-main{display:grid;grid-template-columns:.86fr 1.14fr;gap:26px;align-items:stretch;margin-top:26px}.showcase-outcome{display:flex;flex-direction:column;justify-content:center;min-width:0}.showcase-kicker{font:900 11px/1 Consolas,"Courier New",monospace;letter-spacing:.18em;text-transform:uppercase;color:#a5f3fc}.showcase-number{margin:14px 0 0;font:950 clamp(86px,10vw,144px)/.78 Aptos,Calibri,"Segoe UI",sans-serif;letter-spacing:-.08em;color:#fff;text-shadow:0 0 42px rgba(34,211,238,.34)}.showcase-number-label{margin-top:18px;font-size:20px;font-weight:900;color:#dbeafe}.showcase-number-note{margin-top:5px;color:#94a3b8;font-size:12px}.showcase-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:24px}.showcase-kpi{border:1px solid rgba(255,255,255,.13);border-top:3px solid var(--accent);border-radius:13px;padding:11px;background:rgba(2,8,23,.48);backdrop-filter:blur(10px)}.showcase-kpi span{display:block;color:#94a3b8;font:800 9px/1.25 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.08em}.showcase-kpi b{display:block;margin-top:6px;color:#fff;font-size:20px;line-height:1}.showcase-problem{position:relative;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(251,146,60,.34);border-radius:22px;padding:24px;background:linear-gradient(145deg,rgba(120,53,15,.46),rgba(69,10,10,.38) 45%,rgba(15,23,42,.72));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 20px 60px rgba(0,0,0,.18)}.showcase-problem:before{content:"TOP 01";position:absolute;right:-9px;top:36px;color:rgba(255,255,255,.035);font:950 84px/1 Aptos,Calibri,sans-serif;letter-spacing:-.08em;transform:rotate(-4deg)}.showcase-problem-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px}.showcase-problem-head span{font:900 10px/1 Consolas,"Courier New",monospace;letter-spacing:.16em;text-transform:uppercase;color:#fed7aa}.showcase-problem-count{display:grid;place-items:center;min-width:52px;height:34px;border:1px solid rgba(253,186,116,.38);border-radius:999px;background:rgba(249,115,22,.18);color:#fff;font:900 14px/1 Consolas,"Courier New",monospace;box-shadow:0 0 28px rgba(249,115,22,.2)}.showcase-problem h2{position:relative;margin:24px 0 10px;max-width:92%;font-size:clamp(30px,3.4vw,46px);line-height:1.02;letter-spacing:-.045em;color:#fff}.showcase-problem-meta{position:relative;color:#fdba74;font:800 11px/1.45 Consolas,"Courier New",monospace}.showcase-problem p{position:relative;margin:12px 0 0;color:#cbd5e1;font-size:13px}.showcase-action{position:relative;margin-top:auto;border:1px solid rgba(110,231,183,.24);border-radius:15px;padding:13px 15px;background:linear-gradient(135deg,rgba(6,78,59,.56),rgba(15,23,42,.66))}.showcase-action span{display:block;color:#6ee7b7;font:900 9px/1 Consolas,"Courier New",monospace;letter-spacing:.14em;text-transform:uppercase}.showcase-action strong{display:block;margin-top:7px;color:#ecfdf5;font-size:13px;line-height:1.35}.showcase-footer{display:grid;grid-template-columns:.7fr .7fr 1.6fr;gap:10px;margin-top:20px}.showcase-footer>div{border:1px solid rgba(255,255,255,.11);border-radius:12px;padding:10px 12px;background:rgba(2,8,23,.42)}.showcase-footer span{display:block;color:#64748b;font:800 8px/1 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.12em}.showcase-footer b{display:block;margin-top:5px;color:#e2e8f0;font-size:12px}.showcase-footer .showcase-message{display:flex;align-items:center;color:#c4b5fd;font-size:11px;font-weight:800;border-color:rgba(196,181,253,.2)}.detail-divider{display:flex;align-items:center;gap:14px;margin:25px 2px 14px;color:#64748b;font:900 10px/1 Consolas,"Courier New",monospace;letter-spacing:.16em;text-transform:uppercase}.detail-divider:before,.detail-divider:after{content:"";height:1px;flex:1;background:linear-gradient(90deg,transparent,#94a3b8)}.detail-divider:after{background:linear-gradient(90deg,#94a3b8,transparent)}
 	      body{background:#e7edf5}.page{max-width:1180px;padding-top:28px}.hero{position:relative;border:1px solid #28475f;background-color:#071421;background-image:linear-gradient(rgba(56,189,248,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.055) 1px,transparent 1px),radial-gradient(circle at 86% 12%,rgba(245,158,11,.22),transparent 28%),linear-gradient(135deg,#07111f,#0d2238 58%,#102a43);background-size:28px 28px,28px 28px,auto,auto;box-shadow:0 28px 70px rgba(7,17,31,.25)}.hero:after{content:"";position:absolute;right:-95px;bottom:-135px;width:350px;height:350px;border:1px solid rgba(56,189,248,.18);border-radius:50%;box-shadow:0 0 0 36px rgba(56,189,248,.035),0 0 0 72px rgba(56,189,248,.024)}.hero-grid,.scale-label,.traffic,.report-brand{position:relative;z-index:1}.report-brand{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:25px;padding-bottom:14px;border-bottom:1px solid rgba(148,163,184,.22);font:800 10px/1.2 Consolas,"Courier New",monospace;letter-spacing:.16em;text-transform:uppercase;color:#7dd3fc}.report-brand b{color:#fde68a}.eyebrow,.meter-head span,.meter-head em,.scale-label,.state b,.state span,.card small,.flow-step small,.drop-card small,th{font-family:Consolas,"Courier New",monospace}.hero h1{font-size:42px;max-width:760px}.pulse,.phone-pulse{border-radius:16px;background:rgba(7,20,33,.72);backdrop-filter:blur(8px)}.team-snapshot{border-color:#cbd8e6}.snapshot-item{background:linear-gradient(180deg,#fff,#f8fbfe)}.kpi .card{border-radius:14px;border-color:#cbd8e6;background:linear-gradient(180deg,#fff,#f8fbfe);box-shadow:0 8px 22px rgba(15,35,55,.055)}.card strong,.flow-step b{font-family:Consolas,"Courier New",monospace}.flow-step{border-radius:14px;box-shadow:0 8px 22px rgba(15,35,55,.05)}section{position:relative;border-radius:16px;border-color:#cdd9e6;box-shadow:0 10px 28px rgba(15,35,55,.055);overflow:hidden}section:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(#38bdf8,#f59e0b);opacity:.72}section h2{display:flex;align-items:center;gap:10px;font-size:19px;color:#0b2035}section h2:before{content:"";width:8px;height:8px;border-radius:2px;background:#f59e0b;box-shadow:0 0 0 4px #fef3c7}.note,.focus{border-radius:12px}.focus{border-left-color:#0ea5e9;background:linear-gradient(135deg,#eff8ff,#f8fbff)}.drop-card,.plan div,.signal-strip div{border-radius:12px}.modal-panel{border:1px solid #cbd8e6;border-radius:18px}.modal-close,.modal-open{border-radius:7px;font-family:Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.04em}table{border:1px solid #d6e0ea;border-radius:12px;overflow:hidden}th{background:#0d2238;color:#b9d7ee;padding:11px 10px;border-bottom-color:#24445f}td{color:#334155}tbody tr:nth-child(even){background:#f7fafc}tbody tr:hover{background:#fff8e8}table td:nth-child(4) strong{color:#047857}.muted{color:#64748b}.scale-label{margin-top:16px}.traffic{opacity:.9}.state{padding:8px;background:rgba(7,20,33,.66)}.state b{font-size:11px}.state span{color:#94a3b8}
-	      @media(max-width:820px){.meter-grid,.team-snapshot{grid-template-columns:1fr}.snapshot-item{border-right:0;border-bottom:1px solid var(--line)}.snapshot-item:last-child{border-bottom:0}}
-	      @media print{body{background:#fff}.page{max-width:none}.hero{border-radius:0;box-shadow:none}.hero:after{display:none}section,.card,.team-snapshot{box-shadow:none;break-inside:avoid}.report-brand{color:#bae6fd}}
+	      @media(max-width:820px){.meter-grid,.team-snapshot,.showcase-main,.showcase-footer{grid-template-columns:1fr}.snapshot-item{border-right:0;border-bottom:1px solid var(--line)}.snapshot-item:last-child{border-bottom:0}.weekly-showcase{aspect-ratio:auto;min-height:0;padding:24px}.showcase-top{align-items:flex-start}.showcase-number{font-size:88px}.showcase-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.showcase-problem h2{font-size:31px}}
+	      .report-toolbar{position:sticky;top:10px;z-index:40;display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 14px;padding:10px 14px;border:1px solid #cbd8e6;border-radius:12px;background:rgba(255,255,255,.94);box-shadow:0 10px 28px rgba(15,35,55,.12);backdrop-filter:blur(10px);color:#475569;font:700 12px/1.3 Consolas,"Courier New",monospace}.report-toolbar button{border:0;border-radius:8px;background:#0d2238;color:#fff;padding:9px 13px;font:800 12px/1 Consolas,"Courier New",monospace;cursor:pointer}.report-toolbar button:hover{background:#173a5e}
+	      @media print{body{background:#fff}.page{max-width:none}.hero{border-radius:0;box-shadow:none}.hero:after{display:none}section,.card,.team-snapshot{box-shadow:none;break-inside:avoid}.report-brand{color:#bae6fd}.report-toolbar{display:none}.weekly-showcase{break-inside:avoid;box-shadow:none}}
 	    </style>
+	    <div class="report-toolbar"><span>Витрина 16:9 готова для скриншота · ниже расположен детальный разбор</span><button type="button" onclick="window.print()">Печать / PDF</button></div>
+	    <div class="weekly-showcase">
+	      <div class="showcase-top">
+	        <div class="showcase-brand"><i></i><span>Team Ops / Weekly Outcome</span></div>
+	        <div class="showcase-period">Отчётный период<b>${html(period)}</b></div>
+	      </div>
+	      <div class="showcase-main">
+	        <div class="showcase-outcome">
+	          <div class="showcase-kicker">Команда за неделю</div>
+	          <div class="showcase-number">${html(Math.round(totalClosed))}</div>
+	          <div class="showcase-number-label">обращений закрыто</div>
+	          <div class="showcase-number-note">Общий результат первой линии за выбранный период</div>
+	          <div class="showcase-kpis">
+	            <div class="showcase-kpi" style="--accent:${primarySla >= 95 ? '#34d399' : '#fb923c'}"><span>Взятие ≤15 мин</span><b>${html(pct(primarySla))}</b></div>
+	            <div class="showcase-kpi" style="--accent:${resolutionSla >= 95 ? '#34d399' : '#f472b6'}"><span>Решение в срок</span><b>${html(pct(resolutionSla))}</b></div>
+	            <div class="showcase-kpi" style="--accent:#22d3ee"><span>Звонки приняты</span><b>${html(Math.round(phoneAnswered || phoneCalls))}</b></div>
+	          </div>
+	        </div>
+	        <div class="showcase-problem">
+	          <div class="showcase-problem-head"><span>ТОП-1 проблема недели</span><div class="showcase-problem-count">${html(Math.round(topicCount))} кейс.</div></div>
+	          <h2>${html(topicName)}</h2>
+	          <div class="showcase-problem-meta">${html(topicCategory || 'Ключевая повторяющаяся тема')} · ${html(pct(topicShare))} от закрытых</div>
+	          <p>${html(topic.problemType || topic.rootCauseHypothesis || 'Команде нужно разобрать общий сценарий возникновения и устранения проблемы.')}</p>
+	          <div class="showcase-action"><span>Что закрепляем на следующую неделю</span><strong>${html(actionNeeded)}</strong></div>
+	        </div>
+	      </div>
+	      <div class="showcase-footer">
+	        <div><span>Статус SLA</span><b>${html(currentState.label)}</b></div>
+	        <div><span>Решения описаны</span><b>${resolutionCoverage === null ? 'данные собираются' : html(pct(resolutionCoverage))}</b></div>
+	        <div class="showcase-message">Один кадр: результат команды → главная проблема → конкретное действие</div>
+	      </div>
+	    </div>
+	    <div class="detail-divider">Детальный постмортем и доказательства</div>
 	    <header class="hero">
 	      <div class="report-brand"><span>OPS INTELLIGENCE / INCIDENT REVIEW</span><b>TOP-1 PROBLEM · TEAM POSTMORTEM</b></div>
 	      <div class="hero-grid">
@@ -2909,6 +2945,8 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 };
 
 const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, aiTaskMemory, embedded = false }) => {
+  const [topReportPreview, setTopReportPreview] = useState('');
+
   const normalizeRoute = (route) => {
     const text = safeString(route).trim();
     if (!text || ['-', '—', 'null', 'undefined'].includes(text.toLowerCase())) return 'Старые / некорректные значения поля';
@@ -4311,7 +4349,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     );
   };
 
-  const handleDownloadTopProblemPostmortem = () => {
+  const handleOpenTopProblemPostmortem = () => {
     const postmortem = buildTopProblemPostmortemData();
     const html = generateTopProblemPostmortemReport({
       week: {
@@ -4329,16 +4367,61 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       telephony: periodAnalytics.telephony,
       generatedAt: new Date()
     });
+    setTopReportPreview(html);
+  };
+
+  const handleDownloadTopProblemPostmortem = () => {
+    if (!topReportPreview) return;
     const weekNumber = weekData?.weekNumber || selectedWeekKey?.split('-')?.[1];
     const dateStamp = new Date().toISOString().slice(0, 10);
     downloadGeneratedHtml(
-      html,
+      topReportPreview,
       weekNumber ? `top_problem_postmortem_week_${weekNumber}.html` : `top_problem_postmortem_${dateStamp}.html`
     );
   };
 
   return (
     <div className="animate-in fade-in duration-500 max-w-7xl pb-10">
+      {topReportPreview && createPortal((
+        <div className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-sm p-3 md:p-5 flex flex-col">
+          <div className="shrink-0 flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-t-2xl border border-slate-700 bg-slate-900 px-4 py-3">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-400">Incident review / HTML preview</div>
+              <div className="text-lg font-black text-white">Постмортем ТОП-1</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDownloadTopProblemPostmortem}
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-slate-950 hover:bg-amber-400"
+              >
+                <DownloadCloud size={16} />
+                Скачать HTML
+              </button>
+              <button
+                type="button"
+                onClick={() => document.getElementById('top-report-preview-frame')?.contentWindow?.print()}
+                className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-bold text-slate-100 hover:bg-slate-700"
+              >
+                Печать / PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setTopReportPreview('')}
+                className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300 hover:text-white"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+          <iframe
+            id="top-report-preview-frame"
+            title="Предпросмотр постмортема ТОП-1"
+            srcDoc={topReportPreview}
+            className="min-h-0 flex-1 w-full rounded-b-2xl border-x border-b border-slate-700 bg-white"
+          />
+        </div>
+      ), document.body)}
       <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5 mb-8 rounded-2xl border border-slate-700/60 bg-slate-950/35 p-5 shadow-xl shadow-slate-950/10">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400 mb-2">Ops intelligence / incident review</div>
@@ -4354,12 +4437,12 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
             Скачать Финтехлаб
           </button>
           <button
-            onClick={handleDownloadTopProblemPostmortem}
+            onClick={handleOpenTopProblemPostmortem}
             className="inline-flex items-center justify-center gap-2 border border-amber-400/40 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black px-4 py-2.5 rounded-xl shadow-lg shadow-amber-950/20 transition-colors"
-            title="Скачать HTML-постмортем по топ-1 проблеме недели для команды и Lotus"
+            title="Открыть встроенный предпросмотр постмортема ТОП-1"
           >
             <FileSearch size={18} />
-            Скачать ТОП-1
+            Просмотреть ТОП-1
           </button>
           <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
         </div>
