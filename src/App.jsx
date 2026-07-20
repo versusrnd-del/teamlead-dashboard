@@ -10076,6 +10076,21 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
   const [fromDate, setFromDate] = useState(defaultPeriod.from);
   const [toDate, setToDate] = useState(defaultPeriod.to);
   const [copiedRows, setCopiedRows] = useState(false);
+  const defaultMetricSnapshots = {
+    '2026-06-20_2026-07-19': {
+      u0607: '334',
+      u0608: '224',
+      u0627: '195'
+    }
+  };
+  const [metricSnapshots, setMetricSnapshots] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('trainee_monthly_metric_snapshots') || '{}');
+      return { ...defaultMetricSnapshots, ...saved };
+    } catch (error) {
+      return defaultMetricSnapshots;
+    }
+  });
   const [traineeMeta, setTraineeMeta] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('trainee_monthly_report_meta') || '{}');
@@ -10101,8 +10116,21 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
   useEffect(() => {
     localStorage.setItem('trainee_monthly_report_meta', JSON.stringify(traineeMeta));
   }, [traineeMeta]);
+  useEffect(() => {
+    localStorage.setItem('trainee_monthly_metric_snapshots', JSON.stringify(metricSnapshots));
+  }, [metricSnapshots]);
   const updateTraineeMeta = (traineeId, field, value) => {
     setTraineeMeta(prev => ({ ...prev, [traineeId]: { ...(prev[traineeId] || {}), [field]: value } }));
+  };
+  const periodKey = `${fromDate}_${toDate}`;
+  const updateMetricSnapshot = (traineeId, value) => {
+    setMetricSnapshots(prev => ({
+      ...prev,
+      [periodKey]: {
+        ...(prev[periodKey] || {}),
+        [traineeId]: value
+      }
+    }));
   };
   const parseCaseDate = (value) => {
     const text = safeString(value).trim().toLowerCase();
@@ -10185,52 +10213,48 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
     const rightDate = parseCaseDate(right.date)?.getTime() || 0;
     return rightDate - leftDate;
   });
-  const getIsoWeekStart = (weekKey) => {
-    const match = safeString(weekKey).match(/^(\d{4})-(\d{1,2})$/);
-    if (!match) return null;
-    const year = Number(match[1]);
-    const week = Number(match[2]);
-    const januaryFourth = new Date(year, 0, 4);
-    const januaryFourthDay = januaryFourth.getDay() || 7;
-    const firstMonday = new Date(year, 0, 4 - januaryFourthDay + 1);
-    const monday = new Date(firstMonday);
-    monday.setDate(firstMonday.getDate() + (week - 1) * 7);
-    return monday;
+  const importedPeriodMetrics = weekEntries
+    .flatMap(([, data]) => Array.isArray(data?.traineePeriodMetrics) ? data.traineePeriodMetrics : [])
+    .filter(item => safeString(item?.from) === fromDate && safeString(item?.to) === toDate);
+  const getRequestWord = (count) => {
+    const value = Math.abs(Number(count)) % 100;
+    const tail = value % 10;
+    if (value >= 11 && value <= 19) return 'запросов';
+    if (tail === 1) return 'запрос';
+    if (tail >= 2 && tail <= 4) return 'запроса';
+    return 'запросов';
   };
-  const periodWeekEntries = weekEntries.filter(([weekKey, data]) => {
-    const weekStart = getIsoWeekStart(weekKey) || parseCaseDate(data?.dates);
-    if (!weekStart) return false;
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-    return weekEnd >= from && weekStart <= to;
-  });
-  const getTelephonyRow = (data, trainee) => (Array.isArray(data?.telephonyData) ? data.telephonyData : []).find(row => {
-    const raw = safeString(row?.name || row?.employee || row?.operator || row?.assignee);
-    return raw === trainee.id || getFullName(raw) === trainee.name || raw.includes(trainee.reportName) || raw.includes(trainee.name);
+  const exactTaskMap = new Map();
+  weekEntries.forEach(([, data]) => {
+    (Array.isArray(data?.detailedTasks) ? data.detailedTasks : []).forEach(task => {
+      const id = safeString(task?.id);
+      const assignee = safeString(task?.assignee);
+      if (!id || !trainees.some(trainee => trainee.id === assignee) || !isInPeriod(task?.resolved)) return;
+      exactTaskMap.set(id, task);
+    });
   });
   const traineeRows = trainees.map(trainee => {
     const cases = allCases.filter(item => safeString(item.assignee) === trainee.id);
     const qualifications = [...new Set(cases.map(item => safeString(item.qualificationEvidence)).filter(Boolean))];
     const domains = [...new Set(cases.map(item => safeString(item.domain)).filter(value => value && value !== 'Прочее'))];
-    const metrics = periodWeekEntries.reduce((acc, [, data]) => {
-      const incidentPerformer = (Array.isArray(data?.topPerformers) ? data.topPerformers : []).find(item => safeString(item?.name) === trainee.id);
-      const taskPerformer = (Array.isArray(data?.taskPerformers) ? data.taskPerformers : []).find(item => safeString(item?.name) === trainee.id);
-      const phone = getTelephonyRow(data, trainee);
-      const answered = Number(phone?.answered ?? phone?.accepted ?? phone?.incoming ?? phone?.calls ?? phone?.count ?? 0) || 0;
-      const missed = Number(phone?.missed ?? phone?.lost ?? phone?.notAnswered ?? 0) || 0;
-      return {
-        incidents: acc.incidents + (Number(incidentPerformer?.closed) || 0),
-        tasks: acc.tasks + (Number(taskPerformer?.closed) || 0),
-        calls: acc.calls + answered,
-        missed: acc.missed + missed
-      };
-    }, { incidents: 0, tasks: 0, calls: 0, missed: 0 });
+    const importedMetric = importedPeriodMetrics.find(item => safeString(item?.assignee) === trainee.id);
+    const snapshotValue = metricSnapshots[periodKey]?.[trainee.id];
+    const rawIncidentCount = snapshotValue !== undefined && snapshotValue !== ''
+      ? snapshotValue
+      : importedMetric?.requests;
+    const parsedIncidentCount = Number(rawIncidentCount);
+    const hasExactIncidents = rawIncidentCount !== undefined && rawIncidentCount !== '' && Number.isFinite(parsedIncidentCount);
+    const metrics = {
+      incidents: hasExactIncidents ? parsedIncidentCount : null,
+      tasks: [...exactTaskMap.values()].filter(task => safeString(task?.assignee) === trainee.id).length,
+      calls: null,
+      missed: null,
+      hasExactIncidents
+    };
     const workLines = [
       `За период с ${fromDate.split('-').reverse().join('.')} по ${toDate.split('-').reverse().join('.')}`,
-      metrics.incidents > 0 ? `закрыто ${metrics.incidents} инцидентов` : '',
+      metrics.hasExactIncidents ? `обработано ${metrics.incidents} ${getRequestWord(metrics.incidents)} Jira` : 'количество запросов Jira не заполнено: нужна точная выгрузка за выбранный период',
       metrics.tasks > 0 ? `выполнено ${metrics.tasks} задач` : '',
-      metrics.calls > 0 ? `обработано ${metrics.calls} вызовов (${metrics.missed} пропущено)` : ''
     ].filter(Boolean);
     const qualificationText = qualifications.length
       ? qualifications.join('\n')
@@ -10246,12 +10270,11 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
       meta: traineeMeta[trainee.id] || {}
     };
   });
-  const maxIncidentCount = Math.max(0, ...traineeRows.map(item => item.metrics.incidents));
-  const maxCallCount = Math.max(0, ...traineeRows.map(item => item.metrics.calls));
+  const exactIncidentCounts = traineeRows.filter(item => item.metrics.hasExactIncidents).map(item => item.metrics.incidents);
+  const maxIncidentCount = exactIncidentCounts.length ? Math.max(...exactIncidentCounts) : 0;
   traineeRows.forEach(item => {
     const highlights = [
-      maxIncidentCount > 0 && item.metrics.incidents === maxIncidentCount ? 'ТОП-1 по закрытым инцидентам среди стажёров' : '',
-      maxCallCount > 0 && item.metrics.calls === maxCallCount ? 'ТОП-1 по принятым звонкам среди стажёров' : ''
+      item.metrics.hasExactIncidents && maxIncidentCount > 0 && item.metrics.incidents === maxIncidentCount ? 'ТОП-1 по количеству запросов Jira среди стажёров' : ''
     ].filter(Boolean);
     if (highlights.length) item.workText += `\n- ${highlights.join('\n- ')}`;
   });
@@ -10310,10 +10333,37 @@ const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
         </div>
       </div>
 
+      <div className="bg-slate-800 rounded-2xl border border-slate-700/60 p-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 className="font-black text-white">Точные показатели Jira за период</h3>
+            <p className="text-xs text-slate-400 mt-1">Значения относятся строго к датам выше. Суммы пересекающихся недель больше не используются.</p>
+          </div>
+          <span className="w-fit rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-300">
+            {periodKey === '2026-06-20_2026-07-19' ? 'Сверено по Jira · 20.07.2026' : 'Ручная сверка / месячная выгрузка'}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {trainees.map(trainee => (
+            <label key={trainee.id} className="rounded-xl border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-400">
+              <span className="block font-bold text-slate-200 mb-2">{trainee.reportName}</span>
+              <input
+                type="number"
+                min="0"
+                value={metricSnapshots[periodKey]?.[trainee.id] ?? ''}
+                onChange={event => updateMetricSnapshot(trainee.id, event.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-lg font-black text-white"
+                placeholder="Запросов за период"
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+
       <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-700/60">
           <h3 className="font-black text-white">Готовые строки для отчёта 20 числа</h3>
-          <p className="text-xs text-slate-500 mt-1">Служебные значения часов и сумм редактируются вручную и сохраняются на этом компьютере. Выполненная работа и квалификация собираются из Jira и телефонии.</p>
+          <p className="text-xs text-slate-500 mt-1">Служебные значения часов и сумм редактируются вручную и сохраняются на этом компьютере. Объём сверяется по точному периоду Jira, квалификация собирается из доказательных кейсов.</p>
         </div>
         <div className="overflow-x-auto custom-scrollbar">
           <table className="min-w-[1650px] w-full text-xs">
