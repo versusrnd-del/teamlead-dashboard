@@ -148,6 +148,8 @@ const generateFintechLabReport = ({
   const improvementSystems = Array.isArray(improvementTopic.affectedSystems) ? improvementTopic.affectedSystems.filter(Boolean).slice(0, 6) : [];
   const improvementSymptoms = Array.isArray(improvementTopic.topSymptoms) ? improvementTopic.topSymptoms.filter(Boolean).slice(0, 5) : [];
   const improvementExamples = Array.isArray(improvementTopic.examples) ? improvementTopic.examples.filter(Boolean).slice(0, 5) : [];
+  const improvementResolutions = Array.isArray(improvementTopic.resolutionPatterns) ? improvementTopic.resolutionPatterns.filter(Boolean).slice(0, 5) : [];
+  const resolutionCoverage = num(improvementTopic.resolutionCoveragePercent);
   const improvementHasDetails = Boolean(
     improvementCategory || improvementSystems.length || improvementSymptoms.length || improvementExamples.length || improvementTopic.rootCauseHypothesis
   );
@@ -170,7 +172,9 @@ const generateFintechLabReport = ({
       </div>
     </div>
     ${improvementSymptoms.length ? `<div class="evidence-grid">${improvementSymptoms.map(item => `<div><small>Симптом</small><strong>${html(typeof item === 'string' ? item : (item.name || item.title || item.symptom || 'без названия'))}</strong><span>${typeof item === 'object' && item.count !== undefined ? html(count(item.count)) : ''}</span></div>`).join('')}</div>` : ''}
-    ${improvementExamples.length ? `<table class="example-table"><thead><tr><th>Тикет</th><th>Что произошло</th><th>Маршрут / SLA</th></tr></thead><tbody>${improvementExamples.map(item => `<tr><td><strong>${html(item.id || item.key || 'без номера')}</strong></td><td>${html(item.title || item.summary || item.symptom || 'описание не передано')}</td><td>${html(item.route || item.mainRoute || 'маршрут не указан')}${item.slaBreached === true || Number(item.overdueMin) > 0 ? ' · SLA нарушен' : ''}</td></tr>`).join('')}</tbody></table>` : ''}
+    ${improvementResolutions.length ? `<div class="resolution-summary"><div class="resolution-head"><div><small>Повторяющиеся способы решения</small><strong>Что уже можно закрепить в БЗ</strong></div><span>Заполненность хода решения: ${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}</span></div><div class="evidence-grid">${improvementResolutions.map(item => `<div><small>Способ решения</small><strong>${html(typeof item === 'string' ? item : (item.name || item.resolution || 'без описания'))}</strong><span>${typeof item === 'object' && item.count !== undefined ? html(count(item.count)) : ''}</span></div>`).join('')}</div></div>` : ''}
+    ${improvementExamples.length ? `<table class="example-table"><thead><tr><th>Тикет</th><th>Что произошло</th><th>Как диагностировали</th><th>Как решено</th><th>Маршрут / SLA</th></tr></thead><tbody>${improvementExamples.map(item => `<tr><td><strong>${html(item.id || item.key || 'без номера')}</strong></td><td>${html(item.title || item.summary || item.symptom || 'описание не передано')}</td><td>${html(item.diagnosis || 'не зафиксировано')}</td><td><strong>${html(item.resolution || item.solution || item.resolutionText || 'не зафиксировано')}</strong>${item.reusableStep ? `<br><small>В БЗ: ${html(item.reusableStep)}</small>` : ''}</td><td>${html(item.route || item.mainRoute || 'маршрут не указан')}${item.slaBreached === true || Number(item.overdueMin) > 0 ? ' · SLA нарушен' : ''}</td></tr>`).join('')}</tbody></table>` : ''}
+    ${improvementExamples.length && improvementExamples.every(item => !item.resolution && !item.solution && !item.resolutionText) ? '<div class="data-gap"><strong>Ход решения не заполнен.</strong> Видно, что произошло, но пока нельзя доказательно сказать, как команда восстанавливала работу.</div>' : ''}
     ${!improvementHasDetails ? '<div class="data-gap"><strong>Нужна детализация CSV.</strong> Категория слишком широкая: добавьте конкретный сценарий, системы, симптомы и 3–5 примеров тикетов. До этого вывод считается предварительным.</div>' : ''}`;
   const metricCards = metrics.map(metric => `
     <article class="metric-card ${metricTone(metric)}">
@@ -302,7 +306,7 @@ const generateFintechLabReport = ({
   ].map(item => `<article class="signal-tile"><span>${html(item.label)}</span><strong>${html(item.value)}</strong><p>${html(item.hint)}</p></article>`).join('');
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Финтехлаб — практика по метрикам</title><style>
-    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--orange:#ea580c;--red:#dc2626;--violet:#7c3aed;--soft-blue:#eff6ff;--soft-amber:#fffbeb;--soft-orange:#fff7ed;--soft-red:#fef2f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:#102033;color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.14);margin-bottom:20px}.cover-head{max-width:760px}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid,.signal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.cover-item span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}.signal-tile{border:1px solid var(--line);border-top:4px solid #2563eb;border-radius:18px;padding:18px;background:#fff}.signal-tile span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.signal-tile strong{display:block;color:#102033;font-size:25px;line-height:1.1;margin:8px 0 4px}.signal-tile p{margin:0;color:#64748b;font-size:13px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note strong{color:#203044}.status-grid,.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.status-grid{grid-template-columns:1.1fr 1.4fr 1fr}.status-box{border:1px solid var(--line);border-radius:16px;padding:14px;background:#f8fafc}.status-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.status-title{font-size:18px;font-weight:900;color:#1d4ed8}.status-box ul{margin:0;padding-left:18px;color:#475569;font-size:13px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-top:4px solid #dbeafe;border-radius:18px;padding:18px;background:#fff}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:#173a5e;font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-card.good{border-top-color:#10b981}.metric-card.warn{border-top-color:#f59e0b}.metric-card.risk{border-top-color:#f97316}.metric-card.bad{border-top-color:#ef4444}.metric-card.violet{border-top-color:#8b5cf6}.metric-status{display:inline-block;border-radius:999px;background:#f1f5f9;color:#334155;padding:4px 8px;font-size:11px;font-weight:900;margin-bottom:7px}.metric-card.good .metric-status{background:#ecfdf5;color:var(--green)}.metric-card.warn .metric-status{background:var(--soft-amber);color:var(--amber)}.metric-card.risk .metric-status{background:var(--soft-orange);color:var(--orange)}.metric-card.bad .metric-status{background:var(--soft-red);color:var(--red)}.metric-card.violet .metric-status{background:#f5f3ff;color:var(--violet)}.target-row{display:flex;justify-content:space-between;gap:10px;color:#475569;font-size:11px;font-weight:800;margin:8px 0 5px}.progress-track{height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-bottom:9px}.progress-fill{height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.metric-card.good .progress-fill{background:#10b981}.metric-card.warn .progress-fill{background:#f59e0b}.metric-card.risk .progress-fill{background:#f97316}.metric-card.bad .progress-fill{background:#ef4444}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list,.bottleneck-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}.topic-card p{color:#475569;font-size:13px;margin:10px 0 0}.check-line{background:#f8fafc;border:1px solid #e7eef6;border-radius:12px;padding:10px}.category-chip{display:inline-block;width:max-content;border-radius:999px;background:#eff6ff;color:#1d4ed8;padding:4px 9px;font-size:11px;font-weight:900;margin:0 0 10px}.improvement-focus{display:grid;grid-template-columns:1.35fr 1fr;gap:14px}.focus-main,.focus-side div{border:1px solid #dbeafe;border-radius:16px;padding:16px;background:linear-gradient(135deg,#f8fbff,#fff)}.focus-main>strong{display:block;font-size:24px;line-height:1.15;margin:6px 0 10px}.focus-main p{margin:0;color:#475569}.focus-side{display:grid;gap:10px}.focus-side strong{display:block;margin-top:5px;font-size:13px}.evidence-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.evidence-grid div{border:1px solid #e2e8f0;border-radius:14px;padding:12px}.evidence-grid strong,.evidence-grid span{display:block;font-size:13px}.evidence-grid span{color:#64748b;margin-top:3px}.example-table{margin-top:14px}.data-gap{margin-top:12px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:14px;padding:13px}.bottleneck-card{border:1px solid #dbeafe;border-radius:18px;padding:16px;background:#fbfdff}.bottleneck-top{display:flex;gap:10px;align-items:flex-start}.bottleneck-top span{display:grid;place-items:center;width:26px;height:26px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-weight:900}.bottleneck-top strong{font-size:15px;color:#102033}.bottleneck-bar{height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:14px 0}.bottleneck-bar i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.bottleneck-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.bottleneck-meta div{background:#fff;border:1px solid #e7eef6;border-radius:12px;padding:9px}.bottleneck-meta b{display:block;font-size:12px;color:#102033}.bottleneck-card p{margin:12px 0 0;color:#475569;font-size:13px}.executive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.traffic-badge{display:inline-block;border-radius:999px;padding:5px 10px;font-weight:900;font-size:12px;background:#f1f5f9;color:#334155}@media(max-width:820px){.cover-head,.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.bottleneck-grid,.note-grid,.status-grid,.signal-grid,.executive-grid,.improvement-focus,.evidence-grid{grid-template-columns:1fr}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
+    :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--card:#fff;--green:#047857;--blue:#2563eb;--amber:#b45309;--orange:#ea580c;--red:#dc2626;--violet:#7c3aed;--soft-blue:#eff6ff;--soft-amber:#fffbeb;--soft-orange:#fff7ed;--soft-red:#fef2f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.5}.page{max-width:1120px;margin:0 auto;padding:36px 28px 56px}.cover{background:#102033;color:white;border-radius:24px;padding:36px;box-shadow:0 24px 60px rgba(15,23,42,.14);margin-bottom:20px}.cover-head{max-width:760px}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:800;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.01em}h3{margin:0;font-size:15px}.cover-subtitle{font-size:18px;color:#dbeafe;margin:0 0 22px}.cover-grid,.metric-grid,.quality-grid,.delta-grid,.signal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cover-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cover-item{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:14px}.cover-item span,small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.cover-item span{color:#b9d8ff}.cover-item strong{display:block;margin-top:4px;font-size:14px}.signal-tile{border:1px solid var(--line);border-top:4px solid #2563eb;border-radius:18px;padding:18px;background:#fff}.signal-tile span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.signal-tile strong{display:block;color:#102033;font-size:25px;line-height:1.1;margin:8px 0 4px}.signal-tile p{margin:0;color:#64748b;font-size:13px}section{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(15,23,42,.05)}.note{background:#f8fafc;border:1px solid var(--line);border-radius:16px;padding:14px;color:#475569;font-size:13px}.note strong{color:#203044}.status-grid,.note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.status-grid{grid-template-columns:1.1fr 1.4fr 1fr}.status-box{border:1px solid var(--line);border-radius:16px;padding:14px;background:#f8fafc}.status-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.status-title{font-size:18px;font-weight:900;color:#1d4ed8}.status-box ul{margin:0;padding-left:18px;color:#475569;font-size:13px}.metric-card,.quality-box,.topic-card,.delta-card{border:1px solid var(--line);border-top:4px solid #dbeafe;border-radius:18px;padding:18px;background:#fff}.metric-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.metric-value{color:#173a5e;font-size:31px;line-height:1.1;font-weight:900;margin:9px 0 4px}.metric-card.good{border-top-color:#10b981}.metric-card.warn{border-top-color:#f59e0b}.metric-card.risk{border-top-color:#f97316}.metric-card.bad{border-top-color:#ef4444}.metric-card.violet{border-top-color:#8b5cf6}.metric-status{display:inline-block;border-radius:999px;background:#f1f5f9;color:#334155;padding:4px 8px;font-size:11px;font-weight:900;margin-bottom:7px}.metric-card.good .metric-status{background:#ecfdf5;color:var(--green)}.metric-card.warn .metric-status{background:var(--soft-amber);color:var(--amber)}.metric-card.risk .metric-status{background:var(--soft-orange);color:var(--orange)}.metric-card.bad .metric-status{background:var(--soft-red);color:var(--red)}.metric-card.violet .metric-status{background:#f5f3ff;color:var(--violet)}.target-row{display:flex;justify-content:space-between;gap:10px;color:#475569;font-size:11px;font-weight:800;margin:8px 0 5px}.progress-track{height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-bottom:9px}.progress-fill{height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.metric-card.good .progress-fill{background:#10b981}.metric-card.warn .progress-fill{background:#f59e0b}.metric-card.risk .progress-fill{background:#f97316}.metric-card.bad .progress-fill{background:#ef4444}.metric-delta{display:inline-block;color:var(--blue);background:var(--soft-blue);border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;margin-bottom:8px}.metric-card p,.muted{color:var(--muted);margin:0;font-size:13px}.quality-box strong,.delta-card strong{display:block;font-size:28px;color:var(--blue);margin-top:4px}.delta-card span{display:block;color:var(--muted);font-size:12px;margin-top:4px}.warning{margin-top:14px;padding:12px 14px;background:var(--soft-amber);border:1px solid #fcd34d;border-radius:14px;color:var(--amber);font-weight:800}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:800}.route-row{margin:13px 0}.route-meta{display:flex;justify-content:space-between;gap:16px;font-size:13px;margin-bottom:6px}.route-meta span{color:var(--muted);font-weight:800;white-space:nowrap}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#38bdf8);border-radius:999px}.badge{display:inline-block;border-radius:999px;background:var(--soft-blue);color:var(--blue);padding:4px 9px;font-weight:800}.topic-list,.bottleneck-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.topic-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.topic-head span{color:var(--green);font-weight:900;white-space:nowrap}.topic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}.topic-grid div{background:white;border:1px solid #e7eef6;border-radius:12px;padding:10px}.topic-grid strong{display:block;font-size:12px;margin-top:3px}.topic-card p{color:#475569;font-size:13px;margin:10px 0 0}.check-line{background:#f8fafc;border:1px solid #e7eef6;border-radius:12px;padding:10px}.category-chip{display:inline-block;width:max-content;border-radius:999px;background:#eff6ff;color:#1d4ed8;padding:4px 9px;font-size:11px;font-weight:900;margin:0 0 10px}.improvement-focus{display:grid;grid-template-columns:1.35fr 1fr;gap:14px}.focus-main,.focus-side div{border:1px solid #dbeafe;border-radius:16px;padding:16px;background:linear-gradient(135deg,#f8fbff,#fff)}.focus-main>strong{display:block;font-size:24px;line-height:1.15;margin:6px 0 10px}.focus-main p{margin:0;color:#475569}.focus-side{display:grid;gap:10px}.focus-side strong{display:block;margin-top:5px;font-size:13px}.evidence-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.evidence-grid div{border:1px solid #e2e8f0;border-radius:14px;padding:12px}.evidence-grid strong,.evidence-grid span{display:block;font-size:13px}.evidence-grid span{color:#64748b;margin-top:3px}.example-table{margin-top:14px}.resolution-summary{margin-top:14px;padding:16px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:16px}.resolution-head{display:flex;justify-content:space-between;gap:16px;align-items:end}.resolution-head>div>strong{display:block;margin-top:4px}.resolution-head>span{color:#047857;font-size:12px;font-weight:900}.data-gap{margin-top:12px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:14px;padding:13px}.bottleneck-card{border:1px solid #dbeafe;border-radius:18px;padding:16px;background:#fbfdff}.bottleneck-top{display:flex;gap:10px;align-items:flex-start}.bottleneck-top span{display:grid;place-items:center;width:26px;height:26px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-weight:900}.bottleneck-top strong{font-size:15px;color:#102033}.bottleneck-bar{height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:14px 0}.bottleneck-bar i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:999px}.bottleneck-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.bottleneck-meta div{background:#fff;border:1px solid #e7eef6;border-radius:12px;padding:9px}.bottleneck-meta b{display:block;font-size:12px;color:#102033}.bottleneck-card p{margin:12px 0 0;color:#475569;font-size:13px}.executive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.traffic-badge{display:inline-block;border-radius:999px;padding:5px 10px;font-weight:900;font-size:12px;background:#f1f5f9;color:#334155}@media(max-width:820px){.cover-head,.cover-grid,.metric-grid,.quality-grid,.delta-grid,.topic-list,.bottleneck-grid,.note-grid,.status-grid,.signal-grid,.executive-grid,.improvement-focus,.evidence-grid{grid-template-columns:1fr}.resolution-head{display:block}.resolution-head>span{display:block;margin-top:8px}h1{font-size:32px}.cover{padding:28px}}@media print{body{background:white}.page{padding:0}section,.cover{box-shadow:none;break-inside:avoid}}
   </style><style>
     .senior-task-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.senior-task-card{border:1px solid var(--line);border-top:4px solid #94a3b8;border-radius:18px;padding:16px;background:linear-gradient(180deg,#fff,#f8fafc)}.senior-task-card strong{display:block;font-size:29px;line-height:1.05;margin:8px 0 5px;color:#102033}.senior-task-card p{margin:0;color:#64748b;font-size:12px}.senior-task-card.good{border-top-color:#10b981}.senior-task-card.warn{border-top-color:#f59e0b}.senior-task-card.risk{border-top-color:#f97316}.senior-task-card.violet{border-top-color:#8b5cf6}.balance-card{margin-top:14px;border:1px solid #c7d2fe;border-radius:18px;padding:16px;background:linear-gradient(135deg,#eef2ff,#f8fafc)}.balance-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}.balance-head span{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.balance-head strong{color:#102033;font-size:16px}.balance-track{display:flex;height:18px;background:#e2e8f0;border-radius:999px;overflow:hidden;border:1px solid #dbeafe}.balance-track i{display:block;height:100%}.balance-help{background:linear-gradient(90deg,#f97316,#f59e0b)}.balance-project{background:linear-gradient(90deg,#2563eb,#22c55e)}.balance-legend{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;margin:10px 0;color:#475569;font-size:12px;font-weight:800}.dot{display:inline-block;width:9px;height:9px;border-radius:999px;margin-right:5px}.dot.help{background:#f97316}.dot.project{background:#2563eb}.balance-card p{margin:0;color:#475569;font-size:13px}.heavy-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.heavy-task{border:1px solid #e2e8f0;border-radius:14px;padding:12px;background:#fff}.heavy-task span{display:inline-block;margin-bottom:5px;border-radius:999px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;padding:3px 8px;font-size:10px;font-weight:900;text-transform:uppercase}.heavy-task strong{display:block;font-size:13px;color:#102033}.heavy-task p{margin:6px 0 0;color:#64748b;font-size:12px}@media(max-width:820px){.senior-task-grid,.heavy-gallery{grid-template-columns:1fr}}
   </style></head><body><main class="page">
@@ -464,6 +468,13 @@ const generateTopProblemPostmortemReport = ({
   `;
   const actionNeeded = topic.actionNeeded || 'Разобрать типовые тикеты, обновить инструкцию в БЗ и проверить эффект через неделю.';
   const checkText = topic.check || 'Через неделю сравнить количество тикетов по теме, SLA взятия в работу, решение в срок и долю помощи выше 1-й линии.';
+  const resolutionPatterns = Array.isArray(topic.resolutionPatterns) ? topic.resolutionPatterns.filter(Boolean).slice(0, 5) : [];
+  const resolutionCoverage = topic.resolutionCoveragePercent === null || topic.resolutionCoveragePercent === undefined
+    ? null
+    : num(topic.resolutionCoveragePercent);
+  const resolutionPatternCards = resolutionPatterns.length
+    ? resolutionPatterns.map(item => `<div><b>${html(typeof item === 'string' ? item : (item.name || item.resolution || 'Способ не описан'))}</b><span class="muted">${typeof item === 'object' && item.count !== undefined ? `${html(count(item.count))} подтверждено` : 'подтверждено примерами'}${typeof item === 'object' && Array.isArray(item.evidenceIds) && item.evidenceIds.length ? ` · ${html(item.evidenceIds.slice(0, 4).join(', '))}` : ''}</span></div>`).join('')
+    : '<div><b>Способы решения пока не выделены</b><span class="muted">После внедрения обязательного поля JiraSD здесь появятся повторяемые действия команды.</span></div>';
   const topicEvidenceText = [
     `${Math.round(topicCount)} тикетов`,
     slaBreaches === null ? '' : `${Math.round(slaBreaches)} SLA-просрочек`,
@@ -473,11 +484,12 @@ const generateTopProblemPostmortemReport = ({
     <tr>
       <td><strong>${html(item.id || item.key || item.issueKey || 'без номера')}</strong></td>
       <td>${html(item.title || item.summary || item.reason || 'Описание не передано')}</td>
+      <td><strong>${html(item.resolution || item.solution || item.resolutionText || 'Не зафиксировано')}</strong>${item.diagnosis ? `<br><span class="muted">Диагностика: ${html(item.diagnosis)}</span>` : ''}${item.reusableStep ? `<br><span class="muted">В БЗ: ${html(item.reusableStep)}</span>` : ''}</td>
       <td>${html(item.assignee || item.executor || item.responsible || 'не указан')}</td>
       <td>${html(item.slaType || item.route || item.domain || 'контекст')}</td>
       <td class="num">${item.overdueMin !== undefined && item.overdueMin !== null ? `${html(Math.round(num(item.overdueMin)))} мин` : '—'}</td>
     </tr>
-  `).join('') : '<tr><td colspan="5" class="muted">Список кейсов не найден в JSON. Для следующей выгрузки желательно добавить примеры тикетов по топ-теме.</td></tr>';
+  `).join('') : '<tr><td colspan="6" class="muted">Список кейсов не найден в JSON. Для следующей выгрузки желательно добавить примеры тикетов по топ-теме.</td></tr>';
   const slaDropCards = [
     {
       title: 'Где просело',
@@ -500,7 +512,8 @@ const generateTopProblemPostmortemReport = ({
     }
   ];
   const dataGaps = [
-    relatedCases.length ? '' : 'Добавить в JSON примеры тикетов по топ-теме: id, title, route, assignee, SLA.',
+    relatedCases.length ? '' : 'Добавить в JSON примеры тикетов по топ-теме: id, title, resolution, route, assignee, SLA.',
+    relatedCases.some(item => item.resolution || item.solution || item.resolutionText) ? '' : 'В примерах нет содержательного хода решения: команда видит проблему, но не может переиспользовать способ устранения.',
     topic.slaBreaches === null || topic.slaBreaches === undefined ? 'Передавать SLA-просрочки внутри bottleneckThemes.' : '',
     'Фиксировать итог постмортема: причина, действие, владелец, дата проверки.'
   ].filter(Boolean).map(item => `<li>${html(item)}</li>`).join('');
@@ -553,7 +566,8 @@ const generateTopProblemPostmortemReport = ({
     <section><h2>SLA и маршруты</h2><div class="plan"><div><b>Основной SLA</b>Взятие в работу ≤15 мин: ${html(pct(primarySla))}. Просрочек: ${html(count(training.primaryViolations))}.</div><div><b>Вторичный SLA</b>Решение в срок: ${html(pct(resolutionSla))}. Просрочек: ${html(count(training.resolutionViolations))}.</div><div><b>Маршрут помощи</b>${html(topic.mainRoute || topic.supportLevel || 'нужно уточнить по тикетам')}.</div></div><table style="margin-top:12px"><thead><tr><th>Маршрут</th><th>Тикеты</th><th>Взятие</th><th>Решение</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
     <section><h2>Расшифровка ТОП-1 проблемы</h2><div class="note">Подробная таблица открывается кнопкой «Открыть расшифровку ТОП-проблемы» в верхней части отчета. Для письма в Lotus можно копировать таблицу из окна или использовать блок ниже с примерами кейсов.</div></section>
     <section><h2>Маршруты решения недели</h2><table><thead><tr><th>Маршрут</th><th>Кол-во</th><th>Доля</th></tr></thead><tbody>${routeRows}</tbody></table></section>
-    <section><h2>Примеры кейсов для разбора</h2><table><thead><tr><th>Тикет</th><th>Суть</th><th>Исполнитель</th><th>Контекст</th><th>Просрочка</th></tr></thead><tbody>${caseRows}</tbody></table></section>
+    <section><h2>Как команда решала проблему</h2><div class="note" style="margin-bottom:12px"><strong>Заполненность хода решения:</strong> ${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}. В этот блок попадают только подтвержденные действия, а не статусы «Готово» или «Решено».</div><div class="plan">${resolutionPatternCards}</div></section>
+    <section><h2>Примеры кейсов: что было и как решено</h2><table><thead><tr><th>Тикет</th><th>Что произошло</th><th>Как решено</th><th>Исполнитель</th><th>Контекст</th><th>Просрочка</th></tr></thead><tbody>${caseRows}</tbody></table></section>
     <section><h2>Правило разбора</h2><div class="note">Не ищем виноватых и не делаем рейтинг сотрудников. Смотрим процесс: где не хватает инструкции, прав, маршрута или первичной диагностики.</div></section>
   </main></body></html>`;
 };
@@ -3435,6 +3449,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       affectedSystems: Array.isArray(item.affectedSystems) ? item.affectedSystems.map(safeString).filter(Boolean) : [],
       topSymptoms: Array.isArray(item.topSymptoms || item.symptoms) ? (item.topSymptoms || item.symptoms) : [],
       examples: Array.isArray(item.examples) ? item.examples : [],
+      resolutionPatterns: Array.isArray(item.resolutionPatterns) ? item.resolutionPatterns : [],
+      resolutionCoveragePercent: Number.isFinite(Number(item.resolutionCoveragePercent)) ? Number(item.resolutionCoveragePercent) : null,
       rootCauseHypothesis: safeString(item.rootCauseHypothesis || item.rootCause || item.hypothesis),
       ownerRole: safeString(item.ownerRole || item.owner),
       count: Number(item.count) || 0,
@@ -3506,6 +3522,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     affectedSystems: mainActionTopic.affectedSystems,
     topSymptoms: mainActionTopic.topSymptoms,
     examples: mainActionTopic.examples,
+    resolutionPatterns: mainActionTopic.resolutionPatterns,
+    resolutionCoveragePercent: mainActionTopic.resolutionCoveragePercent,
     rootCauseHypothesis: mainActionTopic.rootCauseHypothesis,
     mainRoute: mainActionTopic.mainRoute,
     count: mainActionTopic.count,
@@ -4068,6 +4086,11 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     item.category,
     item.comments,
     item.description,
+    item.diagnosis,
+    item.resolution,
+    item.solution,
+    item.resolutionText,
+    item.reusableStep,
     item.slaType
   ].filter(Boolean).join(' ')).toLowerCase().replace(/ё/g, 'е');
 
@@ -10030,6 +10053,327 @@ const ManagementTasksBoard = ({ projectTasks, setProjectTasks, selectedKey, hist
   );
 };
 
+const TraineeDevelopmentReport = ({ weekData, weeksHistory, selectedKey }) => {
+  const trainees = [
+    { id: 'u0607', name: 'Максим Отрошко', reportName: 'Отрошко Максим', direction: 'Специалист тех.поддержки', startDate: '03.04.2026' },
+    { id: 'u0608', name: 'Максим Гуртов', reportName: 'Гуртов Максим', direction: 'Специалист тех.поддержки', startDate: '03.04.2026' },
+    { id: 'u0627', name: 'Руслан Халеддинов', reportName: 'Халеддинов Руслан', direction: 'Специалист тех.поддержки', startDate: '07.05.2026' }
+  ];
+  const toInputDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const getDefaultPeriod = () => {
+    const now = new Date();
+    const endMonthOffset = now.getDate() >= 20 ? 0 : -1;
+    const end = new Date(now.getFullYear(), now.getMonth() + endMonthOffset, 19);
+    const start = new Date(end.getFullYear(), end.getMonth() - 1, 20);
+    return { from: toInputDate(start), to: toInputDate(end) };
+  };
+  const defaultPeriod = getDefaultPeriod();
+  const [fromDate, setFromDate] = useState(defaultPeriod.from);
+  const [toDate, setToDate] = useState(defaultPeriod.to);
+  const [copiedRows, setCopiedRows] = useState(false);
+  const [traineeMeta, setTraineeMeta] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('trainee_monthly_report_meta') || '{}');
+      return trainees.reduce((acc, trainee) => ({
+        ...acc,
+        [trainee.id]: {
+          direction: trainee.direction,
+          startDate: trainee.startDate,
+          hours: '',
+          amount: '',
+          previousMonth: '',
+          comment: '',
+          ...(saved[trainee.id] || {})
+        }
+      }), {});
+    } catch (error) {
+      return trainees.reduce((acc, trainee) => ({
+        ...acc,
+        [trainee.id]: { direction: trainee.direction, startDate: trainee.startDate, hours: '', amount: '', previousMonth: '', comment: '' }
+      }), {});
+    }
+  });
+  useEffect(() => {
+    localStorage.setItem('trainee_monthly_report_meta', JSON.stringify(traineeMeta));
+  }, [traineeMeta]);
+  const updateTraineeMeta = (traineeId, field, value) => {
+    setTraineeMeta(prev => ({ ...prev, [traineeId]: { ...(prev[traineeId] || {}), [field]: value } }));
+  };
+  const parseCaseDate = (value) => {
+    const text = safeString(value).trim().toLowerCase();
+    if (!text) return null;
+    const monthMap = { янв: 0, фев: 1, мар: 2, апр: 3, май: 4, июн: 5, июл: 6, авг: 7, сен: 8, окт: 9, ноя: 10, дек: 11 };
+    const ruMatch = text.match(/(\d{1,2})[/. -]([а-яё]{3,8})[/. -](\d{2,4})/i);
+    if (ruMatch) {
+      const monthKey = Object.keys(monthMap).find(key => ruMatch[2].startsWith(key));
+      if (monthKey) {
+        const rawYear = Number(ruMatch[3]);
+        return new Date(rawYear < 100 ? 2000 + rawYear : rawYear, monthMap[monthKey], Number(ruMatch[1]));
+      }
+    }
+    const numericMatch = text.match(/(\d{1,2})[/. -](\d{1,2})[/. -](\d{2,4})/);
+    if (numericMatch) {
+      const rawYear = Number(numericMatch[3]);
+      return new Date(rawYear < 100 ? 2000 + rawYear : rawYear, Number(numericMatch[2]) - 1, Number(numericMatch[1]));
+    }
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const from = new Date(`${fromDate}T00:00:00`);
+  const to = new Date(`${toDate}T23:59:59`);
+  const isInPeriod = (value) => {
+    const date = parseCaseDate(value);
+    return date && date >= from && date <= to;
+  };
+  const weekEntries = Object.entries({ ...(weeksHistory || {}), [selectedKey]: weekData || {} });
+  const caseMap = new Map();
+  const addCase = (item, source) => {
+    if (!item || !trainees.some(trainee => trainee.id === safeString(item.assignee))) return;
+    const caseDate = item.date || item.resolved || item.resolutionDate || item.created;
+    if (!isInPeriod(caseDate)) return;
+    const id = safeString(item.id || item.key || item.issueKey);
+    if (!id) return;
+    const key = `${source}:${id}`;
+    if (!caseMap.has(key)) caseMap.set(key, { ...item, id, source, date: caseDate });
+  };
+  weekEntries.forEach(([, data]) => {
+    (Array.isArray(data?.traineeIncidentCases) ? data.traineeIncidentCases : []).forEach(item => addCase(item, 'Инцидент'));
+    (Array.isArray(data?.traineeTaskCases) ? data.traineeTaskCases : []).forEach(item => addCase(item, 'Задача'));
+  });
+  const structuredTaskIds = new Set([...caseMap.values()].filter(item => item.source === 'Задача').map(item => item.id));
+  weekEntries.forEach(([, data]) => {
+    (Array.isArray(data?.detailedTasks) ? data.detailedTasks : []).forEach(task => {
+      const assignee = safeString(task?.assignee);
+      const id = safeString(task?.id);
+      if (!trainees.some(trainee => trainee.id === assignee) || !id || structuredTaskIds.has(id)) return;
+      const size = safeString(task.size || task.complexity).toUpperCase();
+      const assigneeDays = Number(task.assigneeCycleTime);
+      const tags = safeString(task.tags).toLowerCase();
+      const priority = safeString(task.priority).toLowerCase();
+      const valueCategory = safeString(task.valueCategory);
+      const signals = [];
+      if (['L', 'XL'].includes(size)) signals.push('сложное');
+      if (Number.isFinite(assigneeDays) && assigneeDays >= 5) signals.push('длительное');
+      if (priority === 'impact' || tags.includes('срочная')) signals.push('необычное');
+      if (['optimization', 'business', 'stability'].includes(valueCategory) && size !== 'S') signals.push('нетиповая практика');
+      if (!signals.length) return;
+      addCase({
+        ...task,
+        assignee,
+        date: task.resolved,
+        signals,
+        complexityLevel: size === 'XL' ? 5 : (size === 'L' ? 4 : 3),
+        whyNotable: [
+          ['L', 'XL'].includes(size) ? `размер ${size}` : '',
+          Number.isFinite(assigneeDays) && assigneeDays >= 5 ? `${assigneeDays} дн. у исполнителя` : '',
+          priority === 'impact' ? 'задача с заметным эффектом' : ''
+        ].filter(Boolean).join(' · '),
+        resolution: task.comments,
+        qualificationEvidence: task.domain && task.domain !== 'Прочее'
+          ? `Практика выполнения нетиповой работы в домене «${task.domain}».`
+          : 'Практика выполнения нетиповой задачи подтверждена карточкой Jira.'
+      }, 'Задача');
+    });
+  });
+  const allCases = [...caseMap.values()].sort((left, right) => {
+    const leftDate = parseCaseDate(left.date)?.getTime() || 0;
+    const rightDate = parseCaseDate(right.date)?.getTime() || 0;
+    return rightDate - leftDate;
+  });
+  const getIsoWeekStart = (weekKey) => {
+    const match = safeString(weekKey).match(/^(\d{4})-(\d{1,2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const week = Number(match[2]);
+    const januaryFourth = new Date(year, 0, 4);
+    const januaryFourthDay = januaryFourth.getDay() || 7;
+    const firstMonday = new Date(year, 0, 4 - januaryFourthDay + 1);
+    const monday = new Date(firstMonday);
+    monday.setDate(firstMonday.getDate() + (week - 1) * 7);
+    return monday;
+  };
+  const periodWeekEntries = weekEntries.filter(([weekKey, data]) => {
+    const weekStart = getIsoWeekStart(weekKey) || parseCaseDate(data?.dates);
+    if (!weekStart) return false;
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    return weekEnd >= from && weekStart <= to;
+  });
+  const getTelephonyRow = (data, trainee) => (Array.isArray(data?.telephonyData) ? data.telephonyData : []).find(row => {
+    const raw = safeString(row?.name || row?.employee || row?.operator || row?.assignee);
+    return raw === trainee.id || getFullName(raw) === trainee.name || raw.includes(trainee.reportName) || raw.includes(trainee.name);
+  });
+  const traineeRows = trainees.map(trainee => {
+    const cases = allCases.filter(item => safeString(item.assignee) === trainee.id);
+    const qualifications = [...new Set(cases.map(item => safeString(item.qualificationEvidence)).filter(Boolean))];
+    const domains = [...new Set(cases.map(item => safeString(item.domain)).filter(value => value && value !== 'Прочее'))];
+    const metrics = periodWeekEntries.reduce((acc, [, data]) => {
+      const incidentPerformer = (Array.isArray(data?.topPerformers) ? data.topPerformers : []).find(item => safeString(item?.name) === trainee.id);
+      const taskPerformer = (Array.isArray(data?.taskPerformers) ? data.taskPerformers : []).find(item => safeString(item?.name) === trainee.id);
+      const phone = getTelephonyRow(data, trainee);
+      const answered = Number(phone?.answered ?? phone?.accepted ?? phone?.incoming ?? phone?.calls ?? phone?.count ?? 0) || 0;
+      const missed = Number(phone?.missed ?? phone?.lost ?? phone?.notAnswered ?? 0) || 0;
+      return {
+        incidents: acc.incidents + (Number(incidentPerformer?.closed) || 0),
+        tasks: acc.tasks + (Number(taskPerformer?.closed) || 0),
+        calls: acc.calls + answered,
+        missed: acc.missed + missed
+      };
+    }, { incidents: 0, tasks: 0, calls: 0, missed: 0 });
+    const workLines = [
+      `За период с ${fromDate.split('-').reverse().join('.')} по ${toDate.split('-').reverse().join('.')}`,
+      metrics.incidents > 0 ? `закрыто ${metrics.incidents} инцидентов` : '',
+      metrics.tasks > 0 ? `выполнено ${metrics.tasks} задач` : '',
+      metrics.calls > 0 ? `обработано ${metrics.calls} вызовов (${metrics.missed} пропущено)` : ''
+    ].filter(Boolean);
+    const qualificationText = qualifications.length
+      ? qualifications.join('\n')
+      : 'Недостаточно доказательных нетиповых кейсов для вывода о повышении квалификации.';
+    return {
+      ...trainee,
+      cases,
+      qualifications,
+      domains,
+      metrics,
+      workText: workLines.join('\n- '),
+      qualificationText,
+      meta: traineeMeta[trainee.id] || {}
+    };
+  });
+  const maxIncidentCount = Math.max(0, ...traineeRows.map(item => item.metrics.incidents));
+  const maxCallCount = Math.max(0, ...traineeRows.map(item => item.metrics.calls));
+  traineeRows.forEach(item => {
+    const highlights = [
+      maxIncidentCount > 0 && item.metrics.incidents === maxIncidentCount ? 'ТОП-1 по закрытым инцидентам среди стажёров' : '',
+      maxCallCount > 0 && item.metrics.calls === maxCallCount ? 'ТОП-1 по принятым звонкам среди стажёров' : ''
+    ].filter(Boolean);
+    if (highlights.length) item.workText += `\n- ${highlights.join('\n- ')}`;
+  });
+  const html = (value) => safeString(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const handleCopyRows = async () => {
+    const header = ['ФИО СТАЖЕРА', 'Направление', 'Дата начала стажировки', 'Количество отработанных часов', 'Согласованная сумма', 'Прошлый месяц', 'Выполненная работа', 'Повысил квалификацию', 'Комментарий'];
+    const rows = traineeRows.map(trainee => [
+      trainee.reportName,
+      trainee.meta.direction,
+      trainee.meta.startDate,
+      trainee.meta.hours,
+      trainee.meta.amount,
+      trainee.meta.previousMonth,
+      trainee.workText,
+      trainee.qualificationText,
+      trainee.meta.comment
+    ]);
+    await navigator.clipboard.writeText([header, ...rows].map(row => row.map(value => safeString(value).replace(/\t/g, ' ').replace(/\r?\n/g, ' | ')).join('\t')).join('\n'));
+    setCopiedRows(true);
+    setTimeout(() => setCopiedRows(false), 1800);
+  };
+  const handleDownload = () => {
+    const tableRows = traineeRows.map(trainee => `<tr><td><strong>${html(trainee.reportName)}</strong></td><td>${html(trainee.meta.direction)}</td><td>${html(trainee.meta.startDate)}</td><td class="num">${html(trainee.meta.hours)}</td><td class="num">${html(trainee.meta.amount)}</td><td class="num">${html(trainee.meta.previousMonth)}</td><td>${html(trainee.workText).replace(/\n/g, '<br>')}</td><td>${html(trainee.qualificationText).replace(/\n/g, '<br>')}</td><td>${html(trainee.meta.comment)}</td></tr>`).join('');
+    const details = traineeRows.map(trainee => `<section><h2>${html(trainee.reportName)} — доказательная расшифровка</h2>${trainee.cases.map(item => `<article><strong>${html(item.id)} · ${html(item.title)}</strong><p><b>Почему выделено:</b> ${html(item.whyNotable || (item.signals || []).join(', '))}</p><p><b>Вклад стажёра:</b> ${html(item.traineeContribution || 'не описан отдельно')}</p><p><b>Как решено:</b> ${html(item.resolution || 'не зафиксировано')}</p></article>`).join('') || '<p class="empty">Нет доказательных кейсов в загруженных данных.</p>'}</section>`).join('');
+    const reportHtml = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Отчет по стажерам</title><style>body{margin:0;background:#f3f6fa;color:#172033;font:13px/1.45 Calibri,Arial,sans-serif}.page{max-width:1500px;margin:auto;padding:26px}.cover{background:#102033;color:#fff;padding:22px;margin-bottom:14px}h1{margin:0 0 6px}.report-table{width:100%;border-collapse:collapse;background:#fff}.report-table th{background:#ffd966;color:#111;font-family:Georgia,serif;font-size:12px}.report-table th,.report-table td{border:1px solid #111;padding:10px;vertical-align:top}.report-table td{min-width:110px}.report-table td:nth-child(7),.report-table td:nth-child(8){min-width:260px}.num{text-align:center}section{background:#fff;border:1px solid #dbe3ec;padding:18px;margin:14px 0}section h2{margin:0 0 10px;font-size:17px}article{border-left:4px solid #8b5cf6;background:#f8fafc;padding:11px;margin:8px 0}article p{margin:5px 0}.empty{color:#64748b}@media print{body{background:#fff}.page{padding:0}.cover,section{break-inside:avoid}}</style></head><body><main class="page"><header class="cover"><h1>Отчёт по стажёрам</h1><div>Отчётный период: ${html(fromDate)} — ${html(toDate)}</div></header><table class="report-table"><thead><tr><th>ФИО СТАЖЕРА</th><th>Направление</th><th>Дата начала стажировки</th><th>Количество отработанных часов</th><th>Согласованная сумма (до вычета налогов)</th><th>Прошлый месяц</th><th>Выполненная работа</th><th>Повысил квалификацию</th><th>Комментарий</th></tr></thead><tbody>${tableRows}</tbody></table>${details}</main></body></html>`;
+    const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `trainee_development_${fromDate}_${toDate}.html`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-slate-800 rounded-2xl border border-slate-700/60 p-6">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.2em] font-black text-violet-300 mb-2">Ежемесячный срез к 20 числу</div>
+            <h2 className="text-2xl font-black text-white">Развитие стажёров</h2>
+            <p className="text-sm text-slate-400 mt-2 max-w-2xl">Не рейтинг по количеству. Здесь собираются доказательные сложные, редкие, необычные и длительные кейсы, которые показывают новую практику или рост самостоятельности.</p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-xs text-slate-400">С даты<input type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} className="block mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200" /></label>
+            <label className="text-xs text-slate-400">По дату<input type="date" value={toDate} onChange={event => setToDate(event.target.value)} className="block mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200" /></label>
+            <button onClick={handleCopyRows} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-black"><Copy size={16} /> {copiedRows ? 'Скопировано' : 'Копировать строки'}</button>
+            <button onClick={handleDownload} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-black"><Download size={16} /> Скачать HTML</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-700/60">
+          <h3 className="font-black text-white">Готовые строки для отчёта 20 числа</h3>
+          <p className="text-xs text-slate-500 mt-1">Служебные значения часов и сумм редактируются вручную и сохраняются на этом компьютере. Выполненная работа и квалификация собираются из Jira и телефонии.</p>
+        </div>
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="min-w-[1650px] w-full text-xs">
+            <thead className="bg-amber-300 text-slate-950">
+              <tr>
+                {['ФИО СТАЖЕРА', 'Направление', 'Дата начала стажировки', 'Отработано часов', 'Согласованная сумма', 'Прошлый месяц', 'Выполненная работа', 'Повысил квалификацию', 'Комментарий'].map(title => <th key={title} className="px-3 py-3 border-r border-amber-500/50 text-left font-black">{title}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {traineeRows.map(trainee => (
+                <tr key={trainee.id} className="border-t border-slate-700 align-top">
+                  <td className="p-3 font-black text-white">{trainee.reportName}</td>
+                  <td className="p-2"><input value={trainee.meta.direction || ''} onChange={event => updateTraineeMeta(trainee.id, 'direction', event.target.value)} className="w-full min-w-[150px] bg-slate-950/60 border border-slate-700 rounded px-2 py-2 text-slate-200" /></td>
+                  <td className="p-2"><input value={trainee.meta.startDate || ''} onChange={event => updateTraineeMeta(trainee.id, 'startDate', event.target.value)} className="w-full min-w-[100px] bg-slate-950/60 border border-slate-700 rounded px-2 py-2 text-slate-200" /></td>
+                  <td className="p-2"><input type="number" value={trainee.meta.hours || ''} onChange={event => updateTraineeMeta(trainee.id, 'hours', event.target.value)} className="w-24 bg-slate-950/60 border border-slate-700 rounded px-2 py-2 text-slate-200" placeholder="0" /></td>
+                  <td className="p-2"><input type="number" value={trainee.meta.amount || ''} onChange={event => updateTraineeMeta(trainee.id, 'amount', event.target.value)} className="w-28 bg-slate-950/60 border border-slate-700 rounded px-2 py-2 text-slate-200" placeholder="0" /></td>
+                  <td className="p-2"><input type="number" value={trainee.meta.previousMonth || ''} onChange={event => updateTraineeMeta(trainee.id, 'previousMonth', event.target.value)} className="w-28 bg-slate-950/60 border border-slate-700 rounded px-2 py-2 text-slate-200" placeholder="0" /></td>
+                  <td className="p-3 min-w-[300px] whitespace-pre-line text-slate-300 leading-relaxed">{trainee.workText}</td>
+                  <td className="p-3 min-w-[320px] whitespace-pre-line text-emerald-200 leading-relaxed">{trainee.qualificationText}</td>
+                  <td className="p-2"><textarea value={trainee.meta.comment || ''} onChange={event => updateTraineeMeta(trainee.id, 'comment', event.target.value)} className="w-full min-w-[180px] min-h-[100px] bg-slate-950/60 border border-slate-700 rounded px-2 py-2 text-slate-200 resize-y" placeholder="Комментарий руководителя" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        {traineeRows.map(trainee => (
+          <div key={trainee.id} className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
+            <div className="p-5 border-b border-slate-700/60 bg-slate-900/30">
+              <div className="flex justify-between gap-3">
+                <div><h3 className="font-black text-white">{trainee.name}</h3><p className="text-xs text-slate-500 mt-1">{trainee.id}</p></div>
+                <span className="h-fit rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300 px-3 py-1 text-xs font-black">{trainee.cases.length} кейсов</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-3">Домены: {trainee.domains.join(', ') || 'пока не выделены'}</p>
+            </div>
+            <div className="p-5 space-y-3">
+              {trainee.qualifications.length > 0 && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                  <div className="text-[10px] uppercase tracking-wider font-black text-emerald-300 mb-2">Подтвержденная практика</div>
+                  {trainee.qualifications.map((item, index) => <p key={`${item}-${index}`} className="text-xs text-emerald-100 mb-1 last:mb-0">{item}</p>)}
+                </div>
+              )}
+              {trainee.cases.length ? trainee.cases.map(item => (
+                <div key={`${item.source}-${item.id}`} className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+                  <div className="flex items-start justify-between gap-2"><div className="text-sm font-bold text-slate-100">{item.id} · {safeString(item.title)}</div><span className="text-[10px] text-violet-300 shrink-0">{item.source}</span></div>
+                  <div className="flex flex-wrap gap-1 mt-2">{(item.signals || []).map(signal => <span key={signal} className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-300">{signal}</span>)}</div>
+                  <p className="text-xs text-slate-400 mt-2"><strong className="text-slate-300">Почему:</strong> {safeString(item.whyNotable || 'нетиповой кейс')}</p>
+                  <p className="text-xs text-slate-400 mt-2"><strong className="text-slate-300">Как решено:</strong> {safeString(item.resolution || 'не зафиксировано')}</p>
+                </div>
+              )) : <div className="rounded-xl border border-dashed border-slate-700 p-5 text-center text-xs text-slate-500">За выбранный период нет доказательных нетиповых кейсов. Это не означает отсутствие развития — возможно, в старых JSON ещё нет новых массивов анализа.</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const ReportsWorkspace = ({
   weekData,
   historyKeys,
@@ -10073,6 +10417,15 @@ const ReportsWorkspace = ({
       icon: FileSearch,
       activeClass: 'border-amber-400 bg-amber-500/15 text-amber-100',
       iconClass: 'text-amber-300'
+    },
+    {
+      id: 'trainees',
+      step: '04',
+      title: 'Развитие стажёров',
+      description: 'Собрать сложные и редкие кейсы для ежемесячной квалификационной оценки.',
+      icon: Award,
+      activeClass: 'border-violet-400 bg-violet-500/15 text-violet-100',
+      iconClass: 'text-violet-300'
     }
   ];
 
@@ -10084,7 +10437,7 @@ const ReportsWorkspace = ({
         <p className="text-slate-400 text-sm max-w-3xl">Все регулярные сценарии собраны в одном месте: подготовка еженедельного отчёта, ведение поручений руководства и материалы для разбора с командой.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-8">
         {workspaceTabs.map(item => {
           const Icon = item.icon;
           const isActive = workspaceTab === item.id;
@@ -10143,6 +10496,14 @@ const ReportsWorkspace = ({
           onWeekSelect={onWeekSelect}
           aiTaskMemory={aiTaskMemory}
           embedded
+        />
+      )}
+
+      {workspaceTab === 'trainees' && (
+        <TraineeDevelopmentReport
+          weekData={weekData}
+          weeksHistory={weeksHistory}
+          selectedKey={selectedKey}
         />
       )}
     </div>
