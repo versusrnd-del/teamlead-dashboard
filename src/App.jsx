@@ -658,9 +658,10 @@ const generateTopProblemPostmortemReport = ({
 	      .page{max-width:1520px}.email-sheet{background:linear-gradient(180deg,#fff,#f8fafc);border:1px solid #d7e1ec;border-radius:24px;padding:18px;box-shadow:0 24px 70px rgba(15,35,55,.12)}.email-dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.email-dashboard-grid .showcase-frame{min-height:0;margin:0;padding:21px;border-radius:22px;box-shadow:0 18px 42px rgba(2,8,23,.24)}.email-dashboard-grid .showcase-frame:before{background-size:23px 23px}.email-dashboard-grid .showcase-frame:after{width:290px;height:290px;right:-125px;bottom:-165px}.email-dashboard-grid .showcase-top{gap:12px;padding-bottom:11px}.email-dashboard-grid .showcase-brand{gap:8px;font-size:7px;letter-spacing:.14em}.email-dashboard-grid .showcase-brand i{width:8px;height:8px}.email-dashboard-grid .showcase-period{font-size:7px}.email-dashboard-grid .showcase-period b{margin-top:3px;font-size:8px}.email-dashboard-grid .ops-stage{grid-template-columns:.8fr 1.2fr;gap:15px;margin-top:15px}.email-dashboard-grid .showcase-kicker{font-size:7px;letter-spacing:.13em}.email-dashboard-grid .week-load-badge{padding:5px 7px;font-size:6px}.email-dashboard-grid .showcase-number{margin-top:11px;font-size:74px}.email-dashboard-grid .showcase-number-label{margin-top:12px;font-size:14px}.email-dashboard-grid .showcase-number-note{font-size:8px}.email-dashboard-grid .showcase-kpis{gap:5px;margin-top:13px}.email-dashboard-grid .showcase-kpi{padding:7px;border-radius:9px}.email-dashboard-grid .showcase-kpi span{font-size:6px}.email-dashboard-grid .showcase-kpi b{font-size:14px}.email-dashboard-grid .ops-control{padding:13px;border-radius:15px}.email-dashboard-grid .ops-control-head{padding-bottom:9px}.email-dashboard-grid .ops-control-head span{font-size:6px}.email-dashboard-grid .ops-control-head b{font-size:8px}.email-dashboard-grid .ops-sla-hero{grid-template-columns:78px 1fr;gap:12px;padding:12px 0 10px}.email-dashboard-grid .ops-ring{width:76px;height:76px}.email-dashboard-grid .ops-ring:after{inset:8px}.email-dashboard-grid .ops-ring strong{font-size:20px}.email-dashboard-grid .ops-ring span{font-size:5px}.email-dashboard-grid .ops-sla-copy small{font-size:6px}.email-dashboard-grid .ops-sla-copy h2{margin:5px 0;font-size:15px}.email-dashboard-grid .ops-sla-copy p{font-size:8px}.email-dashboard-grid .ops-sla-grid{gap:5px}.email-dashboard-grid .ops-sla-card{padding:7px;border-radius:9px}.email-dashboard-grid .ops-sla-card span{font-size:6px}.email-dashboard-grid .ops-sla-card b{margin-top:4px;font-size:13px}.email-dashboard-grid .ops-sla-card small{margin-top:3px;font-size:6px}.email-dashboard-grid .ops-phone-band{grid-template-columns:auto repeat(3,1fr);gap:6px;margin-top:7px;padding:7px 8px;border-radius:10px}.email-dashboard-grid .ops-phone-mark{width:24px;height:24px;border-radius:7px;font-size:13px}.email-dashboard-grid .ops-phone-metric{padding-left:6px}.email-dashboard-grid .ops-phone-metric span{font-size:5px}.email-dashboard-grid .ops-phone-metric b{margin-top:3px;font-size:12px}.email-dashboard-grid .ops-phone-state{grid-column:1/-1;padding:6px 0 0;border-left:0;border-top:1px solid rgba(255,255,255,.10);display:flex;align-items:center;justify-content:space-between;gap:8px}.email-dashboard-grid .ops-phone-state span{font-size:5px}.email-dashboard-grid .ops-phone-state b{margin:0;font-size:9px}.email-dashboard-grid .ops-phone-state small{margin:0;font-size:6px}.email-dashboard-grid .ops-footer{gap:6px;margin-top:11px}.email-dashboard-grid .ops-footer div{padding:7px 8px;border-radius:8px}.email-dashboard-grid .ops-footer span{font-size:5px}.email-dashboard-grid .ops-footer b{margin-top:3px;font-size:7px}.email-dashboard-grid .pm-heading{gap:12px;margin:14px 0 11px}.email-dashboard-grid .pm-heading small{font-size:6px}.email-dashboard-grid .pm-heading h2{max-width:510px;margin-top:6px;font-size:25px}.email-dashboard-grid .pm-count{min-width:70px}.email-dashboard-grid .pm-count strong{font-size:26px}.email-dashboard-grid .pm-count span{font-size:7px}.email-dashboard-grid .pm-story{gap:8px}.email-dashboard-grid .pm-panel{padding:10px;border-radius:12px}.email-dashboard-grid .pm-panel-label,.email-dashboard-grid .pm-breakdown-label{font-size:6px}.email-dashboard-grid .pm-fact strong{margin-top:6px;font-size:11px}.email-dashboard-grid .pm-meta{margin-top:6px;font-size:6px}.email-dashboard-grid .pm-symptoms{gap:4px;margin-top:8px}.email-dashboard-grid .pm-symptom{padding:4px 6px;font-size:6px}.email-dashboard-grid .pm-breakdown{margin-top:9px;padding-top:8px}.email-dashboard-grid .pm-breakdown-row{gap:7px;margin-top:5px;padding:5px 6px;border-radius:7px}.email-dashboard-grid .pm-breakdown-row span,.email-dashboard-grid .pm-breakdown-row b{font-size:7px}.email-dashboard-grid .pm-analysis{gap:5px}.email-dashboard-grid .pm-analysis-card{padding:7px 8px;border-left-width:3px;border-radius:9px}.email-dashboard-grid .pm-analysis-card span{font-size:6px}.email-dashboard-grid .pm-analysis-card strong{margin-top:4px;font-size:8px;line-height:1.25}.email-dashboard-grid .pm-analysis-card small{margin-top:3px;font-size:6px}.email-dashboard-grid .pm-evidence{gap:8px;margin-top:8px;padding:7px 8px;border-radius:9px}.email-dashboard-grid .pm-evidence span{font-size:6px}.email-dashboard-grid .pm-evidence b{font-size:7px}.email-brief{display:grid;grid-template-columns:.8fr 1fr 1.35fr;gap:12px;margin-top:14px}.email-brief-card{position:relative;overflow:hidden;border:1px solid #dbe4ee;border-radius:15px;padding:14px 15px;background:#fff}.email-brief-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--brief-accent)}.email-brief-card span{display:block;color:#64748b;font:900 8px/1 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.11em}.email-brief-card strong{display:block;margin-top:7px;color:#102033;font-size:14px;line-height:1.25}.email-brief-card small{display:block;margin-top:5px;color:#64748b;font-size:10px;line-height:1.35}
 	      /* Lotus Notes: больше полезной площади, ровная светлая подложка и читаемая типографика. */
 	      body{background:#f4f7fb}.page{max-width:1780px}.email-sheet{padding:14px;border:1px solid #cbd5e1;border-radius:17px;background:#e8eef5;box-shadow:none}.email-dashboard-grid{gap:18px}.email-dashboard-grid .showcase-frame{padding:24px;border-radius:19px;box-shadow:0 12px 28px rgba(15,23,42,.20)}.email-dashboard-grid .ops-showcase{background:radial-gradient(circle at 12% 12%,rgba(34,211,238,.24),transparent 28%),radial-gradient(circle at 88% 22%,rgba(37,99,235,.22),transparent 34%),linear-gradient(135deg,#03111f,#08223a 56%,#111d3b)}.email-dashboard-grid .postmortem-showcase{background:radial-gradient(circle at 88% 12%,rgba(249,115,22,.25),transparent 30%),radial-gradient(circle at 12% 88%,rgba(168,85,247,.23),transparent 32%),linear-gradient(135deg,#081322,#171732 56%,#2b1423)}.email-dashboard-grid .showcase-frame:before{opacity:.58}.email-dashboard-grid .showcase-brand{font-size:8px}.email-dashboard-grid .showcase-period{font-size:8px}.email-dashboard-grid .showcase-period b{font-size:10px}.email-dashboard-grid .ops-stage{gap:18px;margin-top:18px}.email-dashboard-grid .showcase-kicker{font-size:8px}.email-dashboard-grid .week-load-badge{font-size:7px}.email-dashboard-grid .showcase-number{font-size:88px}.email-dashboard-grid .showcase-number-label{font-size:16px}.email-dashboard-grid .showcase-number-note{font-size:10px;color:#cbd5e1}.email-dashboard-grid .showcase-kpi{padding:9px;background:rgba(2,8,23,.72)}.email-dashboard-grid .showcase-kpi span{font-size:7px;color:#b6c5d8}.email-dashboard-grid .showcase-kpi b{font-size:17px}.email-dashboard-grid .ops-control{padding:15px;background:linear-gradient(145deg,rgba(8,47,73,.86),rgba(2,8,23,.88))}.email-dashboard-grid .ops-control-head span{font-size:7px}.email-dashboard-grid .ops-control-head b{font-size:10px}.email-dashboard-grid .ops-sla-hero{grid-template-columns:92px 1fr;gap:15px;padding:14px 0 12px}.email-dashboard-grid .ops-ring{width:90px;height:90px}.email-dashboard-grid .ops-ring strong{font-size:25px}.email-dashboard-grid .ops-ring span{font-size:6px}.email-dashboard-grid .ops-sla-copy small{font-size:7px;color:#b6c5d8}.email-dashboard-grid .ops-sla-copy h2{font-size:19px}.email-dashboard-grid .ops-sla-copy p{font-size:10px;color:#e2e8f0}.email-dashboard-grid .ops-sla-card{padding:9px;background:rgba(2,8,23,.70)}.email-dashboard-grid .ops-sla-card span{font-size:7px;color:#b6c5d8}.email-dashboard-grid .ops-sla-card b{font-size:16px}.email-dashboard-grid .ops-sla-card small{font-size:7px}.email-dashboard-grid .ops-phone-band{padding:9px 10px;background:linear-gradient(135deg,color-mix(in srgb,var(--phone-status) 18%,transparent),rgba(2,8,23,.76))}.email-dashboard-grid .ops-phone-mark{width:28px;height:28px;font-size:15px}.email-dashboard-grid .ops-phone-metric span{font-size:7px;color:#b6c5d8}.email-dashboard-grid .ops-phone-metric b{font-size:15px}.email-dashboard-grid .ops-phone-state span{font-size:7px}.email-dashboard-grid .ops-phone-state b{font-size:11px}.email-dashboard-grid .ops-phone-state small{font-size:7px}.email-dashboard-grid .ops-footer span{font-size:6px;color:#9fb0c4}.email-dashboard-grid .ops-footer b{font-size:9px}.email-dashboard-grid .pm-heading{margin:17px 0 13px}.email-dashboard-grid .pm-heading small{font-size:7px}.email-dashboard-grid .pm-heading h2{font-size:31px}.email-dashboard-grid .pm-count strong{font-size:32px}.email-dashboard-grid .pm-count span{font-size:8px}.email-dashboard-grid .pm-panel{padding:13px;background:rgba(2,8,23,.72)}.email-dashboard-grid .pm-panel-label,.email-dashboard-grid .pm-breakdown-label{font-size:7px;color:#a9b8ca}.email-dashboard-grid .pm-fact strong{font-size:13px}.email-dashboard-grid .pm-meta{font-size:8px}.email-dashboard-grid .pm-symptom{font-size:8px}.email-dashboard-grid .pm-breakdown-row{padding:6px 8px;background:rgba(255,255,255,.065)}.email-dashboard-grid .pm-breakdown-row span,.email-dashboard-grid .pm-breakdown-row b{font-size:9px}.email-dashboard-grid .pm-analysis-card{padding:9px 10px;background:rgba(2,8,23,.70)}.email-dashboard-grid .pm-analysis-card span{font-size:7px}.email-dashboard-grid .pm-analysis-card strong{font-size:10px}.email-dashboard-grid .pm-analysis-card small{font-size:7px;color:#b6c5d8}.email-dashboard-grid .pm-evidence{padding:9px 10px;background:rgba(46,16,101,.28)}.email-dashboard-grid .pm-evidence span{font-size:7px}.email-dashboard-grid .pm-evidence b{font-size:9px}.email-brief{gap:14px;margin-top:14px}.email-brief-card{padding:16px 17px;border-color:#c7d2df;border-radius:12px;box-shadow:0 4px 12px rgba(15,35,55,.045)}.email-brief-card span{font-size:9px}.email-brief-card strong{font-size:16px}.email-brief-card small{font-size:11px;color:#52657a}
+	      /* Режим для ручного скриншота: две крупные самостоятельные сцены вместо мелкой почтовой пары. */
+	      .page{max-width:1240px}.email-sheet{padding:20px;background:#eef3f8}.email-dashboard-grid{grid-template-columns:1fr;gap:28px}.email-dashboard-grid .showcase-frame{aspect-ratio:16/9;padding:34px;border-radius:26px}.email-dashboard-grid .showcase-brand{font-size:10px}.email-dashboard-grid .showcase-period{font-size:10px}.email-dashboard-grid .showcase-period b{font-size:12px}.email-dashboard-grid .ops-stage{grid-template-columns:.88fr 1.12fr;gap:28px;margin-top:25px}.email-dashboard-grid .showcase-kicker{font-size:10px}.email-dashboard-grid .week-load-badge{padding:7px 10px;font-size:9px}.email-dashboard-grid .showcase-number{font-size:112px}.email-dashboard-grid .showcase-number-label{font-size:19px}.email-dashboard-grid .showcase-number-note{font-size:12px}.email-dashboard-grid .showcase-kpi{padding:12px}.email-dashboard-grid .showcase-kpi span{font-size:9px}.email-dashboard-grid .showcase-kpi b{font-size:22px}.email-dashboard-grid .ops-control{padding:22px}.email-dashboard-grid .ops-control-head span{font-size:9px}.email-dashboard-grid .ops-control-head b{font-size:12px}.email-dashboard-grid .ops-sla-hero{grid-template-columns:132px 1fr;gap:20px;padding:20px 0 16px}.email-dashboard-grid .ops-ring{width:126px;height:126px}.email-dashboard-grid .ops-ring strong{font-size:31px}.email-dashboard-grid .ops-ring span{font-size:8px}.email-dashboard-grid .ops-sla-copy small{font-size:8px}.email-dashboard-grid .ops-sla-copy h2{font-size:25px}.email-dashboard-grid .ops-sla-copy p{font-size:12px}.email-dashboard-grid .ops-sla-card{padding:12px}.email-dashboard-grid .ops-sla-card span{font-size:8px}.email-dashboard-grid .ops-sla-card b{font-size:19px}.email-dashboard-grid .ops-sla-card small{font-size:9px}.email-dashboard-grid .ops-phone-band{padding:12px 14px}.email-dashboard-grid .ops-phone-mark{width:38px;height:38px;font-size:21px}.email-dashboard-grid .ops-phone-metric span{font-size:8px}.email-dashboard-grid .ops-phone-metric b{font-size:20px}.email-dashboard-grid .ops-phone-state span{font-size:8px}.email-dashboard-grid .ops-phone-state b{font-size:14px}.email-dashboard-grid .ops-phone-state small{font-size:9px}.email-dashboard-grid .ops-footer span{font-size:8px}.email-dashboard-grid .ops-footer b{font-size:12px}.email-dashboard-grid .pm-heading{margin:24px 0 18px}.email-dashboard-grid .pm-heading small{font-size:10px}.email-dashboard-grid .pm-heading h2{max-width:850px;font-size:46px}.email-dashboard-grid .pm-count{min-width:130px}.email-dashboard-grid .pm-count strong{font-size:42px}.email-dashboard-grid .pm-count span{font-size:11px}.email-dashboard-grid .pm-story{gap:16px}.email-dashboard-grid .pm-panel{padding:18px}.email-dashboard-grid .pm-panel-label,.email-dashboard-grid .pm-breakdown-label{font-size:9px}.email-dashboard-grid .pm-fact strong{font-size:17px}.email-dashboard-grid .pm-meta{font-size:10px}.email-dashboard-grid .pm-symptom{font-size:10px}.email-dashboard-grid .pm-breakdown-row{padding:8px 10px}.email-dashboard-grid .pm-breakdown-row span,.email-dashboard-grid .pm-breakdown-row b{font-size:11px}.email-dashboard-grid .pm-analysis-card{padding:11px 13px}.email-dashboard-grid .pm-analysis-card span{font-size:9px}.email-dashboard-grid .pm-analysis-card strong{font-size:12px}.email-dashboard-grid .pm-analysis-card small{font-size:9px}.email-dashboard-grid .pm-evidence{padding:11px 13px}.email-dashboard-grid .pm-evidence span{font-size:9px}.email-dashboard-grid .pm-evidence b{font-size:11px}
 	      @media(max-width:820px){.meter-grid,.team-snapshot,.showcase-main,.showcase-footer,.ops-stage,.pm-story{grid-template-columns:1fr}.snapshot-item{border-right:0;border-bottom:1px solid var(--line)}.snapshot-item:last-child{border-bottom:0}.weekly-showcase,.showcase-frame{aspect-ratio:auto;min-height:0;padding:24px}.showcase-top{align-items:flex-start}.showcase-number{font-size:88px}.showcase-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.showcase-problem h2{font-size:31px}.ops-sla-hero{grid-template-columns:110px 1fr}.ops-ring{width:104px;height:104px}.ops-footer{grid-template-columns:1fr}.pm-heading{align-items:flex-start}.pm-heading h2{font-size:31px}.pm-count strong{font-size:32px}}
 	      @media(max-width:1240px){.email-dashboard-grid{grid-template-columns:1fr}.email-dashboard-grid .showcase-frame{aspect-ratio:auto}.email-dashboard-grid .ops-stage,.email-dashboard-grid .pm-story{grid-template-columns:1fr}.email-brief{grid-template-columns:1fr}}
-	      .image-export-mode .page{width:1780px;max-width:1780px}.image-export-mode .email-dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.image-export-mode .email-dashboard-grid .showcase-frame{aspect-ratio:16/9}.image-export-mode .email-dashboard-grid .ops-stage{grid-template-columns:.8fr 1.2fr}.image-export-mode .email-dashboard-grid .pm-story{grid-template-columns:1fr 1fr}.image-export-mode .email-brief{grid-template-columns:.8fr 1fr 1.35fr}.image-export-mode .email-dashboard-grid .week-load-badge{border-color:var(--load-color);background:#10263a}.image-export-mode .email-dashboard-grid .ops-ring{box-shadow:0 0 28px rgba(56,189,248,.18)}.image-export-mode .email-dashboard-grid .ops-phone-band{border-color:var(--phone-status);background:linear-gradient(135deg,#0b3042,#061322)}.image-export-mode .email-dashboard-grid .ops-phone-mark{background:#12384a}
 	      .report-toolbar{position:sticky;top:10px;z-index:40;display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 14px;padding:10px 14px;border:1px solid #cbd8e6;border-radius:12px;background:rgba(255,255,255,.94);box-shadow:0 10px 28px rgba(15,35,55,.12);backdrop-filter:blur(10px);color:#475569;font:700 12px/1.3 Consolas,"Courier New",monospace}.report-toolbar button{border:0;border-radius:8px;background:#0d2238;color:#fff;padding:9px 13px;font:800 12px/1 Consolas,"Courier New",monospace;cursor:pointer}.report-toolbar button:hover{background:#173a5e}
 	      @media print{body{background:#fff}.page{max-width:none}.hero{border-radius:0;box-shadow:none}.hero:after{display:none}section,.card,.team-snapshot{box-shadow:none;break-inside:avoid}.report-brand{color:#bae6fd}.report-toolbar{display:none}.weekly-showcase,.showcase-frame{break-inside:avoid;box-shadow:none}.technical-details>summary{display:none}.technical-details>.technical-body{display:block!important}.technical-details:not([open])>.technical-body{display:block!important}}
 	    </style>
@@ -3105,7 +3106,6 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, aiTaskMemory, embedded = false }) => {
   const [topReportPreview, setTopReportPreview] = useState('');
   const [topReportError, setTopReportError] = useState('');
-  const [topImageExportFormat, setTopImageExportFormat] = useState('');
 
   const normalizeRoute = (route) => {
     const text = safeString(route).trim();
@@ -4611,90 +4611,6 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     );
   };
 
-  const loadHtml2Canvas = () => {
-    if (window.html2canvas) return Promise.resolve(window.html2canvas);
-    if (window.__topReportHtml2CanvasPromise) return window.__topReportHtml2CanvasPromise;
-
-    window.__topReportHtml2CanvasPromise = new Promise((resolve, reject) => {
-      const existingScript = document.querySelector('script[data-top-report-html2canvas]');
-      const script = existingScript || document.createElement('script');
-      const handleLoad = () => window.html2canvas
-        ? resolve(window.html2canvas)
-        : reject(new Error('html2canvas не появился после загрузки'));
-      const handleError = () => reject(new Error('Не удалось загрузить модуль экспорта изображений'));
-
-      script.addEventListener('load', handleLoad, { once: true });
-      script.addEventListener('error', handleError, { once: true });
-      if (!existingScript) {
-        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-        script.async = true;
-        script.crossOrigin = 'anonymous';
-        script.dataset.topReportHtml2canvas = 'true';
-        document.head.appendChild(script);
-      }
-    }).catch(error => {
-      window.__topReportHtml2CanvasPromise = null;
-      throw error;
-    });
-
-    return window.__topReportHtml2CanvasPromise;
-  };
-
-  const handleDownloadTopProblemImage = async (format = 'png') => {
-    const frame = document.getElementById('top-report-preview-frame');
-    const frameDocument = frame?.contentDocument;
-    const exportTarget = frameDocument?.querySelector('.email-sheet');
-    if (!frameDocument || !exportTarget || topImageExportFormat) return;
-
-    const normalizedFormat = format === 'jpeg' ? 'jpeg' : 'png';
-    setTopImageExportFormat(normalizedFormat);
-    setTopReportError('');
-    frameDocument.body.classList.add('image-export-mode');
-
-    try {
-      const html2canvas = await loadHtml2Canvas();
-      if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-      const width = Math.ceil(exportTarget.scrollWidth);
-      const height = Math.ceil(exportTarget.scrollHeight);
-      const canvas = await html2canvas(exportTarget, {
-        backgroundColor: '#f4f7fb',
-        // Lotus Notes вставляет картинку почти в натуральном размере.
-        // 0.85 сохраняет двухколоночную витрину, но даёт почтовую ширину ~1460 px.
-        scale: 0.85,
-        useCORS: true,
-        logging: false,
-        width,
-        height,
-        windowWidth: 1780,
-        windowHeight: height
-      });
-      const mimeType = normalizedFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, normalizedFormat === 'jpeg' ? 0.94 : undefined));
-      if (!blob) throw new Error('Не удалось сформировать изображение');
-
-      const weekNumber = weekData?.weekNumber || selectedWeekKey?.split('-')?.[1];
-      const dateStamp = new Date().toISOString().slice(0, 10);
-      const filenameBase = weekNumber ? `top_problem_showcase_week_${weekNumber}_lotus` : `top_problem_showcase_${dateStamp}_lotus`;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${filenameBase}.${normalizedFormat === 'jpeg' ? 'jpg' : 'png'}`;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (error) {
-      console.error('TOP-1 image export failed', error);
-      setTopReportError('Не удалось выгрузить изображение. Попробуйте PNG; если ошибка повторится — обновите страницу и снова откройте витрину.');
-    } finally {
-      frameDocument.body.classList.remove('image-export-mode');
-      setTopImageExportFormat('');
-    }
-  };
-
   return (
     <div className="animate-in fade-in duration-500 max-w-7xl pb-10">
       {topReportPreview && createPortal((
@@ -4713,23 +4629,6 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
               >
                 <DownloadCloud size={16} />
                 Скачать HTML
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDownloadTopProblemImage('png')}
-                disabled={Boolean(topImageExportFormat)}
-                className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-3 py-2 text-sm font-black text-slate-950 hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-60"
-              >
-                <DownloadCloud size={16} />
-                {topImageExportFormat === 'png' ? 'Готовим PNG…' : 'PNG для Lotus'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDownloadTopProblemImage('jpeg')}
-                disabled={Boolean(topImageExportFormat)}
-                className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/50 bg-cyan-500/10 px-3 py-2 text-sm font-bold text-cyan-100 hover:bg-cyan-500/20 disabled:cursor-wait disabled:opacity-60"
-              >
-                {topImageExportFormat === 'jpeg' ? 'Готовим JPEG…' : 'JPEG'}
               </button>
               <button
                 type="button"
