@@ -414,7 +414,10 @@ const generateTopProblemPostmortemReport = ({
     || telephony.notAnswered !== undefined;
   const phoneMissed = hasPhoneMissedData ? num(telephony.missedCount ?? telephony.missed ?? telephony.lost ?? telephony.notAnswered) : 0;
   const phoneMissedTarget = num(telephony.missedTarget) > 0 ? num(telephony.missedTarget) : 15;
-  const phoneCalls = phoneAnswered || phoneTotalCalls;
+  const phoneCalls = phoneTotalCalls || phoneAnswered;
+  const hasPhoneData = phoneCalls > 0 || hasPhoneMissedData;
+  const phoneSourceLabel = safeString(telephony.sourceLabel || 'telephonyData выбранной недели');
+  const phoneAnsweredText = hasPhoneData ? `${Math.round(phoneCalls)}` : 'нет данных';
   const cleanPhoneAvgMinutes = num(phoneAvgMinutes) > 0 ? num(phoneAvgMinutes) : 5;
   const phoneLoadMinutes = phoneCalls * cleanPhoneAvgMinutes;
   const phoneLoadHours = phoneLoadMinutes / 60;
@@ -437,7 +440,7 @@ const generateTopProblemPostmortemReport = ({
     { key: 'risk', label: 'Риск по телефонии', min: phoneMissedTarget + 1, max: phoneMissedTarget * 2, color: '#f59e0b', note: `пропущенных больше лимита на ${phoneMissedGap}` },
     { key: 'bad', label: 'Просадка телефонии', min: phoneMissedTarget * 2 + 1, max: Infinity, color: '#f97316', note: `пропущенных больше лимита на ${phoneMissedGap}` }
   ];
-  const currentPhoneState = phoneCalls > 0 || hasPhoneMissedData
+  const currentPhoneState = hasPhoneData
     ? (phoneStates.find(state => state.min !== null && phoneMissed >= state.min && phoneMissed <= state.max) || phoneStates[phoneStates.length - 1])
     : phoneStates[0];
   const slaBreaches = topic.slaBreaches === null || topic.slaBreaches === undefined ? null : num(topic.slaBreaches);
@@ -595,7 +598,7 @@ const generateTopProblemPostmortemReport = ({
 	          <div class="showcase-kpis">
 	            <div class="showcase-kpi" style="--accent:${primarySla >= 95 ? '#34d399' : '#fb923c'}"><span>Взятие ≤15 мин</span><b>${html(pct(primarySla))}</b></div>
 	            <div class="showcase-kpi" style="--accent:${resolutionSla >= 95 ? '#34d399' : '#f472b6'}"><span>Решение в срок</span><b>${html(pct(resolutionSla))}</b></div>
-	            <div class="showcase-kpi" style="--accent:#22d3ee"><span>Звонки приняты</span><b>${html(Math.round(phoneAnswered || phoneCalls))}</b></div>
+	            <div class="showcase-kpi" style="--accent:#22d3ee"><span>Звонки</span><b>${html(phoneAnsweredText)}</b></div>
 	          </div>
 	        </div>
 	        <div class="showcase-problem">
@@ -619,7 +622,7 @@ const generateTopProblemPostmortemReport = ({
         <div><div class="eyebrow">Понедельничный пульс команды</div><h1>Постмортем ТОП-1 проблемы недели</h1><p class="subtitle">${html(topicName)} · ${html(period)} · сформировано ${html(generatedDate.toLocaleDateString('ru-RU'))}</p></div>
         <div class="meter-grid">
           <div class="pulse"><div class="meter-head"><span>SLA инцидентов</span><em>качество реакции</em></div><div class="orb"></div><div class="pulse-title">${html(currentState.label)} · ${html(pct(worstSla))}</div><div class="pulse-note">Худший SLA недели: ${html(worstSlaLabel)}. ${html(currentState.note)}.</div><div class="sla-target"><span>Факт / цель</span><b>${html(pct(worstSla))} / 95%</b></div></div>
-          <div class="phone-pulse" style="--phone:${currentPhoneState.color}"><div class="meter-head"><span>Телефонная линия</span><em>доступность канала</em></div><div class="phone-art"><svg class="phone-svg" viewBox="0 0 64 64" aria-hidden="true"><path d="M46.6 41.7c-2.8-1.3-5.4-1.9-7.4.5l-2.2 2.7c-5.8-3.2-10.4-7.8-13.7-13.7l2.7-2.2c2.4-2 1.8-4.6.5-7.4l-2.1-4.5c-1.2-2.6-3.5-3.9-6.1-3.1l-5.2 1.6c-2.1.7-3.6 2.7-3.4 5 .8 15.6 17.9 32.7 33.5 33.5 2.3.1 4.3-1.3 5-3.4l1.6-5.2c.7-2.6-.6-4.9-3.2-6.1l-4.5-2.2z"/></svg><div class="missed-badge">${html(Math.round(phoneMissed))}</div></div><div class="pulse-title">${html(currentPhoneState.label)}</div><div class="pulse-note">Принято ${html(Math.round(phoneAnswered || phoneCalls))}, пропущено ${html(Math.round(phoneMissed))}. ${html(currentPhoneState.note + phoneLoadSuffix)}</div><div class="sla-target"><span>Пропущено / лимит</span><b>${hasPhoneMissedData || phoneCalls > 0 ? `${html(Math.round(phoneMissed))}/${html(Math.round(phoneMissedTarget))}` : '—'}</b></div></div>
+          <div class="phone-pulse" style="--phone:${currentPhoneState.color}"><div class="meter-head"><span>Телефонная линия</span><em>доступность канала</em></div><div class="phone-art"><svg class="phone-svg" viewBox="0 0 64 64" aria-hidden="true"><path d="M46.6 41.7c-2.8-1.3-5.4-1.9-7.4.5l-2.2 2.7c-5.8-3.2-10.4-7.8-13.7-13.7l2.7-2.2c2.4-2 1.8-4.6.5-7.4l-2.1-4.5c-1.2-2.6-3.5-3.9-6.1-3.1l-5.2 1.6c-2.1.7-3.6 2.7-3.4 5 .8 15.6 17.9 32.7 33.5 33.5 2.3.1 4.3-1.3 5-3.4l1.6-5.2c.7-2.6-.6-4.9-3.2-6.1l-4.5-2.2z"/></svg><div class="missed-badge">${hasPhoneData ? html(Math.round(phoneMissed)) : '—'}</div></div><div class="pulse-title">${html(currentPhoneState.label)}</div><div class="pulse-note">${hasPhoneData ? `Звонков ${html(phoneAnsweredText)}, пропущено ${html(Math.round(phoneMissed))}. ${html(currentPhoneState.note + phoneLoadSuffix)}` : `В источнике ${html(phoneSourceLabel)} нет строк телефонии.`}</div><div class="sla-target"><span>Пропущено / лимит</span><b>${hasPhoneData ? `${html(Math.round(phoneMissed))}/${html(Math.round(phoneMissedTarget))}` : '—'}</b></div></div>
         </div>
       </div>
       <div class="scale-label">Шкала SLA: цель 95%</div><div class="traffic">${trafficStates.map(state => `<div class="state" style="--c:${state.color};${state.key === currentState.key ? 'background:rgba(255,255,255,.18);' : ''}"><b>${html(state.label)}</b><span>${html(state.min)}-${html(state.max)}%</span></div>`).join('')}</div>
@@ -635,7 +638,7 @@ const generateTopProblemPostmortemReport = ({
       <div class="card"><small>Взятие в работу</small><strong>${html(pct(primarySla))}</strong><span class="muted">цель 95%</span></div>
       <div class="card"><small>Решение в срок</small><strong>${html(pct(resolutionSla))}</strong><span class="muted">цель 95%</span></div>
       <div class="card"><small>Помощь выше 1-й линии</small><strong>${html(pct(helpPercent))}</strong><span class="muted">${html(topic.mainRoute || topic.supportLevel || 'маршрут уточняется')}</span></div>
-      <div class="card"><small>Телефонная линия</small><strong>${phoneCalls > 0 ? `${html(Math.round(phoneAnswered || phoneCalls))} принято` : 'нет данных'}</strong><span class="muted">пропущено ${html(Math.round(phoneMissed))} / лимит ${html(Math.round(phoneMissedTarget))}${phoneAvailability === null ? '' : ` · доступность ${html(phoneAvailability)}%`}</span></div>
+      <div class="card"><small>Телефонная линия</small><strong>${phoneCalls > 0 ? `${html(Math.round(phoneCalls))} звонков` : 'нет данных'}</strong><span class="muted">пропущено ${html(Math.round(phoneMissed))} / лимит ${html(Math.round(phoneMissedTarget))}${phoneAvailability === null ? '' : ` · доступность ${html(phoneAvailability)}%`}</span></div>
     </div>
     <div class="flow"><div class="flow-step" style="--c:#2563eb"><small>Поток</small><b>${html(count(totalClosed))}</b><p>закрыто за неделю</p></div><div class="arrow">→</div><div class="flow-step" style="--c:${primarySla >= 95 ? '#10b981' : currentState.color}"><small>Взятие ≤15 мин</small><b>${html(pct(primarySla))}</b><p>${primaryGap > 0 ? `не хватает ${primaryGap.toFixed(1).replace('.0', '')} п.п.` : 'цель выполнена'}</p></div><div class="arrow">→</div><div class="flow-step" style="--c:${resolutionSla >= 95 ? '#10b981' : currentState.color}"><small>Решение в срок</small><b>${html(pct(resolutionSla))}</b><p>${resolutionGap > 0 ? `не хватает ${resolutionGap.toFixed(1).replace('.0', '')} п.п.` : 'цель выполнена'}</p></div><div class="arrow">→</div><div class="flow-step" style="--c:#8b5cf6"><small>ТОП-1 узкое место</small><b>${html(count(topicCount))}</b><p>${html(topicName)}</p></div></div>
     <section><h2>Почему просел SLA на прошлой неделе</h2><div class="drop-grid">${slaDropCards.map(item => `<div class="drop-card"><small>${html(item.title)}</small><b>${html(item.value)}</b><p>${html(item.text)}</p></div>`).join('')}</div></section>
@@ -3852,21 +3855,35 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       acc.total += cleanTotal;
       return acc;
     }, { answered: 0, missed: 0, total: 0 });
-    if (fromRows.answered > 0 || fromRows.missed > 0 || fromRows.total > 0) return fromRows;
+    if (fromRows.answered > 0 || fromRows.missed > 0 || fromRows.total > 0) {
+      return { ...fromRows, rowsCount: rows.length, source: 'telephonyData' };
+    }
 
     const summary = data?.telephonySummary || data?.phoneSummary || data?.telephony || data?.callMetrics || {};
+    const hasSummarySource = summary && typeof summary === 'object' && Object.keys(summary).length > 0;
     const missed = Number(summary?.missed ?? summary?.missedCount ?? summary?.lost ?? summary?.notAnswered ?? summary?.unanswered ?? 0);
     const answered = Number(summary?.answered ?? summary?.answeredCount ?? summary?.accepted ?? summary?.handled ?? summary?.callsCount ?? summary?.calls ?? 0);
     const total = Number(summary?.total ?? summary?.totalCalls ?? summary?.callsTotal ?? 0);
     const cleanMissed = Number.isFinite(missed) ? missed : 0;
     const cleanAnswered = Number.isFinite(answered) ? answered : 0;
     const cleanTotal = Number.isFinite(total) && total > 0 ? total : cleanAnswered + cleanMissed;
-    return { answered: cleanAnswered, missed: cleanMissed, total: cleanTotal };
+    return {
+      answered: cleanAnswered,
+      missed: cleanMissed,
+      total: cleanTotal,
+      rowsCount: cleanAnswered > 0 || cleanMissed > 0 || cleanTotal > 0 ? 1 : 0,
+      source: hasSummarySource ? 'telephonySummary' : 'telephonyData'
+    };
   };
   const phoneSummary = getPhoneSummary(weekData);
-  const phoneCallsCount = phoneSummary.answered || phoneSummary.total;
+  const phoneCallsCount = phoneSummary.total || phoneSummary.answered;
+  const telephonyHistoryRows = Object.entries(weeksHistory || {})
+    .map(([key, data]) => ({ key, summary: getPhoneSummary(data) }))
+    .filter(item => item.summary.answered > 0 || item.summary.missed > 0 || item.summary.total > 0)
+    .sort((a, b) => b.key.localeCompare(a.key));
+  const phoneSourceLabel = `history[${selectedWeekKey}].${phoneSummary.source || 'telephonyData'}`;
   const previousPhoneSummary = previousTrainingKey ? getPhoneSummary(weeksHistory?.[previousTrainingKey] || {}) : null;
-  const previousPhoneCallsCount = previousPhoneSummary ? (previousPhoneSummary.answered || previousPhoneSummary.total) : null;
+  const previousPhoneCallsCount = previousPhoneSummary ? (previousPhoneSummary.total || previousPhoneSummary.answered) : null;
   const phoneDeltaText = previousPhoneCallsCount === null
     ? 'база формируется'
     : (phoneCallsCount === previousPhoneCallsCount ? 'без изменений' : `${phoneCallsCount > previousPhoneCallsCount ? '+' : '-'}${Math.abs(phoneCallsCount - previousPhoneCallsCount)} звонков к прошлой неделе`);
@@ -4148,6 +4165,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       avgPerDayText: phoneCallsCount > 0 ? `${roundMetric(phoneCallsCount / planningCapacityConfig.workdaysPerWeek, 1)} звонков` : 'данные пока не подключены',
       deltaText: phoneDeltaText,
       missedDeltaText: phoneMissedDeltaText,
+      rowsCount: phoneSummary.rowsCount || 0,
+      sourceLabel: phoneSourceLabel,
       note: `Цель телефонной линии: не больше ${phoneMissedTarget} пропущенных за неделю. Связка звонок → тикет пока не подключена, поэтому звонки показываются как отдельный контекст нагрузки.`
     },
     seniorTaskFlow,
@@ -4436,6 +4455,10 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
             primaryViolations: Number(selectedTraining?.primaryViolations) || 0,
             resolutionViolations: Number(selectedTraining?.resolutionViolations) || 0
           },
+          phoneAvgMinutes: planningCapacityConfig?.phoneCallAvgMinutes,
+          telephony: periodAnalytics?.telephony && typeof periodAnalytics.telephony === 'object'
+            ? periodAnalytics.telephony
+            : {},
           generatedAt: new Date()
         });
         setTopReportError('В реальных данных недели найден нестандартный формат. Витрина открыта в безопасном режиме без части детализации.');
@@ -4529,6 +4552,35 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       {topReportError && !topReportPreview && (
         <div className="mb-6 rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100">
           {topReportError}
+        </div>
+      )}
+
+      {phoneCallsCount <= 0 && (
+        <div className="mb-6 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-4 text-amber-50">
+          <div className="text-sm font-black">Телефония не найдена в выбранной неделе</div>
+          <div className="mt-1 text-xs leading-relaxed text-amber-100/80">
+            Проверен источник <span className="font-mono text-amber-200">{phoneSourceLabel}</span>: строк со звонками нет.
+            {telephonyHistoryRows.length === 0
+              ? ' В истории сайта сейчас не найдено ни одной недели с сохранённой телефонией.'
+              : ' Ниже показаны недели, в которых звонки действительно сохранены.'}
+          </div>
+          {telephonyHistoryRows.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {telephonyHistoryRows.slice(0, 8).map(item => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => onWeekSelect(item.key)}
+                  className="rounded-lg border border-amber-300/30 bg-slate-950/50 px-3 py-2 text-xs font-bold text-amber-100 hover:border-amber-300/70"
+                >
+                  Неделя {weeksHistory?.[item.key]?.weekNumber || item.key}: {item.summary.total || item.summary.answered} звонков, {item.summary.missed} пропущено
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="mt-3 text-xs font-bold text-amber-200">
+            Для недели {weekData?.weekNumber || selectedWeekKey}: «Заполнить неделю» → «Импорт Телефонии» → загрузить таблицу → «Сохранить данные».
+          </div>
         </div>
       )}
 
