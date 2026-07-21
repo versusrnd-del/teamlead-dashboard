@@ -357,9 +357,32 @@ const generateTopProblemPostmortemReport = ({
   };
   const pct = (value) => `${num(value).toFixed(1).replace('.0', '')}%`;
   const count = (value) => `${Math.round(num(value))} шт.`;
+  const requestCount = (value) => {
+    const amount = Math.round(num(value));
+    const mod10 = amount % 10;
+    const mod100 = amount % 100;
+    const word = mod10 === 1 && mod100 !== 11
+      ? 'обращение'
+      : ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100) ? 'обращения' : 'обращений');
+    return `${amount} ${word}`;
+  };
   const period = week?.dates || `Неделя ${week?.weekNumber || ''}`.trim() || 'текущий период';
   const generatedDate = generatedAt instanceof Date ? generatedAt : new Date(generatedAt);
-  const topicName = topic.focusTitle || topic.specificTheme || topic.theme || 'Топ-проблема недели';
+  const rawTopicName = safeString(topic.focusTitle || topic.specificTheme || topic.theme || 'Топ-проблема недели').trim();
+  const broadTopicName = /^(бизнес-приложения|бизнес приложения|офисное по|рабочие места\s*\/\s*по|программное обеспечение|прочее|другое)/i.test(rawTopicName);
+  const problemTypeText = safeString(topic.problemType || topic.topSymptoms?.[0] || topic.symptom).trim();
+  const affectedSystemNames = Array.isArray(topic.affectedSystems)
+    ? topic.affectedSystems.map(safeString).map(item => item.trim()).filter(Boolean)
+    : safeString(topic.affectedSystems).split(/[,;|]/).map(item => item.trim()).filter(Boolean);
+  const actionSystemMatch = safeString(topic.actionNeeded).match(/(?:входа?\s+и\s+запуска|запуска)\s+(.+?)(?=,\s*(?:затем|после|далее)|[.;]|$)/i);
+  const actionSystemText = safeString(actionSystemMatch?.[1]).replace(/ОперДня/gi, 'ОперДень').trim();
+  const specificSystemsText = affectedSystemNames.length ? affectedSystemNames.join(', ') : actionSystemText;
+  const problemLabel = /вход.*запуск|запуск.*вход/i.test(problemTypeText)
+    ? 'Проблемы входа и запуска'
+    : (problemTypeText ? `${problemTypeText.charAt(0).toUpperCase()}${problemTypeText.slice(1)}` : 'Конкретная проблема недели');
+  const topicName = broadTopicName
+    ? `${problemLabel}${specificSystemsText ? `: ${specificSystemsText}` : ''}`
+    : rawTopicName;
   const topicCategory = topic.category || (topic.theme && topic.theme !== topicName ? topic.theme : '');
   const topicSystems = Array.isArray(topic.affectedSystems) ? topic.affectedSystems.filter(Boolean).slice(0, 5) : [];
   const topicCount = num(topic.count);
@@ -508,7 +531,7 @@ const generateTopProblemPostmortemReport = ({
       <td>${html(item.route || item.slaType || item.domain || 'маршрут не указан')}${item.overdueMin !== undefined && item.overdueMin !== null ? `<br><span class="muted">Просрочка: ${html(Math.round(num(item.overdueMin)))} мин</span>` : ''}</td>
       <td>${html(item.reusableStep || 'Пока нечего переносить в БЗ')}</td>
     </tr>
-  `; }).join('') : '<tr><td colspan="6" class="muted">Список кейсов не найден в JSON. Для следующей выгрузки желательно добавить примеры тикетов по топ-теме.</td></tr>';
+  `; }).join('') : '<tr><td colspan="6" class="muted">Список обращений не найден в JSON. Для следующей выгрузки желательно добавить примеры обращений по топ-теме.</td></tr>';
   const slaDropCards = [
     {
       title: 'Где просело',
@@ -522,7 +545,7 @@ const generateTopProblemPostmortemReport = ({
       value: weakRoute?.route || topic.mainRoute || topic.supportLevel || 'нужно уточнить',
       text: weakRoute
         ? `По этому маршруту хуже всего выглядит SLA: взятие ${weakRoute.primarySla === null ? 'нет данных' : pct(weakRoute.primarySla)}, решение ${weakRoute.resolutionSla === null ? 'нет данных' : pct(weakRoute.resolutionSla)}.`
-        : 'Пока недостаточно SLA-данных по маршрутам. Используем топ-тему и примеры кейсов.'
+        : 'Пока недостаточно SLA-данных по маршрутам. Используем топ-тему и примеры обращений.'
     },
     {
       title: 'Главная причина недели',
@@ -576,7 +599,7 @@ const generateTopProblemPostmortemReport = ({
 	          </div>
 	        </div>
 	        <div class="showcase-problem">
-	          <div class="showcase-problem-head"><span>ТОП-1 проблема недели</span><div class="showcase-problem-count">${html(Math.round(topicCount))} кейс.</div></div>
+	          <div class="showcase-problem-head"><span>ТОП-1 проблема недели</span><div class="showcase-problem-count">${html(requestCount(topicCount))}</div></div>
 	          <h2>${html(topicName)}</h2>
 	          <div class="showcase-problem-meta">${html(topicCategory || 'Ключевая повторяющаяся тема')} · ${html(pct(topicShare))} от закрытых</div>
 	          <p>${html(topic.problemType || topic.rootCauseHypothesis || 'Команде нужно разобрать общий сценарий возникновения и устранения проблемы.')}</p>
@@ -617,11 +640,11 @@ const generateTopProblemPostmortemReport = ({
     <div class="flow"><div class="flow-step" style="--c:#2563eb"><small>Поток</small><b>${html(count(totalClosed))}</b><p>закрыто за неделю</p></div><div class="arrow">→</div><div class="flow-step" style="--c:${primarySla >= 95 ? '#10b981' : currentState.color}"><small>Взятие ≤15 мин</small><b>${html(pct(primarySla))}</b><p>${primaryGap > 0 ? `не хватает ${primaryGap.toFixed(1).replace('.0', '')} п.п.` : 'цель выполнена'}</p></div><div class="arrow">→</div><div class="flow-step" style="--c:${resolutionSla >= 95 ? '#10b981' : currentState.color}"><small>Решение в срок</small><b>${html(pct(resolutionSla))}</b><p>${resolutionGap > 0 ? `не хватает ${resolutionGap.toFixed(1).replace('.0', '')} п.п.` : 'цель выполнена'}</p></div><div class="arrow">→</div><div class="flow-step" style="--c:#8b5cf6"><small>ТОП-1 узкое место</small><b>${html(count(topicCount))}</b><p>${html(topicName)}</p></div></div>
     <section><h2>Почему просел SLA на прошлой неделе</h2><div class="drop-grid">${slaDropCards.map(item => `<div class="drop-card"><small>${html(item.title)}</small><b>${html(item.value)}</b><p>${html(item.text)}</p></div>`).join('')}</div></section>
     <input class="modal-toggle" type="checkbox" id="top-breakdown-modal">
-    <div class="modal"><div class="modal-panel"><div class="modal-head"><div><h2>Расшифровка ТОП-проблемы</h2><p class="muted">${html(topicName)} · разбивка для постмортема команды</p></div><label class="modal-close" for="top-breakdown-modal">Закрыть</label></div><table><thead><tr><th>Подтема / сигнал</th><th>Кол-во</th><th>Доля</th><th>Что видно по смыслу</th><th>Что делаем</th></tr></thead><tbody>${subProblemRows}</tbody></table><div class="note" style="margin-top:12px">Если в JSON нет примеров тикетов по теме, эта разбивка является рабочей гипотезой для понедельничного разбора. После постмортема ее нужно подтвердить 3-5 реальными кейсами.</div></div></div>
+    <div class="modal"><div class="modal-panel"><div class="modal-head"><div><h2>Расшифровка ТОП-проблемы</h2><p class="muted">${html(topicName)} · разбивка для постмортема команды</p></div><label class="modal-close" for="top-breakdown-modal">Закрыть</label></div><table><thead><tr><th>Подтема / сигнал</th><th>Кол-во</th><th>Доля</th><th>Что видно по смыслу</th><th>Что делаем</th></tr></thead><tbody>${subProblemRows}</tbody></table><div class="note" style="margin-top:12px">Если в JSON нет примеров обращений по теме, эта разбивка является рабочей гипотезой для понедельничного разбора. После постмортема ее нужно подтвердить 3-5 реальными обращениями.</div></div></div>
     <section><h2>Короткий вывод для команды</h2><div class="focus"><strong>${html(topicName)}</strong><br>Разбираем не только саму проблему, но и фактический путь устранения: диагностика, действие, маршрут и переиспользуемый шаг. На неделю закрепляем одно изменение и проверяем эффект по SLA и доле помощи выше 1-й линии.<br><label class="modal-open" for="top-breakdown-modal">Открыть расшифровку ТОП-проблемы</label></div><div class="signal-strip"><div><b>1. Что повторяется</b><span class="muted">${html(topicName)}</span></div><div><b>2. Как реально решали</b><span class="muted">${resolutionCoverage === null ? 'нужно заполнить ход решения' : `${html(pct(resolutionCoverage))} примеров с решением`}</span></div><div><b>3. Что закрепляем</b><span class="muted">${html(actionNeeded)}</span></div></div></section>
-    <section><h2>Кейсы ТОП-проблемы: от симптома до решения</h2><div class="note" style="margin-bottom:12px">Каждая строка связывает исходную проблему с очищенным комментарием исполнителя. Сообщения ServiceDesk, автоматические проверки, просьбы оценить и формальные ответы исключены.</div><table><thead><tr><th>Тикет / исполнитель</th><th>Что произошло</th><th>Диагностика</th><th>Как решено</th><th>Маршрут / SLA</th><th>Что в БЗ</th></tr></thead><tbody>${caseRows}</tbody></table></section>
-    <section><h2>Повторяющиеся способы решения</h2><div class="note" style="margin-bottom:12px"><strong>Покрытие решений по кейсам ТОП-проблемы:</strong> ${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}. Здесь остаются только подтвержденные действия, связанные с тикетами этой темы.</div><div class="plan">${resolutionPatternCards}</div></section>
-    <section><h2>Задача команде на неделю</h2><div class="plan"><div><b>1. Разобрать</b>Взять 3-5 кейсов выше и проверить общий сценарий диагностики и решения.</div><div><b>2. Закрепить</b>${html(actionNeeded)}</div><div><b>3. Проверить</b>${html(checkText)}</div></div></section>
+    <section><h2>Обращения ТОП-проблемы: от симптома до решения</h2><div class="note" style="margin-bottom:12px">Каждая строка связывает исходную проблему с очищенным комментарием исполнителя. Сообщения ServiceDesk, автоматические проверки, просьбы оценить и формальные ответы исключены.</div><table><thead><tr><th>Тикет / исполнитель</th><th>Что произошло</th><th>Диагностика</th><th>Как решено</th><th>Маршрут / SLA</th><th>Что в БЗ</th></tr></thead><tbody>${caseRows}</tbody></table></section>
+    <section><h2>Повторяющиеся способы решения</h2><div class="note" style="margin-bottom:12px"><strong>Покрытие решений по обращениям ТОП-проблемы:</strong> ${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}. Здесь остаются только подтвержденные действия, связанные с обращениями этой темы.</div><div class="plan">${resolutionPatternCards}</div></section>
+    <section><h2>Задача команде на неделю</h2><div class="plan"><div><b>1. Разобрать</b>Взять 3-5 обращений выше и проверить общий сценарий диагностики и решения.</div><div><b>2. Закрепить</b>${html(actionNeeded)}</div><div><b>3. Проверить</b>${html(checkText)}</div></div></section>
     <section><h2>SLA и маршруты</h2><div class="plan"><div><b>Основной SLA</b>Взятие в работу ≤15 мин: ${html(pct(primarySla))}. Просрочек: ${html(count(training.primaryViolations))}.</div><div><b>Вторичный SLA</b>Решение в срок: ${html(pct(resolutionSla))}. Просрочек: ${html(count(training.resolutionViolations))}.</div><div><b>Маршрут помощи</b>${html(topic.mainRoute || topic.supportLevel || 'нужно уточнить по тикетам')}.</div></div><table style="margin-top:12px"><thead><tr><th>Маршрут</th><th>Тикеты</th><th>Взятие</th><th>Решение</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
     <section><h2>Маршруты решения недели</h2><table><thead><tr><th>Маршрут</th><th>Кол-во</th><th>Доля</th></tr></thead><tbody>${routeRows}</tbody></table></section>
     <section><h2>Качество исходных комментариев</h2><div class="plan"><div><b>Содержательный ход решения</b>${commentAudit.coveragePercent === null || commentAudit.coveragePercent === undefined ? 'Нет данных новой выгрузки' : html(pct(commentAudit.coveragePercent))} · ${html(count(commentAudit.meaningfulCount))} из ${html(count(commentAudit.totalClosed))}</div><div><b>Без полезного комментария</b>${html(count(commentAudit.missingOrInvalidCount))} после очистки служебных сообщений</div><div><b>Отфильтровано автоматикой</b>${html(count(commentAuditFiltered))}: переоткрытие, просьба оценить и формальные ответы</div></div></section>
@@ -3814,18 +3837,32 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   }).filter(row => row.count > 0 || row.label !== 'Другое');
   const totalSeniorSupportHours = seniorReserveRows.reduce((sum, row) => sum + row.hours, 0);
 
-  const getPhoneSummary = (data) => (Array.isArray(data?.telephonyData) ? data.telephonyData : []).reduce((acc, row) => {
-    const missed = Number(row?.missed ?? row?.lost ?? row?.notAnswered ?? 0);
-    const answered = Number(row?.answered ?? row?.accepted ?? row?.incoming ?? row?.calls ?? row?.count ?? 0);
-    const total = Number(row?.total ?? row?.all ?? row?.callsTotal ?? 0);
+  const getPhoneSummary = (data) => {
+    const rowSources = [data?.telephonyData, data?.telephonyRows, data?.phoneData, data?.callsData];
+    const rows = rowSources.find(Array.isArray) || [];
+    const fromRows = rows.reduce((acc, row) => {
+      const missed = Number(row?.missed ?? row?.missedCount ?? row?.lost ?? row?.notAnswered ?? row?.unanswered ?? 0);
+      const answered = Number(row?.answered ?? row?.answeredCount ?? row?.accepted ?? row?.handled ?? row?.incoming ?? row?.calls ?? row?.count ?? 0);
+      const total = Number(row?.total ?? row?.totalCalls ?? row?.all ?? row?.callsTotal ?? 0);
+      const cleanMissed = Number.isFinite(missed) ? missed : 0;
+      const cleanAnswered = Number.isFinite(answered) ? answered : 0;
+      const cleanTotal = Number.isFinite(total) && total > 0 ? total : cleanAnswered + cleanMissed;
+      acc.answered += cleanAnswered;
+      acc.missed += cleanMissed;
+      acc.total += cleanTotal;
+      return acc;
+    }, { answered: 0, missed: 0, total: 0 });
+    if (fromRows.answered > 0 || fromRows.missed > 0 || fromRows.total > 0) return fromRows;
+
+    const summary = data?.telephonySummary || data?.phoneSummary || data?.telephony || data?.callMetrics || {};
+    const missed = Number(summary?.missed ?? summary?.missedCount ?? summary?.lost ?? summary?.notAnswered ?? summary?.unanswered ?? 0);
+    const answered = Number(summary?.answered ?? summary?.answeredCount ?? summary?.accepted ?? summary?.handled ?? summary?.callsCount ?? summary?.calls ?? 0);
+    const total = Number(summary?.total ?? summary?.totalCalls ?? summary?.callsTotal ?? 0);
     const cleanMissed = Number.isFinite(missed) ? missed : 0;
     const cleanAnswered = Number.isFinite(answered) ? answered : 0;
     const cleanTotal = Number.isFinite(total) && total > 0 ? total : cleanAnswered + cleanMissed;
-    acc.answered += cleanAnswered;
-    acc.missed += cleanMissed;
-    acc.total += cleanTotal;
-    return acc;
-  }, { answered: 0, missed: 0, total: 0 });
+    return { answered: cleanAnswered, missed: cleanMissed, total: cleanTotal };
+  };
   const phoneSummary = getPhoneSummary(weekData);
   const phoneCallsCount = phoneSummary.answered || phoneSummary.total;
   const previousPhoneSummary = previousTrainingKey ? getPhoneSummary(weeksHistory?.[previousTrainingKey] || {}) : null;
@@ -4996,6 +5033,14 @@ const FillWeekForm = ({ historyKeys, selectedKey, onWeekSelect, weekData, onSave
       }
       
       let finalData = { ...formData, ...parsedData, managementIndex: newIndex };
+
+      // Jira-импорт не должен стирать уже загруженную телефонию пустыми полями из JSON.
+      if (!Array.isArray(parsedData.telephonyData) || parsedData.telephonyData.length === 0) {
+          finalData.telephonyData = Array.isArray(formData.telephonyData) ? formData.telephonyData : [];
+      }
+      if (!safeString(parsedData.telephonyInsight).trim()) {
+          finalData.telephonyInsight = formData.telephonyInsight;
+      }
       
       // ОПРЕДЕЛЯЕМ ТИП ИМПОРТА (Задачи или Инциденты)
       const isTasksImport = parsedData.taskPerformers && parsedData.taskPerformers.length > 0;
