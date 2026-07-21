@@ -4660,7 +4660,9 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       const height = Math.ceil(exportTarget.scrollHeight);
       const canvas = await html2canvas(exportTarget, {
         backgroundColor: '#f4f7fb',
-        scale: 1.5,
+        // Lotus Notes вставляет картинку почти в натуральном размере.
+        // 0.85 сохраняет двухколоночную витрину, но даёт почтовую ширину ~1460 px.
+        scale: 0.85,
         useCORS: true,
         logging: false,
         width,
@@ -4674,7 +4676,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
 
       const weekNumber = weekData?.weekNumber || selectedWeekKey?.split('-')?.[1];
       const dateStamp = new Date().toISOString().slice(0, 10);
-      const filenameBase = weekNumber ? `top_problem_showcase_week_${weekNumber}` : `top_problem_showcase_${dateStamp}`;
+      const filenameBase = weekNumber ? `top_problem_showcase_week_${weekNumber}_lotus` : `top_problem_showcase_${dateStamp}_lotus`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -4719,7 +4721,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
                 className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-3 py-2 text-sm font-black text-slate-950 hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-60"
               >
                 <DownloadCloud size={16} />
-                {topImageExportFormat === 'png' ? 'Готовим PNG…' : 'Скачать PNG'}
+                {topImageExportFormat === 'png' ? 'Готовим PNG…' : 'PNG для Lotus'}
               </button>
               <button
                 type="button"
