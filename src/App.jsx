@@ -2946,6 +2946,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 
 const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, aiTaskMemory, embedded = false }) => {
   const [topReportPreview, setTopReportPreview] = useState('');
+  const [topReportError, setTopReportError] = useState('');
 
   const normalizeRoute = (route) => {
     const text = safeString(route).trim();
@@ -4238,7 +4239,10 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       actionNeeded: 'Добавить анализ топ-тем с не-самостоятельным маршрутом в JSON.',
       check: 'После следующей выгрузки проверить топ-1 тему и маршруты помощи.'
     };
-    const keywords = getPostmortemKeywords(`${topic.focusTitle || ''} ${topic.theme || ''} ${(topic.affectedSystems || []).join(' ')}`);
+    const affectedSystems = Array.isArray(topic.affectedSystems)
+      ? topic.affectedSystems
+      : safeString(topic.affectedSystems).split(/[,;|]/).map(item => item.trim()).filter(Boolean);
+    const keywords = getPostmortemKeywords(`${topic.focusTitle || ''} ${topic.theme || ''} ${affectedSystems.join(' ')}`);
     const rawCaseCandidates = [
       ...(Array.isArray(weekData?.topIncidents) ? weekData.topIncidents : []),
       ...(Array.isArray(weekData?.slaBreachDetails) ? weekData.slaBreachDetails : []),
@@ -4350,24 +4354,60 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   };
 
   const handleOpenTopProblemPostmortem = () => {
-    const postmortem = buildTopProblemPostmortemData();
-    const html = generateTopProblemPostmortemReport({
-      week: {
-        weekNumber: weekData?.weekNumber,
-        dates: weekData?.dates
-      },
-      topic: postmortem.topic,
-      training: selectedTraining,
-      routes: routeChartData,
-      slaByRoute: routeSlaRows.filter(row => row.count > 0 || row.primarySla !== null || row.resolutionSla !== null),
-      relatedCases: postmortem.relatedCases,
-      subProblems: postmortem.subProblems,
-      medianResolutionMinutes: null,
-      phoneAvgMinutes: planningCapacityConfig.phoneCallAvgMinutes,
-      telephony: periodAnalytics.telephony,
-      generatedAt: new Date()
-    });
-    setTopReportPreview(html);
+    setTopReportError('');
+    try {
+      const postmortem = buildTopProblemPostmortemData();
+      const html = generateTopProblemPostmortemReport({
+        week: {
+          weekNumber: weekData?.weekNumber,
+          dates: weekData?.dates
+        },
+        topic: postmortem.topic,
+        training: selectedTraining,
+        routes: Array.isArray(routeChartData) ? routeChartData : [],
+        slaByRoute: Array.isArray(routeSlaRows)
+          ? routeSlaRows.filter(row => row && (row.count > 0 || row.primarySla !== null || row.resolutionSla !== null))
+          : [],
+        relatedCases: Array.isArray(postmortem.relatedCases) ? postmortem.relatedCases : [],
+        subProblems: Array.isArray(postmortem.subProblems) ? postmortem.subProblems : [],
+        medianResolutionMinutes: null,
+        phoneAvgMinutes: planningCapacityConfig?.phoneCallAvgMinutes,
+        telephony: periodAnalytics?.telephony && typeof periodAnalytics.telephony === 'object' ? periodAnalytics.telephony : {},
+        generatedAt: new Date()
+      });
+      setTopReportPreview(html);
+    } catch (error) {
+      console.error('TOP-1 preview generation failed', error);
+      try {
+        const sourceTopic = fintechTopics[0] || {};
+        const fallbackHtml = generateTopProblemPostmortemReport({
+          week: { weekNumber: weekData?.weekNumber, dates: weekData?.dates },
+          topic: {
+            focusTitle: safeString(sourceTopic.focusTitle || sourceTopic.specificTheme || sourceTopic.theme) || 'Топ-проблема недели',
+            theme: safeString(sourceTopic.theme),
+            category: safeString(sourceTopic.category),
+            count: Number(sourceTopic.count) || 0,
+            problemType: safeString(sourceTopic.problemType || sourceTopic.rootCauseHypothesis),
+            actionNeeded: safeString(sourceTopic.actionNeeded),
+            check: safeString(sourceTopic.check)
+          },
+          training: {
+            closed: Number(selectedTraining?.closed) || 0,
+            helpPercent: Number(selectedTraining?.helpPercent) || 0,
+            successRate: Number(selectedTraining?.successRate) || 0,
+            resolutionSuccessRate: Number(selectedTraining?.resolutionSuccessRate) || 0,
+            primaryViolations: Number(selectedTraining?.primaryViolations) || 0,
+            resolutionViolations: Number(selectedTraining?.resolutionViolations) || 0
+          },
+          generatedAt: new Date()
+        });
+        setTopReportError('В реальных данных недели найден нестандартный формат. Витрина открыта в безопасном режиме без части детализации.');
+        setTopReportPreview(fallbackHtml);
+      } catch (fallbackError) {
+        console.error('TOP-1 fallback preview generation failed', fallbackError);
+        setTopReportError('Не удалось собрать TOP-1 из данных выбранной недели. Обновите страницу; если ошибка повторится, потребуется проверить формат bottleneckThemes этой недели.');
+      }
+    }
   };
 
   const handleDownloadTopProblemPostmortem = () => {
@@ -4388,6 +4428,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
             <div>
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-400">Incident review / HTML preview</div>
               <div className="text-lg font-black text-white">Постмортем ТОП-1</div>
+              {topReportError && <div className="mt-1 text-[11px] font-bold text-amber-200">{topReportError}</div>}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -4442,11 +4483,17 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
             title="Открыть встроенный предпросмотр постмортема ТОП-1"
           >
             <FileSearch size={18} />
-            Просмотреть ТОП-1
+            Открыть витрину ТОП-1
           </button>
           <WeekSelector historyKeys={historyKeys} weeksHistory={weeksHistory} selectedKey={selectedWeekKey} onSelect={onWeekSelect} activeData={weekData} />
         </div>
       </div>
+
+      {topReportError && !topReportPreview && (
+        <div className="mb-6 rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100">
+          {topReportError}
+        </div>
+      )}
 
       <div className={`rounded-xl border p-5 mb-6 ${selectedTraining.hasTraining ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-800/80 border-slate-700/60'}`}>
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
