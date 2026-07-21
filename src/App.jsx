@@ -479,20 +479,6 @@ const generateTopProblemPostmortemReport = ({
       <td>${html(row.conclusion || 'нужен разбор')}</td>
     </tr>
   `).join('') : '<tr><td colspan="5" class="muted">SLA по маршрутам пока не подключен.</td></tr>';
-  const subProblemRows = subProblems.length ? subProblems.map((item, index) => `
-    <tr>
-      <td><strong>${index + 1}. ${html(item.name)}</strong></td>
-      <td class="num">${html(count(item.count))}</td>
-      <td class="num">${html(pct(item.share))}</td>
-      <td>${html(item.meaning)}</td>
-      <td>${html(item.action)}</td>
-    </tr>
-  `).join('') : `
-    <tr><td><strong>1. Основная тема</strong></td><td class="num">${html(count(topicCount))}</td><td class="num">${html(pct(topicShare))}</td><td>${html(topic.problemType || 'тип проблемы требует уточнения')}</td><td>${html(topic.actionNeeded || 'разобрать 3-5 типовых тикетов и закрепить инструкцию')}</td></tr>
-    <tr><td><strong>2. Маршрут помощи</strong></td><td class="num">${html(count(training.helpCount))}</td><td class="num">${html(pct(helpPercent))}</td><td>${html(topic.mainRoute || topic.supportLevel || 'маршрут помощи требует уточнения')}</td><td>Уточнить, что 1-я линия может делать сама, а что сразу передавать выше.</td></tr>
-  `;
-  const actionNeeded = topic.actionNeeded || 'Разобрать типовые тикеты, обновить инструкцию в БЗ и проверить эффект через неделю.';
-  const checkText = topic.check || 'Через неделю сравнить количество тикетов по теме, SLA взятия в работу, решение в срок и долю помощи выше 1-й линии.';
   const commentAudit = training.resolutionCommentAudit && typeof training.resolutionCommentAudit === 'object'
     ? training.resolutionCommentAudit
     : {};
@@ -507,14 +493,78 @@ const generateTopProblemPostmortemReport = ({
     const name = safeString(typeof item === 'string' ? item : (item.name || item.resolution)).trim();
     if (name && !resolutionPatternMap.has(name.toLowerCase())) resolutionPatternMap.set(name.toLowerCase(), item);
   });
+  const isMeaningfulResolutionText = (value) => {
+    const text = safeString(value).replace(/\s+/g, ' ').trim();
+    if (text.length < 12) return false;
+    return !/^(?:не зафиксировано|нет данных|готово|решено|выполнено|закрыто|проблема решена|помогли пользователю|#resolved)[.!\s]*$/i.test(text);
+  };
   const resolutionPatterns = [...resolutionPatternMap.values()].slice(0, 5);
-  const resolvedRelatedCount = relatedCases.filter(item => safeString(item.resolution || item.solution || item.resolutionText || item.comment).trim() && safeString(item.resolution || item.solution || item.resolutionText || item.comment).toLowerCase() !== 'не зафиксировано').length;
+  const supportedResolutionPatterns = resolutionPatterns.filter(item => {
+    if (typeof item === 'string') return false;
+    const evidenceIds = Array.isArray(item?.evidenceIds) ? item.evidenceIds.map(safeString).filter(Boolean) : [];
+    return isMeaningfulResolutionText(item?.name || item?.resolution) && evidenceIds.length > 0;
+  });
+  const resolvedRelatedCases = relatedCases.filter(item => isMeaningfulResolutionText(item.resolution || item.solution || item.resolutionText || item.comment));
+  const resolvedRelatedCount = resolvedRelatedCases.length;
   const resolutionCoverage = topic.resolutionCoveragePercent === null || topic.resolutionCoveragePercent === undefined
     ? (relatedCases.length ? roundMetric(resolvedRelatedCount * 100 / relatedCases.length, 1) : null)
     : num(topic.resolutionCoveragePercent);
-  const resolutionPatternCards = resolutionPatterns.length
-    ? resolutionPatterns.map(item => `<div><b>${html(typeof item === 'string' ? item : (item.name || item.resolution || 'Способ не описан'))}</b><span class="muted">${typeof item === 'object' && item.count !== undefined ? `${html(count(item.count))} подтверждено` : 'подтверждено примерами'}${typeof item === 'object' && Array.isArray(item.evidenceIds) && item.evidenceIds.length ? ` · ${html(item.evidenceIds.slice(0, 4).join(', '))}` : ''}</span></div>`).join('')
-    : '<div><b>Способы решения пока не выделены</b><span class="muted">После внедрения обязательного поля JiraSD здесь появятся повторяемые действия команды.</span></div>';
+  const resolutionEvidenceIds = [...new Set([
+    ...supportedResolutionPatterns.flatMap(item => item.evidenceIds || []),
+    ...resolvedRelatedCases.map(item => item.id || item.key || item.issueKey)
+  ].map(safeString).filter(Boolean))];
+  const actionPlan = topic.actionPlan && typeof topic.actionPlan === 'object' ? topic.actionPlan : {};
+  const actionDataGap = safeString(topic.actionDataGap).trim();
+  const actionPlanEvidenceIds = Array.isArray(actionPlan.evidenceIds) ? actionPlan.evidenceIds.map(safeString).filter(Boolean) : [];
+  const actionPlanHasTrace = actionPlanEvidenceIds.length > 0
+    && actionPlanEvidenceIds.some(id => resolutionEvidenceIds.includes(id))
+    && isMeaningfulResolutionText(actionPlan.problemFact)
+    && isMeaningfulResolutionText(actionPlan.observedResolution)
+    && isMeaningfulResolutionText(actionPlan.action);
+  const proposedAction = safeString(actionPlan.action || topic.actionNeeded).trim();
+  const isGenericAdvice = /провести\s+обучение|добавить\s+инструкц|обновить\s+инструкц|закрепить.*(?:бз|баз[аеы]\s+знаний)|разобрать\s+(?:3\s*[-–]\s*5|типов)|уточнить\s+(?:маршрут|критерии)|сделать\s+(?:чек-лист|карточку)/i.test(proposedAction);
+  const legacyActionHasEvidence = resolutionEvidenceIds.length > 0 && isMeaningfulResolutionText(proposedAction) && !isGenericAdvice;
+  const hasResolutionEvidence = resolutionEvidenceIds.length > 0;
+  const actionNeeded = actionPlanHasTrace
+    ? proposedAction
+    : (legacyActionHasEvidence
+      ? proposedAction
+      : `План не сформирован: ${actionDataGap || 'сначала нужны 3–5 обращений этой темы с описанием проблемы и содержательным итоговым комментарием исполнителя.'}`);
+  const checkText = actionPlanHasTrace
+    ? safeString(actionPlan.successMetric || topic.check || 'Через неделю проверить эффект по обращениям этой темы.').trim()
+    : (legacyActionHasEvidence
+      ? safeString(topic.check || 'Через неделю проверить повторяемость проблемы и эффект по обращениям этой темы.').trim()
+      : 'После следующей выгрузки проверить, появились ли минимум 3 обращения с подтверждённым ходом решения.');
+  const confirmedResolutionText = actionPlanHasTrace
+    ? safeString(actionPlan.observedResolution).trim()
+    : (supportedResolutionPatterns.length
+      ? safeString(supportedResolutionPatterns[0].name || supportedResolutionPatterns[0].resolution).trim()
+      : (resolvedRelatedCases.length
+        ? safeString(resolvedRelatedCases[0].resolution || resolvedRelatedCases[0].solution || resolvedRelatedCases[0].resolutionText || resolvedRelatedCases[0].comment).trim()
+        : 'Не подтверждено комментариями исполнителей.'));
+  const confirmedProblemFact = actionPlanHasTrace
+    ? safeString(actionPlan.problemFact).trim()
+    : (resolvedRelatedCases.length
+      ? safeString(resolvedRelatedCases[0].problemContext || resolvedRelatedCases[0].symptom || resolvedRelatedCases[0].title || resolvedRelatedCases[0].summary).trim()
+      : safeString(topic.rootCauseHypothesis || topic.problemType || 'Фактический контекст обращений ещё не собран.').trim());
+  const resolutionEvidenceText = resolutionEvidenceIds.length
+    ? `Подтверждение: ${resolutionEvidenceIds.slice(0, 5).join(', ')}${resolutionEvidenceIds.length > 5 ? ` +${resolutionEvidenceIds.length - 5}` : ''}`
+    : 'Подтверждающих обращений в выгрузке нет';
+  const resolutionPatternCards = supportedResolutionPatterns.length
+    ? supportedResolutionPatterns.map(item => `<div><b>${html(item.name || item.resolution || 'Способ не описан')}</b><span class="muted">${item.count !== undefined ? `${html(count(item.count))} подтверждено` : 'подтверждено обращениями'} · ${html((item.evidenceIds || []).slice(0, 4).join(', '))}</span></div>`).join('')
+    : '<div><b>Способы решения не подтверждены</b><span class="muted">Нужны содержательные итоговые комментарии исполнителей, связанные с номерами обращений.</span></div>';
+  const subProblemRows = subProblems.length ? subProblems.map((item, index) => `
+    <tr>
+      <td><strong>${index + 1}. ${html(item.name)}</strong></td>
+      <td class="num">${html(count(item.count))}</td>
+      <td class="num">${html(pct(item.share))}</td>
+      <td>${html(item.meaning)}</td>
+      <td>${html(hasResolutionEvidence ? item.action : 'Сначала подтвердить фактический способ решения по комментариям обращений.')}</td>
+    </tr>
+  `).join('') : `
+    <tr><td><strong>1. Основная тема</strong></td><td class="num">${html(count(topicCount))}</td><td class="num">${html(pct(topicShare))}</td><td>${html(topic.problemType || 'тип проблемы требует уточнения')}</td><td>${html(actionNeeded)}</td></tr>
+    <tr><td><strong>2. Доказательства решения</strong></td><td class="num">${html(count(resolvedRelatedCount))}</td><td class="num">${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}</td><td>${html(confirmedResolutionText)}</td><td>${html(checkText)}</td></tr>
+  `;
   const commentAuditFiltered = (Number(commentAudit.automationFilteredCount) || 0)
     + (Number(commentAudit.ratingFilteredCount) || 0)
     + (Number(commentAudit.formalFilteredCount) || 0);
@@ -558,7 +608,7 @@ const generateTopProblemPostmortemReport = ({
   ];
   const dataGaps = [
     relatedCases.length ? '' : 'Добавить в JSON примеры тикетов по топ-теме: id, title, resolution, route, assignee, SLA.',
-    relatedCases.some(item => item.resolution || item.solution || item.resolutionText || item.comment) ? '' : 'В примерах нет содержательного хода решения: команда видит проблему, но не может переиспользовать способ устранения.',
+    hasResolutionEvidence ? '' : 'В примерах нет содержательного хода решения: команда видит проблему, но не может переиспользовать способ устранения.',
     topic.slaBreaches === null || topic.slaBreaches === undefined ? 'Передавать SLA-просрочки внутри bottleneckThemes.' : '',
     'Фиксировать итог постмортема: причина, действие, владелец, дата проверки.'
   ].filter(Boolean).map(item => `<li>${html(item)}</li>`).join('');
@@ -577,7 +627,7 @@ const generateTopProblemPostmortemReport = ({
       .sla-target{display:flex;align-items:end;justify-content:space-between;gap:12px}.sla-target b{font-size:24px}
 	      .team-snapshot{display:grid;grid-template-columns:.75fr 1.1fr 1.15fr 1.15fr;gap:0;margin:16px 0;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 12px 28px rgba(15,23,42,.06)}
       .snapshot-item{padding:17px;border-right:1px solid var(--line)}.snapshot-item:last-child{border-right:0}.snapshot-item small{display:block;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:900}.snapshot-item strong{display:block;margin:6px 0 3px;font-size:17px;line-height:1.2}.snapshot-item span{display:block;color:#64748b;font-size:12px}.snapshot-status{border-top:5px solid ${currentState.color};background:${currentState.bg}}.snapshot-cause{border-top:5px solid #8b5cf6}.snapshot-action{border-top:5px solid #2563eb}
-	      .weekly-showcase{position:relative;isolation:isolate;overflow:hidden;aspect-ratio:16/9;min-height:610px;border:1px solid rgba(103,232,249,.28);border-radius:28px;padding:34px;color:#fff;background:radial-gradient(circle at 12% 12%,rgba(34,211,238,.34),transparent 28%),radial-gradient(circle at 88% 18%,rgba(249,115,22,.42),transparent 30%),radial-gradient(circle at 72% 90%,rgba(168,85,247,.34),transparent 30%),linear-gradient(135deg,#020817 0%,#08182b 44%,#11112d 72%,#251025 100%);box-shadow:0 34px 90px rgba(2,8,23,.38)}.weekly-showcase:before{content:"";position:absolute;z-index:-2;inset:0;background-image:linear-gradient(rgba(125,211,252,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.06) 1px,transparent 1px);background-size:32px 32px;mask-image:linear-gradient(to bottom,#000,transparent 88%)}.weekly-showcase:after{content:"";position:absolute;z-index:-1;width:420px;height:420px;right:-160px;bottom:-210px;border:1px solid rgba(255,255,255,.18);border-radius:50%;box-shadow:0 0 0 42px rgba(255,255,255,.025),0 0 0 84px rgba(255,255,255,.018)}.showcase-top{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.14)}.showcase-brand{display:flex;align-items:center;gap:12px;font:900 11px/1 Consolas,"Courier New",monospace;letter-spacing:.18em;text-transform:uppercase;color:#67e8f9}.showcase-brand i{display:block;width:12px;height:12px;border-radius:3px;background:linear-gradient(135deg,#22d3ee,#a855f7);box-shadow:0 0 24px #22d3ee}.showcase-period{font:800 11px/1.2 Consolas,"Courier New",monospace;color:#cbd5e1;text-align:right}.showcase-period b{display:block;margin-top:4px;color:#fff;font-size:13px}.showcase-main{display:grid;grid-template-columns:.86fr 1.14fr;gap:26px;align-items:stretch;margin-top:26px}.showcase-outcome{display:flex;flex-direction:column;justify-content:center;min-width:0}.showcase-kicker{font:900 11px/1 Consolas,"Courier New",monospace;letter-spacing:.18em;text-transform:uppercase;color:#a5f3fc}.showcase-number{margin:14px 0 0;font:950 clamp(86px,10vw,144px)/.78 Aptos,Calibri,"Segoe UI",sans-serif;letter-spacing:-.08em;color:#fff;text-shadow:0 0 42px rgba(34,211,238,.34)}.showcase-number-label{margin-top:18px;font-size:20px;font-weight:900;color:#dbeafe}.showcase-number-note{margin-top:5px;color:#94a3b8;font-size:12px}.showcase-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:24px}.showcase-kpi{border:1px solid rgba(255,255,255,.13);border-top:3px solid var(--accent);border-radius:13px;padding:11px;background:rgba(2,8,23,.48);backdrop-filter:blur(10px)}.showcase-kpi span{display:block;color:#94a3b8;font:800 9px/1.25 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.08em}.showcase-kpi b{display:block;margin-top:6px;color:#fff;font-size:20px;line-height:1}.showcase-problem{position:relative;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(251,146,60,.34);border-radius:22px;padding:24px;background:linear-gradient(145deg,rgba(120,53,15,.46),rgba(69,10,10,.38) 45%,rgba(15,23,42,.72));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 20px 60px rgba(0,0,0,.18)}.showcase-problem:before{content:"TOP 01";position:absolute;right:-9px;top:36px;color:rgba(255,255,255,.035);font:950 84px/1 Aptos,Calibri,sans-serif;letter-spacing:-.08em;transform:rotate(-4deg)}.showcase-problem-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px}.showcase-problem-head span{font:900 10px/1 Consolas,"Courier New",monospace;letter-spacing:.16em;text-transform:uppercase;color:#fed7aa}.showcase-problem-count{display:grid;place-items:center;min-width:52px;height:34px;border:1px solid rgba(253,186,116,.38);border-radius:999px;background:rgba(249,115,22,.18);color:#fff;font:900 14px/1 Consolas,"Courier New",monospace;box-shadow:0 0 28px rgba(249,115,22,.2)}.showcase-problem h2{position:relative;margin:24px 0 10px;max-width:92%;font-size:clamp(30px,3.4vw,46px);line-height:1.02;letter-spacing:-.045em;color:#fff}.showcase-problem-meta{position:relative;color:#fdba74;font:800 11px/1.45 Consolas,"Courier New",monospace}.showcase-problem p{position:relative;margin:12px 0 0;color:#cbd5e1;font-size:13px}.showcase-action{position:relative;margin-top:auto;border:1px solid rgba(110,231,183,.24);border-radius:15px;padding:13px 15px;background:linear-gradient(135deg,rgba(6,78,59,.56),rgba(15,23,42,.66))}.showcase-action span{display:block;color:#6ee7b7;font:900 9px/1 Consolas,"Courier New",monospace;letter-spacing:.14em;text-transform:uppercase}.showcase-action strong{display:block;margin-top:7px;color:#ecfdf5;font-size:13px;line-height:1.35}.showcase-footer{display:grid;grid-template-columns:.7fr .7fr 1.6fr;gap:10px;margin-top:20px}.showcase-footer>div{border:1px solid rgba(255,255,255,.11);border-radius:12px;padding:10px 12px;background:rgba(2,8,23,.42)}.showcase-footer span{display:block;color:#64748b;font:800 8px/1 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.12em}.showcase-footer b{display:block;margin-top:5px;color:#e2e8f0;font-size:12px}.showcase-footer .showcase-message{display:flex;align-items:center;color:#c4b5fd;font-size:11px;font-weight:800;border-color:rgba(196,181,253,.2)}.detail-divider{display:flex;align-items:center;gap:14px;margin:25px 2px 14px;color:#64748b;font:900 10px/1 Consolas,"Courier New",monospace;letter-spacing:.16em;text-transform:uppercase}.detail-divider:before,.detail-divider:after{content:"";height:1px;flex:1;background:linear-gradient(90deg,transparent,#94a3b8)}.detail-divider:after{background:linear-gradient(90deg,#94a3b8,transparent)}
+	      .weekly-showcase{position:relative;isolation:isolate;overflow:hidden;aspect-ratio:16/9;min-height:610px;border:1px solid rgba(103,232,249,.28);border-radius:28px;padding:34px;color:#fff;background:radial-gradient(circle at 12% 12%,rgba(34,211,238,.34),transparent 28%),radial-gradient(circle at 88% 18%,rgba(249,115,22,.42),transparent 30%),radial-gradient(circle at 72% 90%,rgba(168,85,247,.34),transparent 30%),linear-gradient(135deg,#020817 0%,#08182b 44%,#11112d 72%,#251025 100%);box-shadow:0 34px 90px rgba(2,8,23,.38)}.weekly-showcase:before{content:"";position:absolute;z-index:-2;inset:0;background-image:linear-gradient(rgba(125,211,252,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.06) 1px,transparent 1px);background-size:32px 32px;mask-image:linear-gradient(to bottom,#000,transparent 88%)}.weekly-showcase:after{content:"";position:absolute;z-index:-1;width:420px;height:420px;right:-160px;bottom:-210px;border:1px solid rgba(255,255,255,.18);border-radius:50%;box-shadow:0 0 0 42px rgba(255,255,255,.025),0 0 0 84px rgba(255,255,255,.018)}.showcase-top{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.14)}.showcase-brand{display:flex;align-items:center;gap:12px;font:900 11px/1 Consolas,"Courier New",monospace;letter-spacing:.18em;text-transform:uppercase;color:#67e8f9}.showcase-brand i{display:block;width:12px;height:12px;border-radius:3px;background:linear-gradient(135deg,#22d3ee,#a855f7);box-shadow:0 0 24px #22d3ee}.showcase-period{font:800 11px/1.2 Consolas,"Courier New",monospace;color:#cbd5e1;text-align:right}.showcase-period b{display:block;margin-top:4px;color:#fff;font-size:13px}.showcase-main{display:grid;grid-template-columns:.86fr 1.14fr;gap:26px;align-items:stretch;margin-top:26px}.showcase-outcome{display:flex;flex-direction:column;justify-content:center;min-width:0}.showcase-kicker{font:900 11px/1 Consolas,"Courier New",monospace;letter-spacing:.18em;text-transform:uppercase;color:#a5f3fc}.showcase-number{margin:14px 0 0;font:950 clamp(86px,10vw,144px)/.78 Aptos,Calibri,"Segoe UI",sans-serif;letter-spacing:-.08em;color:#fff;text-shadow:0 0 42px rgba(34,211,238,.34)}.showcase-number-label{margin-top:18px;font-size:20px;font-weight:900;color:#dbeafe}.showcase-number-note{margin-top:5px;color:#94a3b8;font-size:12px}.showcase-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:24px}.showcase-kpi{border:1px solid rgba(255,255,255,.13);border-top:3px solid var(--accent);border-radius:13px;padding:11px;background:rgba(2,8,23,.48);backdrop-filter:blur(10px)}.showcase-kpi span{display:block;color:#94a3b8;font:800 9px/1.25 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.08em}.showcase-kpi b{display:block;margin-top:6px;color:#fff;font-size:20px;line-height:1}.showcase-problem{position:relative;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(251,146,60,.34);border-radius:22px;padding:22px;background:linear-gradient(145deg,rgba(120,53,15,.46),rgba(69,10,10,.38) 45%,rgba(15,23,42,.72));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 20px 60px rgba(0,0,0,.18)}.showcase-problem:before{content:"TOP 01";position:absolute;right:-9px;top:36px;color:rgba(255,255,255,.035);font:950 84px/1 Aptos,Calibri,sans-serif;letter-spacing:-.08em;transform:rotate(-4deg)}.showcase-problem-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px}.showcase-problem-head span{font:900 10px/1 Consolas,"Courier New",monospace;letter-spacing:.16em;text-transform:uppercase;color:#fed7aa}.showcase-problem-count{display:grid;place-items:center;min-width:52px;height:34px;border:1px solid rgba(253,186,116,.38);border-radius:999px;background:rgba(249,115,22,.18);color:#fff;font:900 14px/1 Consolas,"Courier New",monospace;box-shadow:0 0 28px rgba(249,115,22,.2)}.showcase-problem h2{position:relative;margin:17px 0 8px;max-width:92%;font-size:clamp(28px,3vw,42px);line-height:1.02;letter-spacing:-.045em;color:#fff}.showcase-problem-meta{position:relative;color:#fdba74;font:800 11px/1.45 Consolas,"Courier New",monospace}.showcase-problem p{position:relative;margin:8px 0 0;color:#cbd5e1;font-size:12px}.showcase-resolution,.showcase-action{position:relative;border-radius:13px;padding:10px 12px}.showcase-resolution{margin-top:10px;border:1px solid rgba(34,211,238,.26);background:linear-gradient(135deg,rgba(8,47,73,.62),rgba(15,23,42,.62))}.showcase-resolution span,.showcase-action span{display:block;font:900 9px/1 Consolas,"Courier New",monospace;letter-spacing:.14em;text-transform:uppercase}.showcase-resolution span{color:#67e8f9}.showcase-resolution strong,.showcase-action strong{display:block;margin-top:6px;font-size:12px;line-height:1.32}.showcase-resolution strong{color:#ecfeff}.showcase-resolution small{display:block;margin-top:5px;color:#7dd3fc;font:700 9px/1.25 Consolas,"Courier New",monospace}.showcase-action{margin-top:8px;border:1px solid rgba(110,231,183,.24);background:linear-gradient(135deg,rgba(6,78,59,.56),rgba(15,23,42,.66))}.showcase-action span{color:#6ee7b7}.showcase-action strong{color:#ecfdf5}.showcase-action.is-gap{border-color:rgba(251,191,36,.34);background:linear-gradient(135deg,rgba(120,53,15,.46),rgba(15,23,42,.66))}.showcase-action.is-gap span{color:#fcd34d}.showcase-action.is-gap strong{color:#fffbeb}.showcase-footer{display:grid;grid-template-columns:.7fr .7fr 1.6fr;gap:10px;margin-top:20px}.showcase-footer>div{border:1px solid rgba(255,255,255,.11);border-radius:12px;padding:10px 12px;background:rgba(2,8,23,.42)}.showcase-footer span{display:block;color:#64748b;font:800 8px/1 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.12em}.showcase-footer b{display:block;margin-top:5px;color:#e2e8f0;font-size:12px}.showcase-footer .showcase-message{display:flex;align-items:center;color:#c4b5fd;font-size:11px;font-weight:800;border-color:rgba(196,181,253,.2)}.detail-divider{display:flex;align-items:center;gap:14px;margin:25px 2px 14px;color:#64748b;font:900 10px/1 Consolas,"Courier New",monospace;letter-spacing:.16em;text-transform:uppercase}.detail-divider:before,.detail-divider:after{content:"";height:1px;flex:1;background:linear-gradient(90deg,transparent,#94a3b8)}.detail-divider:after{background:linear-gradient(90deg,#94a3b8,transparent)}
 	      body{background:#e7edf5}.page{max-width:1180px;padding-top:28px}.hero{position:relative;border:1px solid #28475f;background-color:#071421;background-image:linear-gradient(rgba(56,189,248,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.055) 1px,transparent 1px),radial-gradient(circle at 86% 12%,rgba(245,158,11,.22),transparent 28%),linear-gradient(135deg,#07111f,#0d2238 58%,#102a43);background-size:28px 28px,28px 28px,auto,auto;box-shadow:0 28px 70px rgba(7,17,31,.25)}.hero:after{content:"";position:absolute;right:-95px;bottom:-135px;width:350px;height:350px;border:1px solid rgba(56,189,248,.18);border-radius:50%;box-shadow:0 0 0 36px rgba(56,189,248,.035),0 0 0 72px rgba(56,189,248,.024)}.hero-grid,.scale-label,.traffic,.report-brand{position:relative;z-index:1}.report-brand{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:25px;padding-bottom:14px;border-bottom:1px solid rgba(148,163,184,.22);font:800 10px/1.2 Consolas,"Courier New",monospace;letter-spacing:.16em;text-transform:uppercase;color:#7dd3fc}.report-brand b{color:#fde68a}.eyebrow,.meter-head span,.meter-head em,.scale-label,.state b,.state span,.card small,.flow-step small,.drop-card small,th{font-family:Consolas,"Courier New",monospace}.hero h1{font-size:42px;max-width:760px}.pulse,.phone-pulse{border-radius:16px;background:rgba(7,20,33,.72);backdrop-filter:blur(8px)}.team-snapshot{border-color:#cbd8e6}.snapshot-item{background:linear-gradient(180deg,#fff,#f8fbfe)}.kpi .card{border-radius:14px;border-color:#cbd8e6;background:linear-gradient(180deg,#fff,#f8fbfe);box-shadow:0 8px 22px rgba(15,35,55,.055)}.card strong,.flow-step b{font-family:Consolas,"Courier New",monospace}.flow-step{border-radius:14px;box-shadow:0 8px 22px rgba(15,35,55,.05)}section{position:relative;border-radius:16px;border-color:#cdd9e6;box-shadow:0 10px 28px rgba(15,35,55,.055);overflow:hidden}section:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(#38bdf8,#f59e0b);opacity:.72}section h2{display:flex;align-items:center;gap:10px;font-size:19px;color:#0b2035}section h2:before{content:"";width:8px;height:8px;border-radius:2px;background:#f59e0b;box-shadow:0 0 0 4px #fef3c7}.note,.focus{border-radius:12px}.focus{border-left-color:#0ea5e9;background:linear-gradient(135deg,#eff8ff,#f8fbff)}.drop-card,.plan div,.signal-strip div{border-radius:12px}.modal-panel{border:1px solid #cbd8e6;border-radius:18px}.modal-close,.modal-open{border-radius:7px;font-family:Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.04em}table{border:1px solid #d6e0ea;border-radius:12px;overflow:hidden}th{background:#0d2238;color:#b9d7ee;padding:11px 10px;border-bottom-color:#24445f}td{color:#334155}tbody tr:nth-child(even){background:#f7fafc}tbody tr:hover{background:#fff8e8}table td:nth-child(4) strong{color:#047857}.muted{color:#64748b}.scale-label{margin-top:16px}.traffic{opacity:.9}.state{padding:8px;background:rgba(7,20,33,.66)}.state b{font-size:11px}.state span{color:#94a3b8}
 	      @media(max-width:820px){.meter-grid,.team-snapshot,.showcase-main,.showcase-footer{grid-template-columns:1fr}.snapshot-item{border-right:0;border-bottom:1px solid var(--line)}.snapshot-item:last-child{border-bottom:0}.weekly-showcase{aspect-ratio:auto;min-height:0;padding:24px}.showcase-top{align-items:flex-start}.showcase-number{font-size:88px}.showcase-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.showcase-problem h2{font-size:31px}}
 	      .report-toolbar{position:sticky;top:10px;z-index:40;display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 14px;padding:10px 14px;border:1px solid #cbd8e6;border-radius:12px;background:rgba(255,255,255,.94);box-shadow:0 10px 28px rgba(15,35,55,.12);backdrop-filter:blur(10px);color:#475569;font:700 12px/1.3 Consolas,"Courier New",monospace}.report-toolbar button{border:0;border-radius:8px;background:#0d2238;color:#fff;padding:9px 13px;font:800 12px/1 Consolas,"Courier New",monospace;cursor:pointer}.report-toolbar button:hover{background:#173a5e}
@@ -605,14 +655,15 @@ const generateTopProblemPostmortemReport = ({
 	          <div class="showcase-problem-head"><span>ТОП-1 проблема недели</span><div class="showcase-problem-count">${html(requestCount(topicCount))}</div></div>
 	          <h2>${html(topicName)}</h2>
 	          <div class="showcase-problem-meta">${html(topicCategory || 'Ключевая повторяющаяся тема')} · ${html(pct(topicShare))} от закрытых</div>
-	          <p>${html(topic.problemType || topic.rootCauseHypothesis || 'Команде нужно разобрать общий сценарий возникновения и устранения проблемы.')}</p>
-	          <div class="showcase-action"><span>Что закрепляем на следующую неделю</span><strong>${html(actionNeeded)}</strong></div>
+	          <p><b>Что происходило:</b> ${html(confirmedProblemFact)}</p>
+	          <div class="showcase-resolution"><span>Как решали по факту</span><strong>${html(confirmedResolutionText)}</strong><small>${html(resolutionEvidenceText)}</small></div>
+	          <div class="showcase-action${hasResolutionEvidence ? '' : ' is-gap'}"><span>${hasResolutionEvidence ? 'Следующее действие по результатам анализа' : 'Сначала собрать доказательства'}</span><strong>${html(actionNeeded)}</strong></div>
 	        </div>
 	      </div>
 	      <div class="showcase-footer">
 	        <div><span>Статус SLA</span><b>${html(currentState.label)}</b></div>
 	        <div><span>Решения описаны</span><b>${resolutionCoverage === null ? 'данные собираются' : html(pct(resolutionCoverage))}</b></div>
-	        <div class="showcase-message">Один кадр: результат команды → главная проблема → конкретное действие</div>
+	        <div class="showcase-message">Один кадр: результат → проблема → подтверждённое решение → действие</div>
 	      </div>
 	    </div>
 	    <div class="detail-divider">Детальный постмортем и доказательства</div>
@@ -630,7 +681,7 @@ const generateTopProblemPostmortemReport = ({
     <div class="team-snapshot">
       <div class="snapshot-item snapshot-status"><small>1. Что случилось</small><strong>${html(currentState.label)}: ${html(pct(worstSla))}</strong><span>${html(worstSlaLabel)} · до цели не хватает ${html(Math.max(primaryGap, resolutionGap).toFixed(1).replace('.0', ''))} п.п.</span></div>
       <div class="snapshot-item snapshot-cause"><small>2. Где фокус</small><strong>${html(topicName)}</strong><span>${html(topicCategory ? `${topicCategory} · ${topicEvidenceText}` : topicEvidenceText)}${topicSystems.length ? ` · ${html(topicSystems.join(', '))}` : ''}</span></div>
-      <div class="snapshot-item" style="border-top:5px solid #10b981"><small>3. Как решали</small><strong>${html(resolutionPatterns.length ? (typeof resolutionPatterns[0] === 'string' ? resolutionPatterns[0] : (resolutionPatterns[0].name || resolutionPatterns[0].resolution)) : 'Решение пока не зафиксировано')}</strong><span>Покрытие решений по примерам: ${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}</span></div>
+      <div class="snapshot-item" style="border-top:5px solid #10b981"><small>3. Как решали</small><strong>${html(confirmedResolutionText)}</strong><span>${html(resolutionEvidenceText)} · покрытие ${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}</span></div>
       <div class="snapshot-item snapshot-action"><small>4. Что закрепляем</small><strong>${html(actionNeeded)}</strong><span>${html(checkText)}</span></div>
     </div>
     <div class="kpi">
@@ -3450,11 +3501,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   const getThemeAction = (item) => {
     const existing = safeString(item?.actionNeeded);
     if (existing) return existing;
-    const text = `${safeString(item?.theme)} ${safeString(item?.route)} ${safeString(item?.mainRoute)}`.toLowerCase();
-    if (text.includes('доступ') || text.includes('прав')) return 'Проверить возможность расширения прав 1-й линии или добавить маршрут согласования в БЗ.';
-    if (text.includes('вход') || text.includes('учет') || text.includes('bpm') || text.includes('lotus') || text.includes('citrix')) return 'Обновить чек-лист первичной диагностики и закрепить карточку маршрутизации.';
-    if (text.includes('смеж') || text.includes('передано')) return 'Уточнить критерии передачи и минимальный набор данных для смежников.';
-    return 'Разобрать 3-5 типовых тикетов и решить: инструкция, обучение, права или маршрут.';
+    return '';
   };
   const getSupportLevel = (route) => {
     const text = safeString(route).toLowerCase();
@@ -3560,6 +3607,8 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       examples: Array.isArray(item.examples) ? item.examples : [],
       resolutionPatterns: Array.isArray(item.resolutionPatterns) ? item.resolutionPatterns : [],
       resolutionCoveragePercent: Number.isFinite(Number(item.resolutionCoveragePercent)) ? Number(item.resolutionCoveragePercent) : null,
+      actionPlan: item.actionPlan && typeof item.actionPlan === 'object' ? item.actionPlan : null,
+      actionDataGap: safeString(item.actionDataGap),
       rootCauseHypothesis: safeString(item.rootCauseHypothesis || item.rootCause || item.hypothesis),
       ownerRole: safeString(item.ownerRole || item.owner),
       count: Number(item.count) || 0,
