@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import html2canvas from 'html2canvas';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
   LineChart, Line
@@ -4612,6 +4611,35 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     );
   };
 
+  const loadHtml2Canvas = () => {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    if (window.__topReportHtml2CanvasPromise) return window.__topReportHtml2CanvasPromise;
+
+    window.__topReportHtml2CanvasPromise = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector('script[data-top-report-html2canvas]');
+      const script = existingScript || document.createElement('script');
+      const handleLoad = () => window.html2canvas
+        ? resolve(window.html2canvas)
+        : reject(new Error('html2canvas не появился после загрузки'));
+      const handleError = () => reject(new Error('Не удалось загрузить модуль экспорта изображений'));
+
+      script.addEventListener('load', handleLoad, { once: true });
+      script.addEventListener('error', handleError, { once: true });
+      if (!existingScript) {
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        script.dataset.topReportHtml2canvas = 'true';
+        document.head.appendChild(script);
+      }
+    }).catch(error => {
+      window.__topReportHtml2CanvasPromise = null;
+      throw error;
+    });
+
+    return window.__topReportHtml2CanvasPromise;
+  };
+
   const handleDownloadTopProblemImage = async (format = 'png') => {
     const frame = document.getElementById('top-report-preview-frame');
     const frameDocument = frame?.contentDocument;
@@ -4624,6 +4652,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     frameDocument.body.classList.add('image-export-mode');
 
     try {
+      const html2canvas = await loadHtml2Canvas();
       if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
