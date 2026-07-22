@@ -4664,7 +4664,9 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
 
       exportShell = frameDocument.createElement('div');
-      exportShell.className = 'scene-export-shell';
+      // Светлая premium-тема отчёта применяет стили через родителя email-dashboard-grid.
+      // Сохраняем этот контекст и в техническом контейнере PNG-экспорта.
+      exportShell.className = 'scene-export-shell email-dashboard-grid';
       exportShell.style.cssText = 'position:fixed;left:-20000px;top:0;width:1152px;height:648px;display:grid;place-items:center;overflow:hidden;background:#fff;z-index:-1;';
       const sceneClone = sourceScene.cloneNode(true);
       sceneClone.style.cssText += ';width:1104px;height:621px;min-height:621px;aspect-ratio:auto;margin:0;box-sizing:border-box;';
