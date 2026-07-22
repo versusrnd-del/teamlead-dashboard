@@ -665,6 +665,7 @@ const generateTopProblemPostmortemReport = ({
 	      /* Light executive premium: высокий контраст на белом фоне письма. */
 	      .email-dashboard-grid .showcase-frame{color:#0f172a;border-color:#d7e1ec}.email-dashboard-grid .showcase-frame:before{opacity:.55;background-image:linear-gradient(rgba(37,99,235,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(37,99,235,.055) 1px,transparent 1px)}.email-dashboard-grid .showcase-frame:after{border-color:rgba(37,99,235,.12);box-shadow:0 0 0 44px rgba(37,99,235,.025),0 0 0 88px rgba(37,99,235,.018)}.email-dashboard-grid .ops-showcase{background:radial-gradient(circle at 8% 8%,rgba(14,165,233,.13),transparent 29%),radial-gradient(circle at 92% 10%,rgba(37,99,235,.10),transparent 34%),linear-gradient(145deg,#ffffff,#f4f8fc 56%,#edf4fb);box-shadow:0 2px 5px rgba(15,23,42,.05),0 18px 42px rgba(30,64,175,.12),0 36px 78px rgba(15,23,42,.07)}.email-dashboard-grid .postmortem-showcase{background:radial-gradient(circle at 92% 8%,rgba(234,88,12,.11),transparent 31%),radial-gradient(circle at 8% 92%,rgba(124,58,237,.09),transparent 34%),linear-gradient(145deg,#ffffff,#fffaf5 58%,#f7f3ff);box-shadow:0 2px 5px rgba(15,23,42,.05),0 18px 42px rgba(124,58,237,.11),0 36px 78px rgba(15,23,42,.07)}.email-dashboard-grid .showcase-top{border-bottom-color:#dbe5ef}.email-dashboard-grid .showcase-brand{color:#0369a1}.email-dashboard-grid .showcase-period{color:#64748b}.email-dashboard-grid .showcase-period b{color:#0f172a}.email-dashboard-grid .showcase-kicker{color:#0369a1}.email-dashboard-grid .showcase-number,.email-dashboard-grid .showcase-number-label{color:#0f172a}.email-dashboard-grid .showcase-number-note{color:#64748b}.email-dashboard-grid .showcase-kpi{border-color:#dbe5ef;background:rgba(255,255,255,.88);box-shadow:0 8px 18px rgba(15,23,42,.05)}.email-dashboard-grid .showcase-kpi span{color:#64748b}.email-dashboard-grid .showcase-kpi b{color:#0f172a}.email-dashboard-grid .ops-control{border-color:#cbddeb;background:rgba(255,255,255,.82);box-shadow:0 16px 34px rgba(30,64,175,.09)}.email-dashboard-grid .ops-control-head{border-bottom-color:#dbe5ef}.email-dashboard-grid .ops-control-head span{color:#0369a1}.email-dashboard-grid .ops-ring:after{background:#fff;border-color:#dbe5ef}.email-dashboard-grid .ops-ring strong{color:#0f172a}.email-dashboard-grid .ops-ring span,.email-dashboard-grid .ops-sla-copy small{color:#64748b}.email-dashboard-grid .ops-sla-copy h2{color:#0f172a}.email-dashboard-grid .ops-sla-copy p{color:#475569}.email-dashboard-grid .ops-sla-card{border-color:#dbe5ef;background:#fff;box-shadow:0 7px 16px rgba(15,23,42,.045)}.email-dashboard-grid .ops-sla-card span{color:#64748b}.email-dashboard-grid .ops-sla-card b{color:#0f172a}.email-dashboard-grid .ops-phone-band{border-color:#fed7aa;background:linear-gradient(135deg,#fff7ed,#ffffff)}.email-dashboard-grid .ops-phone-mark{background:#ffedd5}.email-dashboard-grid .ops-phone-metric,.email-dashboard-grid .ops-phone-state{border-color:#e2e8f0}.email-dashboard-grid .ops-phone-metric span,.email-dashboard-grid .ops-phone-state span{color:#64748b}.email-dashboard-grid .ops-phone-metric b{color:#0f172a}.email-dashboard-grid .ops-phone-state small{color:#475569}.email-dashboard-grid .ops-footer div{border-color:#dbe5ef;background:rgba(255,255,255,.88)}.email-dashboard-grid .ops-footer span{color:#64748b}.email-dashboard-grid .ops-footer b{color:#0f172a}.email-dashboard-grid .pm-heading h2,.email-dashboard-grid .pm-count strong{color:#171327}.email-dashboard-grid .pm-count span{color:#9a3412}.email-dashboard-grid .pm-panel{border-color:#eadfd6;background:rgba(255,255,255,.88);box-shadow:0 14px 30px rgba(124,58,237,.06)}.email-dashboard-grid .pm-panel-label,.email-dashboard-grid .pm-breakdown-label{color:#64748b}.email-dashboard-grid .pm-fact strong{color:#171327}.email-dashboard-grid .pm-meta{color:#9a3412}.email-dashboard-grid .pm-symptom{border-color:#fed7aa;background:#fff7ed;color:#9a3412}.email-dashboard-grid .pm-breakdown{border-top-color:#e2e8f0}.email-dashboard-grid .pm-breakdown-row{background:#f8fafc}.email-dashboard-grid .pm-breakdown-row span{color:#334155}.email-dashboard-grid .pm-analysis-card{border-color:#e2e8f0;background:#fff;box-shadow:0 7px 16px rgba(15,23,42,.04)}.email-dashboard-grid .pm-analysis-card strong{color:#171327}.email-dashboard-grid .pm-analysis-card small{color:#64748b}.email-dashboard-grid .pm-evidence{border-color:#ddd6fe;background:#f5f3ff}.email-dashboard-grid .pm-evidence span{color:#6d28d9}.email-dashboard-grid .pm-evidence b{color:#312e81}
 	      .showcase-problem:before{content:"ТОП 01"}
+	      .image-export-mode .week-load-badge{border-color:#6ee7b7;background:#ecfdf5}.image-export-mode .ops-ring{box-shadow:0 0 20px rgba(239,68,68,.12)}.image-export-mode .ops-phone-band{border-color:#fed7aa;background:#fff7ed}.image-export-mode .ops-phone-mark{background:#ffedd5}
 	      /* Lotus compact: меньше габарит, те же шрифты, непрозрачные чистые поверхности. */
 	      .page{max-width:1120px;padding-top:18px}.email-sheet{padding:4px 4px 24px}.email-dashboard-grid{gap:30px}.email-dashboard-grid .showcase-frame{padding:28px;border-radius:22px;box-shadow:0 14px 34px rgba(15,23,42,.11)}.email-dashboard-grid .showcase-frame:before,.email-dashboard-grid .showcase-frame:after{display:none}.email-dashboard-grid .ops-showcase{background:#f7faff;box-shadow:0 14px 34px rgba(30,64,175,.11)}.email-dashboard-grid .postmortem-showcase{background:#fffaf6;box-shadow:0 14px 34px rgba(88,28,135,.10)}.email-dashboard-grid .ops-stage{gap:22px;margin-top:20px}.email-dashboard-grid .showcase-kpis{margin-top:11px}.email-dashboard-grid .ops-control{padding:18px;background:#fff;box-shadow:0 10px 24px rgba(30,64,175,.07)}.email-dashboard-grid .ops-sla-hero{padding:16px 0 13px}.email-dashboard-grid .showcase-kpi,.email-dashboard-grid .ops-sla-card,.email-dashboard-grid .ops-footer div,.email-dashboard-grid .pm-panel,.email-dashboard-grid .pm-analysis-card{background:#fff}.email-dashboard-grid .ops-footer{margin-top:14px}.email-dashboard-grid .pm-heading{margin:18px 0 14px}.email-dashboard-grid .pm-panel{box-shadow:0 9px 22px rgba(88,28,135,.05)}.email-dashboard-grid .pm-evidence{background:#f5f3ff}.email-brief{margin-top:28px}
 	      @media(max-width:820px){.meter-grid,.team-snapshot,.showcase-main,.showcase-footer,.ops-stage,.pm-story{grid-template-columns:1fr}.snapshot-item{border-right:0;border-bottom:1px solid var(--line)}.snapshot-item:last-child{border-bottom:0}.weekly-showcase,.showcase-frame{aspect-ratio:auto;min-height:0;padding:24px}.showcase-top{align-items:flex-start}.showcase-number{font-size:88px}.showcase-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.showcase-problem h2{font-size:31px}.ops-sla-hero{grid-template-columns:110px 1fr}.ops-ring{width:104px;height:104px}.ops-footer{grid-template-columns:1fr}.pm-heading{align-items:flex-start}.pm-heading h2{font-size:31px}.pm-count strong{font-size:32px}}
@@ -3113,6 +3114,7 @@ const PulseDashboard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, 
 const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, onWeekSelect, aiTaskMemory, embedded = false }) => {
   const [topReportPreview, setTopReportPreview] = useState('');
   const [topReportError, setTopReportError] = useState('');
+  const [topPngExporting, setTopPngExporting] = useState('');
 
   const normalizeRoute = (route) => {
     const text = safeString(route).trim();
@@ -4618,6 +4620,93 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     );
   };
 
+  const loadHtml2Canvas = () => {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    if (window.__topReportHtml2CanvasPromise) return window.__topReportHtml2CanvasPromise;
+
+    window.__topReportHtml2CanvasPromise = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector('script[data-top-report-html2canvas]');
+      const script = existingScript || document.createElement('script');
+      const handleLoad = () => window.html2canvas
+        ? resolve(window.html2canvas)
+        : reject(new Error('html2canvas не появился после загрузки'));
+      const handleError = () => reject(new Error('Не удалось загрузить модуль PNG'));
+
+      script.addEventListener('load', handleLoad, { once: true });
+      script.addEventListener('error', handleError, { once: true });
+      if (!existingScript) {
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        script.dataset.topReportHtml2canvas = 'true';
+        document.head.appendChild(script);
+      }
+    }).catch(error => {
+      window.__topReportHtml2CanvasPromise = null;
+      throw error;
+    });
+
+    return window.__topReportHtml2CanvasPromise;
+  };
+
+  const handleDownloadTopScenePng = async (sceneIndex, sceneName) => {
+    const frameDocument = document.getElementById('top-report-preview-frame')?.contentDocument;
+    const sourceScene = frameDocument?.querySelectorAll('.email-dashboard-grid .showcase-frame')?.[sceneIndex];
+    if (!frameDocument || !sourceScene || topPngExporting) return;
+
+    setTopPngExporting(sceneName);
+    setTopReportError('');
+    frameDocument.body.classList.add('image-export-mode');
+    let exportShell = null;
+
+    try {
+      const html2canvas = await loadHtml2Canvas();
+      if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
+
+      exportShell = frameDocument.createElement('div');
+      exportShell.className = 'scene-export-shell';
+      exportShell.style.cssText = 'position:fixed;left:-20000px;top:0;width:1152px;height:648px;display:grid;place-items:center;overflow:hidden;background:#fff;z-index:-1;';
+      const sceneClone = sourceScene.cloneNode(true);
+      sceneClone.style.cssText += ';width:1104px;height:621px;min-height:621px;aspect-ratio:auto;margin:0;box-sizing:border-box;';
+      exportShell.appendChild(sceneClone);
+      frameDocument.body.appendChild(exportShell);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      const canvas = await html2canvas(exportShell, {
+        backgroundColor: '#ffffff',
+        scale: 1,
+        useCORS: true,
+        logging: false,
+        width: 1152,
+        height: 648,
+        windowWidth: 1152,
+        windowHeight: 648
+      });
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('Не удалось сформировать PNG');
+
+      const weekNumber = weekData?.weekNumber || selectedWeekKey?.split('-')?.[1];
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      const periodSuffix = weekNumber ? `week_${weekNumber}` : dateStamp;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${sceneName}_${periodSuffix}.png`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('TOP-1 scene PNG export failed', error);
+      setTopReportError('Не удалось выгрузить PNG. Обновите страницу и снова откройте витрину.');
+    } finally {
+      exportShell?.remove();
+      frameDocument.body.classList.remove('image-export-mode');
+      setTopPngExporting('');
+    }
+  };
+
   return (
     <div className="animate-in fade-in duration-500 max-w-7xl pb-10">
       {topReportPreview && createPortal((
@@ -4636,6 +4725,24 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
               >
                 <DownloadCloud size={16} />
                 Скачать HTML
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadTopScenePng(0, 'service_metrics')}
+                disabled={Boolean(topPngExporting)}
+                className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-3 py-2 text-sm font-black text-slate-950 hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-60"
+              >
+                <DownloadCloud size={16} />
+                {topPngExporting === 'service_metrics' ? 'Готовим PNG…' : 'PNG показателей'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadTopScenePng(1, 'top1_postmortem')}
+                disabled={Boolean(topPngExporting)}
+                className="inline-flex items-center gap-2 rounded-lg border border-violet-400/50 bg-violet-500/15 px-3 py-2 text-sm font-bold text-violet-100 hover:bg-violet-500/25 disabled:cursor-wait disabled:opacity-60"
+              >
+                <DownloadCloud size={16} />
+                {topPngExporting === 'top1_postmortem' ? 'Готовим PNG…' : 'PNG ТОП-1'}
               </button>
               <button
                 type="button"
