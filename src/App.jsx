@@ -340,6 +340,7 @@ const generateTopProblemPostmortemReport = ({
   slaByRoute = [],
   relatedCases = [],
   subProblems = [],
+  problemAnalytics = {},
   medianResolutionMinutes = null,
   phoneAvgMinutes = 5,
   telephony = {},
@@ -636,12 +637,37 @@ const generateTopProblemPostmortemReport = ({
   const compactActionText = hasResolutionEvidence
     ? actionNeeded
     : 'Разбор решения пока не готов. Собрать минимум 3 обращения с контекстом проблемы и итоговым комментарием исполнителя.';
+  const analyticsTypes = Array.isArray(problemAnalytics?.types) ? problemAnalytics.types.slice(0, 7) : [];
+  const analyticsResolutions = Array.isArray(problemAnalytics?.resolutions) ? problemAnalytics.resolutions.slice(0, 7) : [];
+  const analyticsAnalyzedCount = num(problemAnalytics?.analyzedCount);
+  const analyticsCoverage = topicCount > 0 ? Math.min(100, analyticsAnalyzedCount * 100 / topicCount) : 0;
+  const repeatGroups = problemAnalytics?.repeatGroups && typeof problemAnalytics.repeatGroups === 'object' ? problemAnalytics.repeatGroups : {};
+  const analyticsBarRows = (items, color) => items.length
+    ? items.map(item => `<div class="analytics-row"><div class="analytics-row-head"><span>${html(item.name)}</span><b>${html(requestCount(item.count))} · ${html(pct(item.share))}</b></div><div class="analytics-track"><i style="width:${Math.max(3, Math.min(100, num(item.share)))}%;background:${color}"></i></div>${Array.isArray(item.evidenceIds) && item.evidenceIds.length ? `<small>${html(item.evidenceIds.slice(0, 6).join(' · '))}</small>` : ''}</div>`).join('')
+    : '<div class="analytics-empty">В доступных примерах нет данных для группировки.</div>';
+  const renderRepeatPanel = (title, items, emptyText) => {
+    const rows = Array.isArray(items) ? items.slice(0, 6) : [];
+    return `<div class="repeat-panel"><div class="repeat-title">${html(title)}</div>${rows.length ? rows.map(item => `<div class="repeat-row"><div><b>${html(item.name)}</b><small>${html((item.evidenceIds || []).slice(0, 5).join(' · '))}</small></div><strong>${html(item.count)}×</strong></div>`).join('') : `<div class="analytics-empty">${html(emptyText)}</div>`}</div>`;
+  };
+  const dominantType = analyticsTypes[0];
+  const missingResolution = analyticsResolutions.find(item => item.confirmed === false || /не описан/i.test(safeString(item.name)));
+  const repeatSignals = [
+    ...(Array.isArray(repeatGroups.offices) ? repeatGroups.offices : []),
+    ...(Array.isArray(repeatGroups.devices) ? repeatGroups.devices : []),
+    ...(Array.isArray(repeatGroups.requesters) ? repeatGroups.requesters : [])
+  ].sort((a, b) => num(b.count) - num(a.count));
+  const attentionCards = [
+    dominantType ? { label: 'Главный сценарий в выборке', value: dominantType.name, note: `${requestCount(dominantType.count)} из ${requestCount(analyticsAnalyzedCount)} разобранных` } : null,
+    missingResolution ? { label: 'Пробел в комментариях', value: `${requestCount(missingResolution.count)} без хода решения`, note: 'По этим обращениям нельзя подтвердить причину и переиспользуемый способ устранения.' } : null,
+    repeatSignals[0] ? { label: 'Самый сильный повтор', value: `${repeatSignals[0].name} · ${repeatSignals[0].count}×`, note: `Связанные обращения: ${(repeatSignals[0].evidenceIds || []).slice(0, 5).join(', ')}` } : null
+  ].filter(Boolean);
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Постмортем ТОП-1 проблемы</title><style>
     :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--blue:#2563eb}
     *{box-sizing:border-box}body{margin:0;background:#eef2f7;color:var(--ink);font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;line-height:1.48}.page{max-width:1120px;margin:0 auto;padding:34px 28px 56px}
     .hero{background:radial-gradient(circle at 78% 18%,rgba(56,189,248,.30),transparent 28%),linear-gradient(135deg,#0f172a,#102033 54%,#13294b);color:#fff;border-radius:28px;padding:34px;box-shadow:0 28px 70px rgba(15,23,42,.22);overflow:hidden}
     .hero-grid{display:grid;grid-template-columns:1fr 1.22fr;gap:30px;align-items:center}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:900;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 10px}.subtitle{margin:0;color:#dbeafe;font-size:16px}.meter-grid{display:grid;grid-template-columns:1fr;gap:14px}.pulse,.phone-pulse{position:relative;border:1px solid rgba(255,255,255,.16);border-top:4px solid ${currentState.color};background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.045));border-radius:24px;padding:16px;min-height:178px;overflow:hidden;display:grid;grid-template-columns:120px 1fr;grid-template-areas:"head head" "visual title" "visual note" "visual target";column-gap:18px;align-items:center}.phone-pulse{border-top-color:var(--phone);background:linear-gradient(135deg,rgba(14,165,233,.12),rgba(255,255,255,.045))}.pulse:before,.phone-pulse:before{content:"";position:absolute;inset:-70px auto auto -70px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.14),transparent 62%)}.meter-head{grid-area:head;position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.12)}.meter-head span{display:block;color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.12em;font-weight:900}.meter-head em{display:block;color:#bfdbfe;font-size:10px;font-style:normal;text-align:right;line-height:1.25}.orb,.phone-art{grid-area:visual;position:relative;width:108px;height:108px;border-radius:50%;margin:0;background:radial-gradient(circle at 36% 32%,#fff,${currentState.color} 28%,#111827 74%);box-shadow:0 0 32px ${currentState.color},inset 0 0 24px rgba(255,255,255,.18)}.orb:after,.phone-art:after{content:"";position:absolute;inset:-8px;border:1px solid rgba(255,255,255,.14);border-radius:50%}.phone-art{background:radial-gradient(circle at 38% 32%,rgba(255,255,255,.92),var(--phone) 34%,#0f172a 76%);box-shadow:0 0 32px var(--phone),inset 0 0 24px rgba(255,255,255,.16);display:grid;place-items:center}.phone-art:before{content:"";position:absolute;inset:20px;border-radius:50%;border:1px solid rgba(255,255,255,.18)}.phone-wave,.phone-core{display:none}.phone-svg{position:relative;z-index:1;width:52px;height:52px;fill:#fff;filter:drop-shadow(0 8px 16px rgba(0,0,0,.38))}.missed-badge{position:absolute;z-index:2;right:-6px;top:-6px;min-width:34px;height:28px;border-radius:999px;background:var(--phone);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:900;box-shadow:0 8px 18px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.45)}.pulse-title{grid-area:title;text-align:left;font-size:21px;font-weight:900;color:#fff;align-self:end}.pulse-note{grid-area:note;text-align:left;color:#cbd5e1;font-size:12px;margin-top:3px;min-height:0;align-self:start}.sla-target{grid-area:target;margin-top:8px;text-align:left;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:10px 12px}.sla-target b{display:block;font-size:28px;color:#fff;line-height:1.05}.sla-target span{font-size:10px;color:#dbeafe;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.scale-label{margin:22px 0 8px;color:#93c5fd;font-size:11px;text-transform:uppercase;letter-spacing:.14em;font-weight:900}.traffic{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.state{border:1px solid rgba(255,255,255,.12);border-top:5px solid var(--c);border-radius:16px;padding:10px;background:rgba(255,255,255,.08)}.state b{display:block;font-size:12px}.state span{display:block;color:#cbd5e1;font-size:10px;margin-top:3px}.kpi{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0}.card,section{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 28px rgba(15,23,42,.05)}.card{padding:16px}.card small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.card strong{display:block;font-size:27px;margin-top:6px;color:#102033}.flow{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr 34px 1fr;align-items:stretch;gap:8px;margin:16px 0}.flow-step{border:1px solid var(--line);border-top:5px solid var(--c);border-radius:18px;padding:16px;background:#fff}.flow-step small{display:block;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.flow-step b{display:block;font-size:21px;margin:6px 0;color:#102033}.flow-step p{font-size:12px;color:#475569}.arrow{display:grid;place-items:center;color:#64748b;font-size:28px;font-weight:900}.drop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.drop-card{border:1px solid var(--line);border-left:6px solid ${currentState.color};border-radius:16px;padding:14px;background:#fff}.drop-card small{display:block;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.drop-card b{display:block;font-size:16px;margin:5px 0;color:#102033}.modal-toggle{display:none}.modal{display:none;position:fixed;z-index:50;inset:0;background:rgba(15,23,42,.72);padding:36px;overflow:auto}.modal-toggle:checked+.modal{display:block}.modal-panel{max-width:980px;margin:0 auto;background:#fff;border-radius:24px;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.35)}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:14px}.modal-close,.modal-open{display:inline-block;cursor:pointer;border:0;border-radius:999px;font-weight:900}.modal-close{background:#0f172a;color:#fff;padding:9px 13px}.modal-open{margin-top:12px;background:#102033;color:#fff;padding:10px 15px;box-shadow:0 10px 22px rgba(15,23,42,.18)}.signal-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.signal-strip div{border:1px solid #dbeafe;background:linear-gradient(135deg,#f8fbff,#fff);border-radius:14px;padding:12px}.signal-strip b{display:block;color:#1d4ed8}section{padding:22px;margin:16px 0}h2{font-size:21px;margin:0 0 12px}p{margin:0 0 10px}.note{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px;color:#334155}.focus{border-left:6px solid ${currentState.color};background:${currentState.bg};padding:16px;border-radius:16px;color:#102033}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:900}.muted{color:#64748b}.plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.plan div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px}.plan b{display:block;color:#1d4ed8;margin-bottom:6px}@media(max-width:980px){.hero-grid{grid-template-columns:1fr}}@media(max-width:820px){.kpi,.traffic,.plan,.flow,.drop-grid,.signal-strip{grid-template-columns:1fr}.pulse,.phone-pulse{grid-template-columns:1fr;grid-template-areas:"head" "visual" "title" "note" "target";text-align:center}.orb,.phone-art{margin:0 auto}.pulse-title,.pulse-note,.sla-target{text-align:center}.arrow{display:none}h1{font-size:30px}.modal{padding:16px}}@media print{body{background:#fff}.page{padding:0}.hero,section,.card{box-shadow:none;break-inside:avoid}.modal{display:block;position:static;background:#fff;padding:0}.modal-close,.modal-open{display:none}}
+    .analytics-coverage{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;margin-bottom:16px;padding:14px;border:1px solid #bfdbfe;border-radius:16px;background:#f8fbff}.analytics-coverage strong{font-size:30px;color:#1d4ed8}.analytics-coverage span{display:block;color:#334155;font-weight:900}.analytics-coverage small{display:block;color:#64748b;margin-top:3px}.analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.analytics-card{border:1px solid #dbe5ef;border-radius:18px;padding:16px;background:#fff}.analytics-card h3{margin:0 0 12px;font-size:15px}.analytics-row{margin:11px 0}.analytics-row-head{display:flex;justify-content:space-between;gap:12px;font-size:12px}.analytics-row-head span{font-weight:800}.analytics-row-head b{white-space:nowrap}.analytics-track{height:10px;margin-top:6px;background:#e8eef5;border-radius:999px;overflow:hidden}.analytics-track i{display:block;height:100%;border-radius:999px}.analytics-row small{display:block;margin-top:4px;color:#94a3b8;font-size:9px}.repeat-grid,.attention-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.repeat-panel,.attention-card{border:1px solid #dbe5ef;border-radius:16px;padding:14px;background:#fbfdff}.repeat-title{color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;margin-bottom:8px}.repeat-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #edf2f7}.repeat-row:first-of-type{border-top:0}.repeat-row b,.repeat-row small{display:block}.repeat-row b{font-size:12px}.repeat-row small{margin-top:2px;color:#94a3b8;font-size:9px}.repeat-row strong{font-size:19px;color:#7c3aed}.analytics-empty{color:#94a3b8;font-size:12px;padding:8px 0}.attention-card span{display:block;color:#9a3412;font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.attention-card b{display:block;margin-top:6px;font-size:15px}.attention-card small{display:block;margin-top:5px;color:#64748b}.analytics-warning{margin-top:14px;padding:12px 14px;border:1px solid #fcd34d;border-radius:14px;background:#fffbeb;color:#92400e;font-size:12px}@media(max-width:820px){.analytics-grid,.repeat-grid,.attention-grid{grid-template-columns:1fr}}
   </style></head><body><main class="page">
 	    <style>
 	      .hero-grid{grid-template-columns:1fr;gap:22px}.meter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -781,8 +807,22 @@ const generateTopProblemPostmortemReport = ({
     </div>
     <div class="flow"><div class="flow-step" style="--c:#2563eb"><small>Поток</small><b>${html(count(totalClosed))}</b><p>закрыто за неделю</p></div><div class="arrow">→</div><div class="flow-step" style="--c:${primarySla >= 95 ? '#10b981' : currentState.color}"><small>Взятие ≤15 мин</small><b>${html(pct(primarySla))}</b><p>${primaryGap > 0 ? `не хватает ${primaryGap.toFixed(1).replace('.0', '')} п.п.` : 'цель выполнена'}</p></div><div class="arrow">→</div><div class="flow-step" style="--c:${resolutionSla >= 95 ? '#10b981' : currentState.color}"><small>Решение в срок</small><b>${html(pct(resolutionSla))}</b><p>${resolutionGap > 0 ? `не хватает ${resolutionGap.toFixed(1).replace('.0', '')} п.п.` : 'цель выполнена'}</p></div><div class="arrow">→</div><div class="flow-step" style="--c:#8b5cf6"><small>ТОП-1 узкое место</small><b>${html(count(topicCount))}</b><p>${html(topicName)}</p></div></div>
     <section><h2>Почему просел SLA на прошлой неделе</h2><div class="drop-grid">${slaDropCards.map(item => `<div class="drop-card"><small>${html(item.title)}</small><b>${html(item.value)}</b><p>${html(item.text)}</p></div>`).join('')}</div></section>
+    <section><h2>Аналитика ТОП-1: что именно повторялось</h2>
+      <div class="analytics-coverage"><strong>${html(Math.round(analyticsAnalyzedCount))}/${html(Math.round(topicCount))}</strong><div><span>обращений имеют доступный контекст для детальной группировки · покрытие ${html(pct(analyticsCoverage))}</span><small>Проценты на диаграммах считаются только по разобранным обращениям и не экстраполируются на весь ТОП-1.</small></div></div>
+      <div class="analytics-grid">
+        <div class="analytics-card"><h3>Типы проблемы по заголовкам, описаниям и комментариям</h3>${analyticsBarRows(analyticsTypes, 'linear-gradient(90deg,#2563eb,#38bdf8)')}</div>
+        <div class="analytics-card"><h3>Как фактически восстанавливали работу</h3>${analyticsBarRows(analyticsResolutions, 'linear-gradient(90deg,#7c3aed,#f97316)')}</div>
+      </div>
+      <div class="repeat-grid">
+        ${renderRepeatPanel('Повторы по допофисам', repeatGroups.offices, 'Допофис не указан либо повторов по одному офису не найдено.')}
+        ${renderRepeatPanel('Повторы по устройствам', repeatGroups.devices, 'Имя принтера/МФУ не указано либо повторов по одному устройству не найдено.')}
+        ${renderRepeatPanel('Повторы от заявителей', repeatGroups.requesters, 'Заявитель не передан в данных либо повторных обращений одного сотрудника не найдено.')}
+      </div>
+      ${attentionCards.length ? `<div class="attention-grid">${attentionCards.map(item => `<div class="attention-card"><span>${html(item.label)}</span><b>${html(item.value)}</b><small>${html(item.note)}</small></div>`).join('')}</div>` : ''}
+      <div class="analytics-warning">Если офис, устройство или заявитель скрыты в выгрузке либо заменены маркерами [HOST]/[USER], отчёт честно показывает отсутствие данных. Для анализа повторов нужны отдельные поля office, device и requester в примерах ТОП-1.</div>
+    </section>
     <input class="modal-toggle" type="checkbox" id="top-breakdown-modal">
-    <div class="modal"><div class="modal-panel"><div class="modal-head"><div><h2>Расшифровка ТОП-проблемы</h2><p class="muted">${html(topicName)} · разбивка для постмортема команды</p></div><label class="modal-close" for="top-breakdown-modal">Закрыть</label></div><table><thead><tr><th>Подтема / сигнал</th><th>Кол-во</th><th>Доля</th><th>Что видно по смыслу</th><th>Что делаем</th></tr></thead><tbody>${subProblemRows}</tbody></table><div class="note" style="margin-top:12px">Если в JSON нет примеров обращений по теме, эта разбивка является рабочей гипотезой для понедельничного разбора. После постмортема ее нужно подтвердить 3-5 реальными обращениями.</div></div></div>
+    <div class="modal"><div class="modal-panel"><div class="modal-head"><div><h2>Расшифровка ТОП-проблемы</h2><p class="muted">${html(topicName)} · фактическая разбивка доступных обращений</p></div><label class="modal-close" for="top-breakdown-modal">Закрыть</label></div><table><thead><tr><th>Подтема / сигнал</th><th>Кол-во</th><th>Доля</th><th>Что видно по смыслу</th><th>Что делаем</th></tr></thead><tbody>${subProblemRows}</tbody></table><div class="note" style="margin-top:12px">Разбивка построена по ${html(requestCount(analyticsAnalyzedCount))} с доступным контекстом из ${html(requestCount(topicCount))} ТОП-темы. Неописанная часть не распределяется по категориям предположительно.</div></div></div>
     <section><h2>Короткий вывод для команды</h2><div class="focus"><strong>${html(topicName)}</strong><br>Разбираем не только саму проблему, но и фактический путь устранения: диагностика, действие, маршрут и переиспользуемый шаг. На неделю закрепляем одно изменение и проверяем эффект по SLA и доле помощи выше 1-й линии.<br><label class="modal-open" for="top-breakdown-modal">Открыть расшифровку ТОП-проблемы</label></div><div class="signal-strip"><div><b>1. Что повторяется</b><span class="muted">${html(topicName)}</span></div><div><b>2. Как реально решали</b><span class="muted">${resolutionCoverage === null ? 'нужно заполнить ход решения' : `${html(pct(resolutionCoverage))} примеров с решением`}</span></div><div><b>3. Что закрепляем</b><span class="muted">${html(actionNeeded)}</span></div></div></section>
     <section><h2>Обращения ТОП-проблемы: от симптома до решения</h2><div class="note" style="margin-bottom:12px">Каждая строка связывает исходную проблему с очищенным комментарием исполнителя. Сообщения ServiceDesk, автоматические проверки, просьбы оценить и формальные ответы исключены.</div><table><thead><tr><th>Тикет / исполнитель</th><th>Что произошло</th><th>Диагностика</th><th>Как решено</th><th>Маршрут / SLA</th><th>Что в БЗ</th></tr></thead><tbody>${caseRows}</tbody></table></section>
     <section><h2>Повторяющиеся способы решения</h2><div class="note" style="margin-bottom:12px"><strong>Покрытие решений по обращениям ТОП-проблемы:</strong> ${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}. Здесь остаются только подтвержденные действия, связанные с обращениями этой темы.</div><div class="plan">${resolutionPatternCards}</div></section>
@@ -4375,14 +4415,114 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   ].filter(Boolean).join(' ')).toLowerCase().replace(/ё/g, 'е');
 
   const classifyPostmortemSubtype = (item = {}, fallbackTopic = '') => {
-    const text = `${getPostmortemCaseText(item)} ${safeString(fallbackTopic).toLowerCase()}`;
-    if (text.includes('печ') || text.includes('принт') || text.includes('мфу') || text.includes('скан')) return { name: 'Печать / МФУ / сканирование', meaning: 'Повторяются обращения по печати, доступности устройств или сканированию.', action: 'Собрать чек-лист первичной диагностики и типовые шаги восстановления.' };
+    const itemText = getPostmortemCaseText(item);
+    const fallbackText = safeString(fallbackTopic).toLowerCase().replace(/ё/g, 'е');
+    const text = `${itemText} ${fallbackText}`;
+    const isPrintingTopic = /печ|принт|мфу|скан/.test(text);
+    if (isPrintingTopic) {
+      if (/скан|папк.*скан|scan/.test(itemText)) return { name: 'Сканирование и папки', meaning: 'Сканирование не запускается или файл не попадает в целевую папку.', action: 'Проверить путь, доступ и права записи учетной записи МФУ.' };
+      if (/очеред|spool|диспетчер печати|завис|висит|не выход/.test(itemText)) return { name: 'Очередь печати / Print Spooler', meaning: 'Документы зависают в очереди или служба печати не обрабатывает задания.', action: 'Проверить очередь и состояние Print Spooler до переподключения устройства.' };
+      if (/установ|подключ|переподключ|настро|пропал|сбил|по умолч/.test(itemText)) return { name: 'Подключение и настройки принтера', meaning: 'Устройство отсутствует в сессии, выбрано неверно или требует повторной настройки.', action: 'Проверить наличие устройства, принтер по умолчанию и выполнить переподключение.' };
+      if (/драйвер|driver/.test(itemText)) return { name: 'Драйвер печати', meaning: 'Работа нарушена из-за драйвера или его конфигурации.', action: 'Проверить версию и состояние драйвера, затем выполнить контролируемую переустановку.' };
+      if (/картридж|тонер|бумаг|замят|полос|бледн|качест/.test(itemText)) return { name: 'Расходники и качество печати', meaning: 'Проблема связана с бумагой, расходниками или качеством отпечатка.', action: 'Отделить техническую настройку от заявки на обслуживание оборудования.' };
+      if (/касс|чек|этикет|термо|спец/.test(itemText)) return { name: 'Специальная печать', meaning: 'Обращение относится к кассовой, чековой или другой специализированной печати.', action: 'Использовать отдельный маршрут и перечень обязательной диагностики.' };
+      if (/не печат|печать.*не работ|принтер.*не работ/.test(itemText)) return { name: 'Принтер не печатает', meaning: 'Зафиксирован общий отказ печати без достаточной технической детализации.', action: 'В комментарии фиксировать результат проверки очереди, подключения и доступности устройства.' };
+      return { name: 'Прочие обращения по периферии', meaning: 'Тема относится к печати или периферии, но точный сценарий из текста не определён.', action: 'Уточнить симптом, устройство и фактический шаг восстановления.' };
+    }
     if (text.includes('доступ') || text.includes('прав') || text.includes('учет') || text.includes('парол')) return { name: 'Доступы / права / учетные записи', meaning: 'Тема упирается в доступы, права или учетные записи.', action: 'Проверить права 1-й линии и маршрут согласования в IDM.' };
     if (text.includes('lotus') || text.includes('bpm') || text.includes('citrix') || text.includes('вход') || text.includes('запуск')) return { name: 'Вход / запуск бизнес-приложений', meaning: 'Проблема связана с запуском, входом или первичной диагностикой приложения.', action: 'Обновить карточку диагностики и критерии передачи выше.' };
     if (text.includes('диск') || text.includes('файл') || text.includes('папк') || text.includes('сетев')) return { name: 'Файлы / сетевые ресурсы', meaning: 'Повторяются обращения по файлам, папкам или сетевым ресурсам.', action: 'Зафиксировать типовые проверки доступа и доступности ресурса.' };
     if (text.includes('звон') || text.includes('голос') || text.includes('телефон')) return { name: 'Телефония / голосовые обращения', meaning: 'Нагрузка приходит через голосовой канал или связана с маршрутизацией звонков.', action: 'Уточнить связь звонок -> тикет и шаблон регистрации.' };
     if (text.includes('ошиб') || text.includes('сбой') || text.includes('недоступ') || text.includes('не работает')) return { name: 'Сбой / недоступность сервиса', meaning: 'Пользователь видит отказ или нестабильность сервиса.', action: 'Разделить массовый сбой и индивидуальный кейс, добавить признаки эскалации.' };
     return { name: 'Типовые обращения без уточненной подкатегории', meaning: 'Данных достаточно для фокуса, но подтип нужно уточнить по примерам тикетов.', action: 'На постмортеме разметить 3-5 кейсов и обновить правило классификации.' };
+  };
+
+  const classifyPostmortemResolution = (item = {}) => {
+    const text = safeString([
+      item.resolution,
+      item.solution,
+      item.resolutionText,
+      item.comment,
+      item.diagnosis,
+      item.reusableStep
+    ].filter(Boolean).join(' ')).toLowerCase().replace(/ё/g, 'е');
+    const meaningful = text.length >= 12 && !/^(?:не зафиксировано|нет данных|готово|решено|закрыто|выполнено)[.\s!]*$/i.test(text);
+    if (!meaningful) return { name: 'Ход решения не описан', confirmed: false };
+    if (/spool|диспетчер печати|очеред.*(?:очист|перезап|удал)|перезап.*служб/.test(text)) return { name: 'Восстановили Print Spooler / очередь', confirmed: true };
+    if (/переподключ|подключ.*принтер|установ.*принтер|добав.*принтер/.test(text)) return { name: 'Подключили или переподключили принтер', confirmed: true };
+    if (/драйвер|driver/.test(text)) return { name: 'Исправили или переустановили драйвер', confirmed: true };
+    if (/ip|адрес|сетев|пинг|dns/.test(text)) return { name: 'Исправили сетевую настройку / IP', confirmed: true };
+    if (/прав|доступ|групп/.test(text)) return { name: 'Исправили права или доступ', confirmed: true };
+    if (/сесси|перезаш|перезап.*(?:пк|компьютер|сеанс)/.test(text)) return { name: 'Перезапустили пользовательскую сессию', confirmed: true };
+    if (/папк|скан/.test(text)) return { name: 'Настроили сканирование / папку', confirmed: true };
+    return { name: 'Другое подтверждённое действие', confirmed: true };
+  };
+
+  const normalizePostmortemEntity = (value) => safeString(value)
+    .replace(/\[(?:HOST|USER|LOGIN|PATH|IP)[^\]]*\]/gi, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s:;,.#№-]+|[\s:;,.]+$/g, '')
+    .trim();
+
+  const extractPostmortemEntity = (item = {}, kind = 'office') => {
+    const pick = (keys) => {
+      for (const key of keys) {
+        const value = normalizePostmortemEntity(item?.[key]);
+        if (value) return value;
+      }
+      return '';
+    };
+    const text = safeString([item.title, item.summary, item.description, item.problemContext, item.comments, item.comment].filter(Boolean).join(' '));
+    if (kind === 'office') {
+      const explicit = pick(['office', 'location', 'branch', 'branchOffice', 'departmentOffice', 'requesterOffice', 'site']);
+      if (explicit) return explicit;
+      const match = text.match(/\b(?:доп(?:олнительный)?\s*офис|допофис|ДО)\s*[№#-]?\s*(?!БРЫЙ\b)([А-ЯЁA-Z][А-ЯЁA-Za-zа-яё0-9 _.-]{2,36}?)(?=\s*(?:[,;.!()]|$))/);
+      return normalizePostmortemEntity(match?.[1]);
+    }
+    if (kind === 'requester') return pick(['requester', 'reporter', 'customer', 'initiator', 'authorName', 'employee', 'userName']);
+    const explicit = pick(['printer', 'printerName', 'device', 'deviceName', 'equipment', 'assetName', 'ciName', 'objectName']);
+    if (explicit) return explicit;
+    const candidates = text.match(/\b(?:KAZNA\d+|KREDIT\d+|HP\s+\d+(?:\s+[A-ZА-Яa-zа-я]+\s+\d+)?|[A-ZА-Яa-zа-я]{2,}[-_]?[0-9]{1,4}[A-ZА-Яa-zа-я0-9_-]*)\b/gi) || [];
+    const candidate = candidates.find(value => !/^(?:IS-|cibten|winserver|host|u\d+)/i.test(value));
+    return normalizePostmortemEntity(candidate);
+  };
+
+  const buildPostmortemAnalytics = (cases = [], topic = {}) => {
+    const uniqueCases = [...new Map(cases.map((item, index) => [safeString(item?.id || item?.key || item?.issueKey) || `case-${index}`, item])).values()];
+    const aggregate = (items, resolver, { repeatedOnly = false } = {}) => {
+      const map = new Map();
+      items.forEach(item => {
+        const resolved = resolver(item);
+        const name = normalizePostmortemEntity(typeof resolved === 'string' ? resolved : resolved?.name);
+        if (!name) return;
+        const key = name.toLowerCase();
+        const current = map.get(key) || { ...(typeof resolved === 'object' ? resolved : {}), name, count: 0, evidenceIds: [] };
+        current.count += 1;
+        const id = safeString(item?.id || item?.key || item?.issueKey).trim();
+        if (id && !current.evidenceIds.includes(id)) current.evidenceIds.push(id);
+        map.set(key, current);
+      });
+      return [...map.values()]
+        .filter(item => !repeatedOnly || item.count > 1)
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ru'));
+    };
+    const types = aggregate(uniqueCases, item => classifyPostmortemSubtype(item, topic.focusTitle || topic.theme));
+    const resolutions = aggregate(uniqueCases, classifyPostmortemResolution);
+    const repeatGroups = {
+      offices: aggregate(uniqueCases, item => extractPostmortemEntity(item, 'office'), { repeatedOnly: true }),
+      devices: aggregate(uniqueCases, item => extractPostmortemEntity(item, 'device'), { repeatedOnly: true }),
+      requesters: aggregate(uniqueCases, item => extractPostmortemEntity(item, 'requester'), { repeatedOnly: true })
+    };
+    const confirmedResolutionCount = resolutions.filter(item => item.confirmed).reduce((sum, item) => sum + item.count, 0);
+    return {
+      analyzedCount: uniqueCases.length,
+      topicCount: Number(topic.count) || 0,
+      types: types.map(item => ({ ...item, share: uniqueCases.length ? roundMetric(item.count * 100 / uniqueCases.length, 1) : 0 })),
+      resolutions: resolutions.map(item => ({ ...item, share: uniqueCases.length ? roundMetric(item.count * 100 / uniqueCases.length, 1) : 0 })),
+      repeatGroups,
+      confirmedResolutionCount,
+      resolutionCoveragePercent: uniqueCases.length ? roundMetric(confirmedResolutionCount * 100 / uniqueCases.length, 1) : 0
+    };
   };
 
   const createFallbackPostmortemSubProblems = (topic = {}) => {
@@ -4512,6 +4652,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     const rawCaseCandidates = [
       ...(Array.isArray(weekData?.topIncidents) ? weekData.topIncidents : []),
       ...(Array.isArray(weekData?.slaBreachDetails) ? weekData.slaBreachDetails : []),
+      ...(Array.isArray(weekData?.trainingSection?.topProblemAnalytics?.examples) ? weekData.trainingSection.topProblemAnalytics.examples : []),
       ...(Array.isArray(weekData?.trainingSection?.bottleneckThemes) ? weekData.trainingSection.bottleneckThemes.flatMap(item => Array.isArray(item?.examples) ? item.examples : []) : []),
       ...(Array.isArray(selectedTraining?.resolutionCommentAudit?.examples) ? selectedTraining.resolutionCommentAudit.examples : [])
     ];
@@ -4543,9 +4684,10 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       .filter(entry => entry.score > 0 || rawCases.length <= 8)
       .sort((a, b) => b.score - a.score)
       .map(entry => entry.item);
-    const relatedCases = scoredCases
+    const analyticsCases = scoredCases
       .filter(item => safeString(item?.id || item?.key || item?.issueKey).trim())
-      .slice(0, 16);
+      .slice(0, 250);
+    const relatedCases = analyticsCases.slice(0, 24);
     const subtypeMap = new Map();
     relatedCases.forEach(item => {
       const meta = classifyPostmortemSubtype(item, topic.focusTitle || topic.theme);
@@ -4562,12 +4704,11 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       .slice(0, 5)
       .map(item => ({
         ...item,
-        share: Number(topic.count) > 0 ? roundMetric(item.count * 100 / Number(topic.count), 1) : 0
+        share: analyticsCases.length > 0 ? roundMetric(item.count * 100 / analyticsCases.length, 1) : 0
       }));
-    const subProblems = builtSubProblems.length <= 1 && Number(topic.count) > 0
-      ? createFallbackPostmortemSubProblems(topic)
-      : builtSubProblems;
-    return { topic, relatedCases, subProblems };
+    const subProblems = builtSubProblems;
+    const problemAnalytics = buildPostmortemAnalytics(analyticsCases, topic);
+    return { topic, relatedCases, subProblems, problemAnalytics };
   };
 
   const downloadGeneratedHtml = (content, filename) => {
@@ -4636,6 +4777,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
           : [],
         relatedCases: Array.isArray(postmortem.relatedCases) ? postmortem.relatedCases : [],
         subProblems: Array.isArray(postmortem.subProblems) ? postmortem.subProblems : [],
+        problemAnalytics: postmortem.problemAnalytics && typeof postmortem.problemAnalytics === 'object' ? postmortem.problemAnalytics : {},
         medianResolutionMinutes: null,
         phoneAvgMinutes: planningCapacityConfig?.phoneCallAvgMinutes,
         telephony: periodAnalytics?.telephony && typeof periodAnalytics.telephony === 'object' ? periodAnalytics.telephony : {},
