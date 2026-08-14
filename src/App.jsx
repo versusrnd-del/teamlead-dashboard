@@ -9327,7 +9327,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
   const getProjectTaskReportComment = (value) => {
     const comment = cleanWordReportText(value);
-    return /^в\s+работе[.!…]*$/i.test(comment) ? '' : comment;
+    const isPlaceholder = /^(?:в\s+работе|добавьте\s+(?:краткий|короткий)\s+статус)[.!…]*$/i.test(comment);
+    return isPlaceholder ? '' : comment;
   };
 
   const getManagementTasks = (projectOverrides = {}) => (projectTasks || [])
