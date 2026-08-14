@@ -10350,17 +10350,19 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                                 >
                                   {task.title}
                                 </div>
-                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                                  <span
-                                    data-word-project-comment="true"
-                                    contentEditable
-                                    suppressContentEditableWarning
-                                    onBlur={(event) => handleUpdateProjectTaskField(task.id, 'comment', event.currentTarget.innerText)}
-                                    className="min-w-[180px] outline-none border-b border-transparent focus:border-blue-300"
-                                  >
-                                    {task.comment || 'Добавьте краткий статус...'}
-                                  </span>
-                                </div>
+                                {task.comment ? (
+                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                                    <span
+                                      data-word-project-comment="true"
+                                      contentEditable
+                                      suppressContentEditableWarning
+                                      onBlur={(event) => handleUpdateProjectTaskField(task.id, 'comment', event.currentTarget.innerText)}
+                                      className="min-w-[180px] outline-none border-b border-transparent focus:border-blue-300"
+                                    >
+                                      {task.comment}
+                                    </span>
+                                  </div>
+                                ) : null}
                               </div>
                               <div className="mt-2 flex flex-wrap gap-1">
                                 <button onClick={() => handleUpdateProjectTaskStatus(task.id, group.done ? 'active' : 'completed')} className={`px-2 py-1 rounded border text-[11px] font-bold ${group.done ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
