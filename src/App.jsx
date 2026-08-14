@@ -9256,6 +9256,69 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const previewRef = useRef(null);
   const wordFontFamily = "'Aptos', 'Calibri', 'Segoe UI', Arial, sans-serif";
+  const firstLineAnalyticsStaff = [
+    { id: 'u0627', name: 'Руслан Халеддинов' },
+    { id: 'u0279', name: 'Никита Лысов' },
+    { id: 'u0607', name: 'Максим Отрошко' },
+    { id: 'u0287', name: 'Марк Соколов' },
+    { id: 'u0608', name: 'Максим Гуртов' }
+  ];
+  const firstLineWeekDays = [
+    { id: 'mon', short: 'Пн' }, { id: 'tue', short: 'Вт' }, { id: 'wed', short: 'Ср' },
+    { id: 'thu', short: 'Чт' }, { id: 'fri', short: 'Пт' }
+  ];
+  const firstLineAvailabilityStatuses = [
+    { value: 'work', label: 'Работа', short: 'Р', weight: 1 },
+    { value: 'duty', label: 'Дежурство ½ дня', short: 'Д', weight: 0.5 },
+    { value: 'vacation', label: 'Отпуск', short: 'О', weight: 0 },
+    { value: 'sick', label: 'Больничный', short: 'Б', weight: 0 }
+  ];
+
+  const getIsoWeekDayLabels = (weekKey) => {
+    const match = safeString(weekKey).match(/(\d{4})-(\d{1,2})/);
+    if (!match) return firstLineWeekDays.map(day => ({ ...day, label: day.short }));
+    const year = Number(match[1]);
+    const week = Number(match[2]);
+    const jan4 = new Date(Date.UTC(year, 0, 4));
+    const monday = new Date(jan4);
+    monday.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + ((week - 1) * 7));
+    return firstLineWeekDays.map((day, index) => {
+      const date = new Date(monday);
+      date.setUTCDate(monday.getUTCDate() + index);
+      return { ...day, label: `${day.short} ${String(date.getUTCDate()).padStart(2, '0')}.${String(date.getUTCMonth() + 1).padStart(2, '0')}` };
+    });
+  };
+
+  const getFirstLineSchedule = (weekKey, staffId) => {
+    const saved = wordReportConfig?.firstLineAvailabilityByWeek?.[weekKey]?.[staffId];
+    return {
+      schedule: firstLineWeekDays.reduce((acc, day) => ({ ...acc, [day.id]: saved?.[day.id] || 'work' }), {}),
+      explicit: Boolean(saved)
+    };
+  };
+
+  const getEffectiveDays = (weekKey, staffId) => {
+    const { schedule, explicit } = getFirstLineSchedule(weekKey, staffId);
+    const days = firstLineWeekDays.reduce((sum, day) => {
+      const status = firstLineAvailabilityStatuses.find(item => item.value === schedule[day.id]);
+      return sum + (status?.weight ?? 1);
+    }, 0);
+    return { days, explicit, schedule };
+  };
+
+  const updateFirstLineAvailability = (staffId, dayId, value) => {
+    const byWeek = wordReportConfig?.firstLineAvailabilityByWeek || {};
+    const currentWeek = byWeek[selectedKey] || {};
+    const currentStaff = getFirstLineSchedule(selectedKey, staffId).schedule;
+    setWordReportConfig({
+      ...(wordReportConfig || {}),
+      firstLineAvailabilityByWeek: {
+        ...byWeek,
+        [selectedKey]: { ...currentWeek, [staffId]: { ...currentStaff, [dayId]: value } }
+      },
+      updatedAt: new Date().toISOString()
+    });
+  };
 
   const getSections = () => {
     const savedSections = Array.isArray(wordReportConfig?.sections) ? wordReportConfig.sections : [];
@@ -9678,6 +9741,102 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       .slice(0, 6);
   };
 
+  const getFirstLineHistoryAnalytics = () => {
+    const normalizePerson = (value) => normalizeMetricText(getFullName(value || ''));
+    const median = (values) => {
+      const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+      if (!sorted.length) return 0;
+      const middle = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    };
+    const orderedKeys = [...new Set([...(historyKeys || []), selectedKey])]
+      .filter(Boolean)
+      .sort()
+      .filter(key => key <= selectedKey)
+      .slice(-6);
+
+    const weekSnapshots = orderedKeys.map(weekKey => {
+      const data = weekKey === selectedKey ? weekData : weeksHistory?.[weekKey];
+      const incidents = Array.isArray(data?.topPerformers) ? data.topPerformers : [];
+      const phones = Array.isArray(data?.telephonyData) ? data.telephonyData : [];
+      const staffRows = firstLineAnalyticsStaff.map(staff => {
+        const staffName = normalizePerson(staff.name);
+        const incident = incidents.find(item => normalizePerson(item.name || item.assignee) === staffName);
+        const phone = phones.find(item => normalizePerson(item.name || item.employee || item.operator || item.assignee) === staffName);
+        const incidentCount = Number(incident?.closed || incident?.count || incident?.total || 0) || 0;
+        const totalCalls = Number(phone?.total || phone?.calls || phone?.all || phone?.answered || 0) || 0;
+        const missed = Number(phone?.missed || phone?.lost || phone?.notAnswered || 0) || 0;
+        const handledCalls = Number(phone?.handled || phone?.answered || phone?.accepted || Math.max(0, totalCalls - missed)) || 0;
+        const availability = getEffectiveDays(weekKey, staff.id);
+        const effectiveDays = availability.days;
+        return {
+          ...staff,
+          incidentCount,
+          totalCalls,
+          missed,
+          handledCalls,
+          effectiveDays,
+          explicitContext: availability.explicit,
+          incidentPerDay: effectiveDays > 0 && incident ? incidentCount / effectiveDays : null,
+          callsPerDay: effectiveDays > 0 && phone ? handledCalls / effectiveDays : null,
+          hasIncidentData: Boolean(incident),
+          hasPhoneData: Boolean(phone)
+        };
+      });
+      const incidentMedian = median(staffRows.map(row => row.incidentPerDay));
+      const callsMedian = median(staffRows.map(row => row.callsPerDay));
+      return {
+        weekKey,
+        rows: staffRows.map(row => {
+          const scoreParts = [];
+          if (row.incidentPerDay !== null && incidentMedian > 0) scoreParts.push(Math.min(2, row.incidentPerDay / incidentMedian));
+          if (row.callsPerDay !== null && callsMedian > 0) scoreParts.push(Math.min(2, row.callsPerDay / callsMedian));
+          return { ...row, relativeScore: scoreParts.length ? scoreParts.reduce((sum, value) => sum + value, 0) / scoreParts.length : null };
+        })
+      };
+    });
+
+    return firstLineAnalyticsStaff.map(staff => {
+      const history = weekSnapshots.map(snapshot => ({ weekKey: snapshot.weekKey, ...snapshot.rows.find(row => row.id === staff.id) }))
+        .filter(row => row && row.relativeScore !== null);
+      const recent = history.slice(-4);
+      const previous = recent.slice(0, Math.max(0, recent.length - 2));
+      const latest = recent.slice(-2);
+      const average = recent.length ? recent.reduce((sum, row) => sum + row.relativeScore, 0) / recent.length : null;
+      const previousAverage = previous.length ? previous.reduce((sum, row) => sum + row.relativeScore, 0) / previous.length : null;
+      const latestAverage = latest.length ? latest.reduce((sum, row) => sum + row.relativeScore, 0) / latest.length : null;
+      const trend = previousAverage && latestAverage !== null ? (latestAverage - previousAverage) / previousAverage : 0;
+      const contextCoverage = history.length ? history.filter(row => row.explicitContext).length / history.length : 0;
+      const current = weekSnapshots.find(snapshot => snapshot.weekKey === selectedKey)?.rows.find(row => row.id === staff.id) || null;
+      let status = 'Недостаточно истории';
+      let tone = 'neutral';
+      if (history.length >= 3 && average !== null) {
+        if (average >= 1.15 && trend >= -0.12) {
+          status = 'Стабильно выше команды';
+          tone = 'good';
+        } else if (trend >= 0.15) {
+          status = 'Результат растёт';
+          tone = 'good';
+        } else if (average <= 0.7 && contextCoverage < 0.5) {
+          status = trend <= -0.1 ? 'Показатели низкие и падают — сверить график' : 'Показатели устойчиво низкие — сверить график';
+          tone = 'warn';
+        } else if (average <= 0.7 && trend <= -0.1) {
+          status = 'Критично низко и снижается';
+          tone = 'bad';
+        } else if (average <= 0.7) {
+          status = 'Стабильно ниже команды';
+          tone = 'bad';
+        } else if (trend <= -0.15) {
+          status = 'Результат снижается';
+          tone = 'warn';
+        } else {
+          status = 'Стабильный результат';
+        }
+      }
+      return { ...staff, history, current, average, trend, contextCoverage, status, tone };
+    }).sort((a, b) => (b.average ?? -1) - (a.average ?? -1));
+  };
+
   const getCsatValue = () => {
     const direct = Number(weekData?.csatAverage || weekData?.csat || weekData?.avgCsat);
     if (Number.isFinite(direct) && direct > 0) return direct.toFixed(1);
@@ -9906,6 +10065,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const taskLeaders = getTeamTaskLeaders();
     const incidentLeaders = getIncidentLeaders();
     const firstLineRows = getFirstLineRows();
+    const firstLineHistoryAnalytics = getFirstLineHistoryAnalytics();
     const telephony = getTelephonySummary();
     const csatComments = getWordCsatComments();
     const badCsatComments = csatComments.filter(item => item.rating !== null && item.rating < 4);
@@ -10077,6 +10237,45 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         </div>`;
     };
 
+    const renderFirstLineHistory = () => {
+      const toneMap = {
+        good: { color: '#047857', bg: '#ecfdf5', border: '#6ee7b7' },
+        warn: { color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
+        bad: { color: '#b91c1c', bg: '#fef2f2', border: '#fca5a5' },
+        neutral: { color: '#475569', bg: '#f8fafc', border: '#cbd5e1' }
+      };
+      return `
+        <div style="margin-top:12px; border:1px solid #cbd5e1; border-radius:10px; overflow:hidden; background:#ffffff;">
+          <div style="padding:12px 14px; background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
+            <div style="font-size:13px; color:#0f172a; font-weight:900; text-transform:uppercase;">Динамика первой линии: инциденты и телефония</div>
+            <div style="font-size:11px; color:#64748b; margin-top:3px;">Сравнение до 6 недель. Задачи не учитываются. Дежурство = 0,5 дня; отпуск и больничный исключаются из нормы.</div>
+          </div>
+          <table style="width:100%; border-collapse:collapse;">
+            <tr style="background:#ffffff;">
+              <th style="text-align:left; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Сотрудник</th>
+              <th style="text-align:center; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Недель в анализе</th>
+              <th style="text-align:right; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Инциденты</th>
+              <th style="text-align:right; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Обработано звонков</th>
+              <th style="text-align:center; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Учтено дней</th>
+              <th style="text-align:left; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Вывод по динамике</th>
+            </tr>
+            ${firstLineHistoryAnalytics.map(row => {
+              const tone = toneMap[row.tone] || toneMap.neutral;
+              const current = row.current;
+              return `<tr>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9; font-size:12px; font-weight:900; color:#0f172a;">${escapeHtml(row.name)}</td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">${row.history.length}</td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:800;">${current?.hasIncidentData ? current.incidentCount : 'нет данных'}</td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:800;">${current?.hasPhoneData ? current.handledCalls : 'нет данных'}</td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">${current ? current.effectiveDays : 5}${current?.explicitContext ? '' : '*'}</td>
+                <td style="padding:7px 8px; border-bottom:1px solid #f1f5f9;"><span style="display:inline-block; padding:4px 7px; border-radius:999px; border:1px solid ${tone.border}; background:${tone.bg}; color:${tone.color}; font-size:10px; font-weight:900;">${escapeHtml(row.status)}</span>${Math.abs(row.trend) >= 0.05 ? `<div style="font-size:10px; color:#64748b; margin-top:3px;">динамика ${row.trend > 0 ? '+' : ''}${Math.round(row.trend * 100)}%</div>` : ''}</td>
+              </tr>`;
+            }).join('')}
+          </table>
+          <div style="padding:8px 12px; background:#fffdf5; color:#92400e; font-size:10px;">* Календарь недели не заполнен: временно принято 5 рабочих дней. Негативный вывод требует сверки графика.</div>
+        </div>`;
+    };
+
     const renderFlowControlAppendix = () => {
       if (!systemProblems.length && !slaSnapshot.primaryCount && !slaSnapshot.resolutionCount) return '';
       return `
@@ -10168,6 +10367,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         <h2 style="font-size:16px; margin:18px 0 8px 0; color:#0f172a;">3. Показатели команды</h2>
         ${renderTeamMetrics()}
         ${renderFirstLine()}
+        ${renderFirstLineHistory()}
         ${renderCsatComments()}
         ${renderFlowControlAppendix()}
       </div>`;
@@ -10331,6 +10531,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
   const badWordCsatComments = wordCsatComments.filter(item => item.rating !== null && item.rating < 4);
   const wordSystemProblems = getWordSystemProblems();
   const wordSlaSnapshot = getWordSlaSnapshot();
+  const firstLineDayLabels = getIsoWeekDayLabels(selectedKey);
+  const firstLineHistoryAnalytics = getFirstLineHistoryAnalytics();
 
   return (
     <div className="animate-in fade-in duration-500 pb-10 max-w-7xl">
@@ -10351,6 +10553,57 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
             <Download size={18} /> Скачать HTML
           </button>
         </div>
+      </div>
+
+      <div className="mb-6 overflow-hidden rounded-xl border border-slate-700/60 bg-slate-800 shadow-xl">
+        <div className="flex flex-col gap-2 border-b border-slate-700 bg-slate-900/45 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-sm font-black uppercase tracking-wider text-white">Календарь первой линии · неделя {weekData?.weekNumber || safeString(selectedKey).split('-')[1] || ''}</div>
+            <div className="mt-1 text-xs text-slate-400">Учитывает реальную занятость в сравнении инцидентов и телефонии. Задачи в оценку не входят.</div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[11px] font-bold">
+            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-300">Работа = 1 день</span>
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-300">Дежурство = 0,5</span>
+            <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-sky-300">Отпуск / больничный = 0</span>
+          </div>
+        </div>
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full min-w-[920px] border-collapse">
+            <thead className="bg-slate-950/45 text-[10px] uppercase tracking-wider text-slate-400">
+              <tr>
+                <th className="px-4 py-2 text-left">Сотрудник</th>
+                {firstLineDayLabels.map(day => <th key={day.id} className="px-2 py-2 text-left">{day.label}</th>)}
+                <th className="px-4 py-2 text-center">Учтено</th>
+              </tr>
+            </thead>
+            <tbody>
+              {firstLineAnalyticsStaff.map(staff => {
+                const availability = getEffectiveDays(selectedKey, staff.id);
+                return (
+                  <tr key={staff.id} className="border-t border-slate-700/70">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm font-bold text-slate-100">{staff.name}</td>
+                    {firstLineDayLabels.map(day => (
+                      <td key={`${staff.id}-${day.id}`} className="px-2 py-2">
+                        <select
+                          value={availability.schedule[day.id]}
+                          onChange={(event) => updateFirstLineAvailability(staff.id, day.id, event.target.value)}
+                          aria-label={`${staff.name}, ${day.label}`}
+                          className="w-full min-w-[105px] rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-xs font-bold text-slate-200 outline-none focus:border-sky-500"
+                        >
+                          {firstLineAvailabilityStatuses.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}
+                        </select>
+                      </td>
+                    ))}
+                    <td className="px-4 py-2 text-center">
+                      <span className={`inline-flex min-w-[62px] justify-center rounded-full border px-2 py-1 text-xs font-black ${availability.explicit ? 'border-sky-500/30 bg-sky-500/10 text-sky-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-300'}`}>{availability.days} дн.</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="border-t border-slate-700 bg-slate-950/30 px-4 py-2 text-[11px] text-slate-400">Если строку ещё не меняли, система временно считает 5 рабочих дней и не делает жёсткий негативный вывод без сверки графика.</div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[460px_1fr] gap-6">
@@ -10657,6 +10910,45 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 </div>
               </section>
             )}
+
+            <section className="mt-5" style={{ fontFamily: wordFontFamily }}>
+              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h3 className="text-base font-black">Динамика первой линии</h3>
+                  <p className="text-[11px] text-slate-500">До 6 недель · только инциденты и обработанные звонки · с поправкой на занятость</p>
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Задачи исключены</div>
+              </div>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {firstLineHistoryAnalytics.map(row => {
+                  const toneClass = row.tone === 'good'
+                    ? 'border-emerald-200 bg-emerald-50/60 text-emerald-800'
+                    : row.tone === 'bad'
+                      ? 'border-red-200 bg-red-50/70 text-red-800'
+                      : row.tone === 'warn'
+                        ? 'border-amber-200 bg-amber-50/70 text-amber-800'
+                        : 'border-slate-200 bg-slate-50 text-slate-700';
+                  return (
+                    <div key={`trend-${row.id}`} className={`rounded-lg border p-3 ${toneClass}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-black text-slate-950">{row.name}</div>
+                          <div className="mt-1 text-[11px] font-black">{row.status}</div>
+                        </div>
+                        <div className="text-right text-[10px] font-bold uppercase tracking-wide opacity-70">{row.history.length} нед. в анализе</div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                        <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Инциденты</div><b className="text-slate-950">{row.current?.hasIncidentData ? row.current.incidentCount : 'нет'}</b></div>
+                        <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Звонки</div><b className="text-slate-950">{row.current?.hasPhoneData ? row.current.handledCalls : 'нет'}</b></div>
+                        <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Учтено</div><b className="text-slate-950">{row.current?.effectiveDays ?? 5} дн.</b></div>
+                      </div>
+                      {Math.abs(row.trend) >= 0.05 && <div className="mt-2 text-[10px] font-bold">Изменение последних недель: {row.trend > 0 ? '+' : ''}{Math.round(row.trend * 100)}%</div>}
+                      {row.contextCoverage < 0.5 && <div className="mt-1 text-[10px] opacity-75">Для строгого вывода заполните календарь прошлых недель.</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
 
             <section className="mt-6">
               <h3 className="text-lg font-black mb-3">4. Комментарии пользователей</h3>
