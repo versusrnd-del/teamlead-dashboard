@@ -4426,8 +4426,78 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     ]);
   };
 
+  const semanticTopProblemTopic = (() => {
+    const semanticTop = [...(Array.isArray(weekData?.topIncidents) ? weekData.topIncidents : [])]
+      .map(item => ({
+        ...item,
+        semanticName: safeString(item?.name || item?.theme || item?.title || item?.category).trim(),
+        semanticCount: Number(item?.count || item?.value || item?.total) || 0
+      }))
+      .filter(item => item.semanticName && item.semanticCount > 0)
+      .sort((a, b) => b.semanticCount - a.semanticCount)[0];
+    if (!semanticTop) return null;
+
+    const semanticKeywords = getPostmortemKeywords(semanticTop.semanticName);
+    const matchingTrainingTopic = fintechTopics
+      .map(item => {
+        const candidateKeywords = getPostmortemKeywords([
+          item?.focusTitle,
+          item?.theme,
+          item?.category,
+          ...(Array.isArray(item?.affectedSystems) ? item.affectedSystems : [])
+        ].filter(Boolean).join(' '));
+        const score = semanticKeywords.reduce((sum, keyword) => {
+          const stem = keyword.slice(0, Math.min(6, keyword.length));
+          return sum + (stem.length >= 4 && candidateKeywords.some(candidate => candidate.startsWith(stem)) ? 1 : 0);
+        }, 0);
+        return { item, score };
+      })
+      .filter(entry => entry.score > 0)
+      .sort((a, b) => b.score - a.score)[0]?.item;
+
+    const asArray = value => Array.isArray(value) ? value : [];
+    const semanticSymptoms = asArray(semanticTop.topSymptoms || semanticTop.symptoms);
+    const semanticSystems = asArray(semanticTop.affectedSystems || semanticTop.systems);
+    const semanticPatterns = asArray(semanticTop.resolutionPatterns);
+    const semanticExamples = [
+      ...asArray(semanticTop.examples),
+      ...asArray(semanticTop.cases),
+      ...asArray(semanticTop.tickets),
+      ...asArray(semanticTop.items)
+    ];
+
+    return {
+      ...(matchingTrainingTopic || {}),
+      theme: semanticTop.semanticName,
+      focusTitle: semanticTop.semanticName,
+      category: safeString(semanticTop.category) || 'Семантика всех закрытых обращений',
+      count: semanticTop.semanticCount,
+      topSymptoms: semanticSymptoms.length ? semanticSymptoms : asArray(matchingTrainingTopic?.topSymptoms),
+      affectedSystems: semanticSystems.length ? semanticSystems : asArray(matchingTrainingTopic?.affectedSystems),
+      examples: [...semanticExamples, ...asArray(matchingTrainingTopic?.examples)],
+      resolutionPatterns: semanticPatterns.length ? semanticPatterns : asArray(matchingTrainingTopic?.resolutionPatterns),
+      resolutionCoveragePercent: Number.isFinite(Number(semanticTop.resolutionCoveragePercent))
+        ? Number(semanticTop.resolutionCoveragePercent)
+        : matchingTrainingTopic?.resolutionCoveragePercent,
+      actionPlan: semanticTop.actionPlan && typeof semanticTop.actionPlan === 'object'
+        ? semanticTop.actionPlan
+        : matchingTrainingTopic?.actionPlan,
+      actionDataGap: safeString(semanticTop.actionDataGap || matchingTrainingTopic?.actionDataGap),
+      rootCauseHypothesis: safeString(semanticTop.rootCauseHypothesis || semanticTop.rootCause || matchingTrainingTopic?.rootCauseHypothesis),
+      mainRoute: safeString(semanticTop.mainRoute || semanticTop.route || matchingTrainingTopic?.mainRoute) || 'маршрут уточняется',
+      supportLevel: safeString(semanticTop.supportLevel || matchingTrainingTopic?.supportLevel),
+      problemType: safeString(semanticTop.problemType || semanticTop.symptom || matchingTrainingTopic?.problemType),
+      slaBreaches: semanticTop.slaBreaches ?? matchingTrainingTopic?.slaBreaches ?? null,
+      actionNeeded: safeString(semanticTop.actionNeeded || matchingTrainingTopic?.actionNeeded)
+        || 'Сначала подтвердить фактические причины и способы решения по обращениям этой темы.',
+      check: safeString(semanticTop.check || matchingTrainingTopic?.check)
+        || 'После следующей выгрузки проверить динамику обращений по этой теме.',
+      source: 'semantic-top-incidents'
+    };
+  })();
+
   const buildTopProblemPostmortemData = () => {
-    const topic = fintechTopics[0] || {
+    const topic = semanticTopProblemTopic || fintechTopics[0] || {
       theme: selectedTraining.bottleneckThemes?.[0]?.theme || 'Топ-проблема недели не определена',
       focusTitle: selectedTraining.bottleneckThemes?.[0]?.focusTitle || selectedTraining.bottleneckThemes?.[0]?.specificTheme || selectedTraining.bottleneckThemes?.[0]?.theme || 'Топ-проблема недели не определена',
       count: selectedTraining.bottleneckThemes?.[0]?.count || 0,
@@ -4575,7 +4645,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     } catch (error) {
       console.error('TOP-1 preview generation failed', error);
       try {
-        const sourceTopic = fintechTopics[0] || {};
+        const sourceTopic = semanticTopProblemTopic || fintechTopics[0] || {};
         const fallbackHtml = generateTopProblemPostmortemReport({
           week: { weekNumber: weekData?.weekNumber, dates: weekData?.dates },
           topic: {
@@ -4605,7 +4675,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         setTopReportPreview(fallbackHtml);
       } catch (fallbackError) {
         console.error('TOP-1 fallback preview generation failed', fallbackError);
-        setTopReportError('Не удалось собрать TOP-1 из данных выбранной недели. Обновите страницу; если ошибка повторится, потребуется проверить формат bottleneckThemes этой недели.');
+        setTopReportError('Не удалось собрать ТОП-1 из данных выбранной недели. Обновите страницу; если ошибка повторится, потребуется проверить формат topIncidents этой недели.');
       }
     }
   };
@@ -9255,9 +9325,17 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     return task?.status === 'active';
   };
 
+  const getProjectTaskReportComment = (value) => {
+    const comment = cleanWordReportText(value);
+    return /^в\s+работе[.!…]*$/i.test(comment) ? '' : comment;
+  };
+
   const getManagementTasks = (projectOverrides = {}) => (projectTasks || [])
     .filter(isProjectTaskVisible)
-    .map(task => ({ ...task, ...(projectOverrides?.[task.id] || {}) }))
+    .map(task => {
+      const mergedTask = { ...task, ...(projectOverrides?.[task.id] || {}) };
+      return { ...mergedTask, comment: getProjectTaskReportComment(mergedTask.comment) };
+    })
     .sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0));
 
   const getManagementTaskGroups = (projectOverrides = {}) => {
