@@ -341,6 +341,7 @@ const generateTopProblemPostmortemReport = ({
   relatedCases = [],
   subProblems = [],
   problemAnalytics = {},
+  previousRank = {},
   medianResolutionMinutes = null,
   phoneAvgMinutes = 5,
   telephony = {},
@@ -631,7 +632,7 @@ const generateTopProblemPostmortemReport = ({
     .slice(0, 3);
   const postmortemBreakdown = (Array.isArray(subProblems) ? subProblems : [])
     .filter(item => safeString(item?.name).trim())
-    .slice(0, 3);
+    .slice(0, 4);
   const postmortemCauseText = safeString(topic.rootCauseHypothesis).trim()
     || 'Причина пока не подтверждена: нужен разбор контекста и итоговых комментариев связанных обращений.';
   const compactActionText = hasResolutionEvidence
@@ -661,6 +662,12 @@ const generateTopProblemPostmortemReport = ({
     missingResolution ? { label: 'Пробел в комментариях', value: `${requestCount(missingResolution.count)} без хода решения`, note: 'По этим обращениям нельзя подтвердить причину и переиспользуемый способ устранения.' } : null,
     repeatSignals[0] ? { label: 'Самый сильный повтор', value: `${repeatSignals[0].name} · ${repeatSignals[0].count}×`, note: `Связанные обращения: ${(repeatSignals[0].evidenceIds || []).slice(0, 5).join(', ')}` } : null
   ].filter(Boolean);
+  const previousRankText = previousRank?.found
+    ? `№${Math.round(num(previousRank.rank))} · ${requestCount(previousRank.count)}`
+    : (previousRank?.hasPreviousWeek ? 'Вне ТОП-5' : 'Нет данных');
+  const previousRankTitle = safeString(previousRank?.name || topicName).trim();
+  const previousRankPeriod = safeString(previousRank?.dates || (previousRank?.weekNumber ? `Неделя ${previousRank.weekNumber}` : 'прошлая неделя')).trim();
+  const showcaseRepeat = repeatSignals[0] || null;
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Постмортем ТОП-1 проблемы</title><style>
     :root{--ink:#102033;--muted:#64748b;--line:#d9e2ec;--paper:#f7fafc;--blue:#2563eb}
@@ -668,6 +675,7 @@ const generateTopProblemPostmortemReport = ({
     .hero{background:radial-gradient(circle at 78% 18%,rgba(56,189,248,.30),transparent 28%),linear-gradient(135deg,#0f172a,#102033 54%,#13294b);color:#fff;border-radius:28px;padding:34px;box-shadow:0 28px 70px rgba(15,23,42,.22);overflow:hidden}
     .hero-grid{display:grid;grid-template-columns:1fr 1.22fr;gap:30px;align-items:center}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:900;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 10px}.subtitle{margin:0;color:#dbeafe;font-size:16px}.meter-grid{display:grid;grid-template-columns:1fr;gap:14px}.pulse,.phone-pulse{position:relative;border:1px solid rgba(255,255,255,.16);border-top:4px solid ${currentState.color};background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.045));border-radius:24px;padding:16px;min-height:178px;overflow:hidden;display:grid;grid-template-columns:120px 1fr;grid-template-areas:"head head" "visual title" "visual note" "visual target";column-gap:18px;align-items:center}.phone-pulse{border-top-color:var(--phone);background:linear-gradient(135deg,rgba(14,165,233,.12),rgba(255,255,255,.045))}.pulse:before,.phone-pulse:before{content:"";position:absolute;inset:-70px auto auto -70px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.14),transparent 62%)}.meter-head{grid-area:head;position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.12)}.meter-head span{display:block;color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.12em;font-weight:900}.meter-head em{display:block;color:#bfdbfe;font-size:10px;font-style:normal;text-align:right;line-height:1.25}.orb,.phone-art{grid-area:visual;position:relative;width:108px;height:108px;border-radius:50%;margin:0;background:radial-gradient(circle at 36% 32%,#fff,${currentState.color} 28%,#111827 74%);box-shadow:0 0 32px ${currentState.color},inset 0 0 24px rgba(255,255,255,.18)}.orb:after,.phone-art:after{content:"";position:absolute;inset:-8px;border:1px solid rgba(255,255,255,.14);border-radius:50%}.phone-art{background:radial-gradient(circle at 38% 32%,rgba(255,255,255,.92),var(--phone) 34%,#0f172a 76%);box-shadow:0 0 32px var(--phone),inset 0 0 24px rgba(255,255,255,.16);display:grid;place-items:center}.phone-art:before{content:"";position:absolute;inset:20px;border-radius:50%;border:1px solid rgba(255,255,255,.18)}.phone-wave,.phone-core{display:none}.phone-svg{position:relative;z-index:1;width:52px;height:52px;fill:#fff;filter:drop-shadow(0 8px 16px rgba(0,0,0,.38))}.missed-badge{position:absolute;z-index:2;right:-6px;top:-6px;min-width:34px;height:28px;border-radius:999px;background:var(--phone);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:900;box-shadow:0 8px 18px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.45)}.pulse-title{grid-area:title;text-align:left;font-size:21px;font-weight:900;color:#fff;align-self:end}.pulse-note{grid-area:note;text-align:left;color:#cbd5e1;font-size:12px;margin-top:3px;min-height:0;align-self:start}.sla-target{grid-area:target;margin-top:8px;text-align:left;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:10px 12px}.sla-target b{display:block;font-size:28px;color:#fff;line-height:1.05}.sla-target span{font-size:10px;color:#dbeafe;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.scale-label{margin:22px 0 8px;color:#93c5fd;font-size:11px;text-transform:uppercase;letter-spacing:.14em;font-weight:900}.traffic{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.state{border:1px solid rgba(255,255,255,.12);border-top:5px solid var(--c);border-radius:16px;padding:10px;background:rgba(255,255,255,.08)}.state b{display:block;font-size:12px}.state span{display:block;color:#cbd5e1;font-size:10px;margin-top:3px}.kpi{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0}.card,section{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 28px rgba(15,23,42,.05)}.card{padding:16px}.card small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.card strong{display:block;font-size:27px;margin-top:6px;color:#102033}.flow{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr 34px 1fr;align-items:stretch;gap:8px;margin:16px 0}.flow-step{border:1px solid var(--line);border-top:5px solid var(--c);border-radius:18px;padding:16px;background:#fff}.flow-step small{display:block;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.flow-step b{display:block;font-size:21px;margin:6px 0;color:#102033}.flow-step p{font-size:12px;color:#475569}.arrow{display:grid;place-items:center;color:#64748b;font-size:28px;font-weight:900}.drop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.drop-card{border:1px solid var(--line);border-left:6px solid ${currentState.color};border-radius:16px;padding:14px;background:#fff}.drop-card small{display:block;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.drop-card b{display:block;font-size:16px;margin:5px 0;color:#102033}.modal-toggle{display:none}.modal{display:none;position:fixed;z-index:50;inset:0;background:rgba(15,23,42,.72);padding:36px;overflow:auto}.modal-toggle:checked+.modal{display:block}.modal-panel{max-width:980px;margin:0 auto;background:#fff;border-radius:24px;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.35)}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:14px}.modal-close,.modal-open{display:inline-block;cursor:pointer;border:0;border-radius:999px;font-weight:900}.modal-close{background:#0f172a;color:#fff;padding:9px 13px}.modal-open{margin-top:12px;background:#102033;color:#fff;padding:10px 15px;box-shadow:0 10px 22px rgba(15,23,42,.18)}.signal-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.signal-strip div{border:1px solid #dbeafe;background:linear-gradient(135deg,#f8fbff,#fff);border-radius:14px;padding:12px}.signal-strip b{display:block;color:#1d4ed8}section{padding:22px;margin:16px 0}h2{font-size:21px;margin:0 0 12px}p{margin:0 0 10px}.note{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px;color:#334155}.focus{border-left:6px solid ${currentState.color};background:${currentState.bg};padding:16px;border-radius:16px;color:#102033}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:900}.muted{color:#64748b}.plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.plan div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px}.plan b{display:block;color:#1d4ed8;margin-bottom:6px}@media(max-width:980px){.hero-grid{grid-template-columns:1fr}}@media(max-width:820px){.kpi,.traffic,.plan,.flow,.drop-grid,.signal-strip{grid-template-columns:1fr}.pulse,.phone-pulse{grid-template-columns:1fr;grid-template-areas:"head" "visual" "title" "note" "target";text-align:center}.orb,.phone-art{margin:0 auto}.pulse-title,.pulse-note,.sla-target{text-align:center}.arrow{display:none}h1{font-size:30px}.modal{padding:16px}}@media print{body{background:#fff}.page{padding:0}.hero,section,.card{box-shadow:none;break-inside:avoid}.modal{display:block;position:static;background:#fff;padding:0}.modal-close,.modal-open{display:none}}
     .analytics-coverage{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;margin-bottom:16px;padding:14px;border:1px solid #bfdbfe;border-radius:16px;background:#f8fbff}.analytics-coverage strong{font-size:30px;color:#1d4ed8}.analytics-coverage span{display:block;color:#334155;font-weight:900}.analytics-coverage small{display:block;color:#64748b;margin-top:3px}.analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.analytics-card{border:1px solid #dbe5ef;border-radius:18px;padding:16px;background:#fff}.analytics-card h3{margin:0 0 12px;font-size:15px}.analytics-row{margin:11px 0}.analytics-row-head{display:flex;justify-content:space-between;gap:12px;font-size:12px}.analytics-row-head span{font-weight:800}.analytics-row-head b{white-space:nowrap}.analytics-track{height:10px;margin-top:6px;background:#e8eef5;border-radius:999px;overflow:hidden}.analytics-track i{display:block;height:100%;border-radius:999px}.analytics-row small{display:block;margin-top:4px;color:#94a3b8;font-size:9px}.repeat-grid,.attention-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.repeat-panel,.attention-card{border:1px solid #dbe5ef;border-radius:16px;padding:14px;background:#fbfdff}.repeat-title{color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;margin-bottom:8px}.repeat-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #edf2f7}.repeat-row:first-of-type{border-top:0}.repeat-row b,.repeat-row small{display:block}.repeat-row b{font-size:12px}.repeat-row small{margin-top:2px;color:#94a3b8;font-size:9px}.repeat-row strong{font-size:19px;color:#7c3aed}.analytics-empty{color:#94a3b8;font-size:12px;padding:8px 0}.attention-card span{display:block;color:#9a3412;font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.attention-card b{display:block;margin-top:6px;font-size:15px}.attention-card small{display:block;margin-top:5px;color:#64748b}.analytics-warning{margin-top:14px;padding:12px 14px;border:1px solid #fcd34d;border-radius:14px;background:#fffbeb;color:#92400e;font-size:12px}@media(max-width:820px){.analytics-grid,.repeat-grid,.attention-grid{grid-template-columns:1fr}}
+    .pm-heading-side{display:grid;grid-template-columns:auto minmax(150px,210px);gap:10px;align-items:stretch}.pm-rank-card{border:1px solid #fed7aa;border-radius:14px;padding:9px 11px;background:#fff7ed;box-shadow:0 7px 16px rgba(124,58,237,.04)}.pm-rank-card span{display:block;color:#9a3412;font:900 7px/1 Consolas,"Courier New",monospace;letter-spacing:.1em;text-transform:uppercase}.pm-rank-card b{display:block;margin-top:5px;color:#171327;font-size:13px}.pm-rank-card small{display:block;margin-top:3px;color:#64748b;font-size:8px;line-height:1.2;text-transform:none;letter-spacing:0}.pm-breakdown-row{position:relative;overflow:hidden}.pm-breakdown-row i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(249,115,22,.16),rgba(124,58,237,.07));z-index:0}.pm-breakdown-row span,.pm-breakdown-row b{position:relative;z-index:1}.pm-hotspot{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:8px 10px;border:1px solid #ddd6fe;border-radius:10px;background:#f5f3ff}.pm-hotspot span{color:#6d28d9;font:900 7px/1.2 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.08em}.pm-hotspot b{color:#312e81;font-size:9px;text-align:right}.pm-breakdown-caption{display:block;margin-top:4px;color:#64748b;font-size:7px;font-weight:700}@media(max-width:820px){.pm-heading-side{grid-template-columns:1fr}.pm-rank-card{text-align:left}}
   </style></head><body><main class="page">
 	    <style>
 	      .hero-grid{grid-template-columns:1fr;gap:22px}.meter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -752,7 +760,7 @@ const generateTopProblemPostmortemReport = ({
 	      </div>
 	      <div class="pm-heading">
 	        <div><small>Главная повторяющаяся проблема недели</small><h2>${html(topicName)}</h2></div>
-	        <div class="pm-count"><strong>${html(Math.round(topicCount))}</strong><span>${html(requestCount(topicCount).replace(/^\d+\s*/, ''))} · ${html(pct(topicShare))} от закрытых</span></div>
+	        <div class="pm-heading-side"><div class="pm-count"><strong>${html(Math.round(topicCount))}</strong><span>${html(requestCount(topicCount).replace(/^\d+\s*/, ''))} · ${html(pct(topicShare))} от закрытых</span></div><div class="pm-rank-card"><span>${html(previousRankPeriod)}</span><b>${html(previousRankText)}</b><small>${html(previousRankTitle)}</small></div></div>
 	      </div>
 	      <div class="pm-story">
 	        <div class="pm-panel pm-fact">
@@ -760,7 +768,7 @@ const generateTopProblemPostmortemReport = ({
 	          <strong>${html(confirmedProblemFact)}</strong>
 	          <div class="pm-meta">${html(topicCategory || 'Категория уточняется')}${topicSystems.length ? ` · ${html(topicSystems.join(', '))}` : ''}</div>
 	          <div class="pm-symptoms">${postmortemSymptoms.length ? postmortemSymptoms.map(item => `<span class="pm-symptom">${html(item.name)}${item.count === null ? '' : ` · ${html(Math.round(item.count))}`}</span>`).join('') : '<span class="pm-symptom">Симптомы требуют детализации из обращений</span>'}</div>
-	          <div class="pm-breakdown"><span class="pm-breakdown-label">Расшифровка TOP-1</span>${postmortemBreakdown.length ? postmortemBreakdown.map(item => `<div class="pm-breakdown-row"><span>${html(item.name)}</span><b>${html(Math.round(num(item.count)))} · ${html(pct(item.share))}</b></div>`).join('') : '<div class="pm-breakdown-row"><span>Подтемы появятся после детализации обращений</span><b>нет данных</b></div>'}</div>
+	          <div class="pm-breakdown"><span class="pm-breakdown-label">Фактическая структура ТОП-1</span><small class="pm-breakdown-caption">Разобрано ${html(Math.round(analyticsAnalyzedCount))} из ${html(Math.round(topicCount))} · покрытие ${html(pct(analyticsCoverage))}</small>${postmortemBreakdown.length ? postmortemBreakdown.slice(0, 4).map(item => `<div class="pm-breakdown-row"><i style="width:${Math.max(4, Math.min(100, num(item.share)))}%"></i><span>${html(item.name)}</span><b>${html(Math.round(num(item.count)))} · ${html(pct(item.share))}</b></div>`).join('') : '<div class="pm-breakdown-row"><span>Подтемы появятся после детализации обращений</span><b>нет данных</b></div>'}${showcaseRepeat ? `<div class="pm-hotspot"><span>Главный повтор</span><b>${html(showcaseRepeat.name)} · ${html(showcaseRepeat.count)}×</b></div>` : ''}</div>
 	        </div>
 	        <div class="pm-analysis">
 	          <div class="pm-analysis-card" style="--pm-accent:#fb923c"><span>02 / Причина</span><strong>${html(postmortemCauseText)}</strong><small>${actionPlanHasTrace ? 'Связано с подтверждёнными обращениями' : 'Гипотеза до подтверждения разбором обращений'}</small></div>
@@ -4415,7 +4423,21 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
   ].filter(Boolean).join(' ')).toLowerCase().replace(/ё/g, 'е');
 
   const classifyPostmortemSubtype = (item = {}, fallbackTopic = '') => {
-    const itemText = getPostmortemCaseText(item);
+    const itemText = safeString([
+      item.title,
+      item.summary,
+      item.reason,
+      item.comments,
+      item.comment,
+      item.description,
+      item.problemContext,
+      item.symptom,
+      item.diagnosis,
+      item.resolution,
+      item.solution,
+      item.resolutionText,
+      item.reusableStep
+    ].filter(Boolean).join(' ')).toLowerCase().replace(/ё/g, 'е');
     const fallbackText = safeString(fallbackTopic).toLowerCase().replace(/ё/g, 'е');
     const text = `${itemText} ${fallbackText}`;
     const isPrintingTopic = /печ|принт|мфу|скан/.test(text);
@@ -4481,10 +4503,12 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     }
     if (kind === 'requester') return pick(['requester', 'reporter', 'customer', 'initiator', 'authorName', 'employee', 'userName']);
     const explicit = pick(['printer', 'printerName', 'device', 'deviceName', 'equipment', 'assetName', 'ciName', 'objectName']);
-    if (explicit) return explicit;
+    const isGenericDevice = (value) => /^(?:добрый(?:\s+день)?|принтер|сканер|мфу|устройство|оборудование|не указан[о]?|нет данных)$/i.test(normalizePostmortemEntity(value));
+    if (explicit && !isGenericDevice(explicit)) return explicit;
     const candidates = text.match(/\b(?:KAZNA\d+|KREDIT\d+|HP\s+\d+(?:\s+[A-ZА-Яa-zа-я]+\s+\d+)?|[A-ZА-Яa-zа-я]{2,}[-_]?[0-9]{1,4}[A-ZА-Яa-zа-я0-9_-]*)\b/gi) || [];
     const candidate = candidates.find(value => !/^(?:IS-|cibten|winserver|host|u\d+)/i.test(value));
-    return normalizePostmortemEntity(candidate);
+    const normalizedCandidate = normalizePostmortemEntity(candidate);
+    return isGenericDevice(normalizedCandidate) ? '' : normalizedCandidate;
   };
 
   const buildPostmortemAnalytics = (cases = [], topic = {}) => {
@@ -4636,6 +4660,53 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
     };
   })();
 
+  const previousTopProblemRank = (() => {
+    const currentName = safeString(semanticTopProblemTopic?.focusTitle || semanticTopProblemTopic?.theme).trim();
+    const currentKeyIndex = sortedKeys.indexOf(selectedWeekKey);
+    if (!currentName || currentKeyIndex <= 0) return { found: false, hasPreviousWeek: false };
+    const previousKey = sortedKeys[currentKeyIndex - 1];
+    const previousWeek = weeksHistory?.[previousKey] || {};
+    const rankedTopics = [...(Array.isArray(previousWeek?.topIncidents) ? previousWeek.topIncidents : [])]
+      .filter(item => safeString(item?.name || item?.theme || item?.title).trim())
+      .sort((a, b) => (Number(b?.count) || 0) - (Number(a?.count) || 0));
+    const getTopicFamily = (value) => {
+      const text = safeString(value).toLowerCase().replace(/ё/g, 'е');
+      if (/печ|принт|мфу|скан|перифер/.test(text)) return 'printing';
+      if (/citrix|терминал|удален.*стол/.test(text)) return 'citrix';
+      if (/сетев.*(?:диск|папк)|диск|выгруз.*файл/.test(text)) return 'network-files';
+      if (/доступ|прав|учет|парол|idm/.test(text)) return 'access';
+      if (/lotus|почт/.test(text)) return 'mail';
+      if (/телефон|звон|голос/.test(text)) return 'telephony';
+      if (/опера?дн|twcms|bpm|бизнес.*прилож/.test(text)) return 'business-apps';
+      return getPostmortemKeywords(text).slice(0, 3).join('|');
+    };
+    const currentFamily = getTopicFamily(currentName);
+    const matchIndex = rankedTopics.findIndex(item => {
+      const previousName = safeString(item?.name || item?.theme || item?.title).trim();
+      if (!previousName) return false;
+      if (normalizeMetricText(previousName) === normalizeMetricText(currentName)) return true;
+      return currentFamily && getTopicFamily(previousName) === currentFamily;
+    });
+    if (matchIndex < 0) {
+      return {
+        found: false,
+        hasPreviousWeek: true,
+        weekNumber: previousWeek?.weekNumber || previousKey.split('-')[1],
+        dates: safeString(previousWeek?.dates)
+      };
+    }
+    const matchedTopic = rankedTopics[matchIndex];
+    return {
+      found: true,
+      hasPreviousWeek: true,
+      rank: matchIndex + 1,
+      count: Number(matchedTopic?.count) || 0,
+      name: safeString(matchedTopic?.name || matchedTopic?.theme || matchedTopic?.title),
+      weekNumber: previousWeek?.weekNumber || previousKey.split('-')[1],
+      dates: safeString(previousWeek?.dates)
+    };
+  })();
+
   const buildTopProblemPostmortemData = () => {
     const topic = semanticTopProblemTopic || fintechTopics[0] || {
       theme: selectedTraining.bottleneckThemes?.[0]?.theme || 'Топ-проблема недели не определена',
@@ -4778,6 +4849,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         relatedCases: Array.isArray(postmortem.relatedCases) ? postmortem.relatedCases : [],
         subProblems: Array.isArray(postmortem.subProblems) ? postmortem.subProblems : [],
         problemAnalytics: postmortem.problemAnalytics && typeof postmortem.problemAnalytics === 'object' ? postmortem.problemAnalytics : {},
+        previousRank: previousTopProblemRank,
         medianResolutionMinutes: null,
         phoneAvgMinutes: planningCapacityConfig?.phoneCallAvgMinutes,
         telephony: periodAnalytics?.telephony && typeof periodAnalytics.telephony === 'object' ? periodAnalytics.telephony : {},
@@ -4807,6 +4879,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
             primaryViolations: Number(selectedTraining?.primaryViolations) || 0,
             resolutionViolations: Number(selectedTraining?.resolutionViolations) || 0
           },
+          previousRank: previousTopProblemRank,
           phoneAvgMinutes: planningCapacityConfig?.phoneCallAvgMinutes,
           telephony: periodAnalytics?.telephony && typeof periodAnalytics.telephony === 'object'
             ? periodAnalytics.telephony
