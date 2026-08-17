@@ -10317,6 +10317,10 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         bad: { color: '#b91c1c', bg: '#fef2f2', border: '#fca5a5' },
         neutral: { color: '#475569', bg: '#f8fafc', border: '#cbd5e1' }
       };
+      const rowsWithoutCurrentSchedule = firstLineHistoryAnalytics.filter(row => {
+        const current = row.current;
+        return current && (current.hasIncidentData || current.hasPhoneData) && !current.explicitContext;
+      });
       return `
         <div style="margin-top:12px; border:1px solid #cbd5e1; border-radius:10px; overflow:hidden; background:#ffffff;">
           <div style="padding:12px 14px; background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
@@ -10335,17 +10339,18 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
             ${firstLineHistoryAnalytics.map(row => {
               const tone = toneMap[row.tone] || toneMap.neutral;
               const current = row.current;
+              const scheduleNeedsReview = Boolean(current && (current.hasIncidentData || current.hasPhoneData) && !current.explicitContext);
               return `<tr>
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; font-size:12px; font-weight:900; color:#0f172a;">${escapeHtml(row.name)}</td>
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">${row.history.length}</td>
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:800;">${current?.hasIncidentData ? current.incidentCount : 'нет данных'}</td>
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:800;">${current?.hasPhoneData ? `${current.handledCalls} / <span style="color:${current.phoneAvailability < 70 ? '#b91c1c' : '#64748b'}">${current.missed}</span><div style="font-size:9px; color:${current.phoneAvailability < 70 ? '#b91c1c' : '#64748b'};">доступность ${Math.round(current.phoneAvailability)}%</div>` : 'нет данных'}</td>
-                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:11px;">${escapeHtml(row.scheduleText)}${current?.explicitContext ? '' : '*'}</td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:11px;">${escapeHtml(row.scheduleText)}${scheduleNeedsReview ? '*' : ''}</td>
                 <td style="padding:7px 8px; border-bottom:1px solid #f1f5f9;"><span style="display:inline-block; padding:4px 7px; border-radius:999px; border:1px solid ${tone.border}; background:${tone.bg}; color:${tone.color}; font-size:10px; font-weight:900;">${escapeHtml(row.status)}</span><div style="font-size:10px; color:#334155; margin-top:5px;">${escapeHtml(row.dailyComparisonText)}</div><div style="font-size:10px; color:#64748b; margin-top:3px;">${escapeHtml(row.historyText)}</div></td>
               </tr>`;
             }).join('')}
           </table>
-          <div style="padding:8px 12px; background:#fffdf5; color:#92400e; font-size:10px;">* Календарь недели не заполнен: временно принято 5 рабочих дней. Негативный вывод требует сверки графика.</div>
+          ${rowsWithoutCurrentSchedule.length ? `<div style="padding:8px 12px; background:#fffdf5; color:#92400e; font-size:10px;">* На выбранной неделе не заполнен календарь: ${escapeHtml(rowsWithoutCurrentSchedule.map(row => row.name).join(', '))}. Только для этих сотрудников временно принято 5 рабочих дней; негативный вывод требует сверки графика.</div>` : ''}
         </div>`;
     };
 
