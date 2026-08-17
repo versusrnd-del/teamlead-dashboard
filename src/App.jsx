@@ -517,13 +517,19 @@ const generateTopProblemPostmortemReport = ({
   });
   const resolvedRelatedCases = relatedCases.filter(item => isMeaningfulResolutionText(item.resolution || item.solution || item.resolutionText || item.comment));
   const resolvedRelatedCount = resolvedRelatedCases.length;
-  const resolutionCoverage = topic.resolutionCoveragePercent === null || topic.resolutionCoveragePercent === undefined
-    ? (relatedCases.length ? roundMetric(resolvedRelatedCount * 100 / relatedCases.length, 1) : null)
-    : num(topic.resolutionCoveragePercent);
+  const analyticsResolutionCoverage = problemAnalytics?.resolutionCoveragePercent === null || problemAnalytics?.resolutionCoveragePercent === undefined
+    ? null
+    : num(problemAnalytics.resolutionCoveragePercent);
+  const resolutionCoverage = analyticsResolutionCoverage !== null
+    ? analyticsResolutionCoverage
+    : (topic.resolutionCoveragePercent === null || topic.resolutionCoveragePercent === undefined
+      ? (relatedCases.length ? roundMetric(resolvedRelatedCount * 100 / relatedCases.length, 1) : null)
+      : num(topic.resolutionCoveragePercent));
   const resolutionEvidenceIds = [...new Set([
     ...supportedResolutionPatterns.flatMap(item => item.evidenceIds || []),
     ...resolvedRelatedCases.map(item => item.id || item.key || item.issueKey)
   ].map(safeString).filter(Boolean))];
+  const analyticsConfirmedResolutionSource = num(problemAnalytics?.confirmedResolutionCount);
   const actionPlan = topic.actionPlan && typeof topic.actionPlan === 'object' ? topic.actionPlan : {};
   const actionDataGap = safeString(topic.actionDataGap).trim();
   const actionPlanEvidenceIds = Array.isArray(actionPlan.evidenceIds) ? actionPlan.evidenceIds.map(safeString).filter(Boolean) : [];
@@ -535,7 +541,7 @@ const generateTopProblemPostmortemReport = ({
   const proposedAction = safeString(actionPlan.action || topic.actionNeeded).trim();
   const isGenericAdvice = /провести\s+обучение|добавить\s+инструкц|обновить\s+инструкц|закрепить.*(?:бз|баз[аеы]\s+знаний)|разобрать\s+(?:3\s*[-–]\s*5|типов)|уточнить\s+(?:маршрут|критерии)|сделать\s+(?:чек-лист|карточку)/i.test(proposedAction);
   const legacyActionHasEvidence = resolutionEvidenceIds.length > 0 && isMeaningfulResolutionText(proposedAction) && !isGenericAdvice;
-  const hasResolutionEvidence = resolutionEvidenceIds.length > 0;
+  const hasResolutionEvidence = resolutionEvidenceIds.length > 0 || analyticsConfirmedResolutionSource > 0;
   const actionNeeded = actionPlanHasTrace
     ? proposedAction
     : (legacyActionHasEvidence
@@ -559,18 +565,23 @@ const generateTopProblemPostmortemReport = ({
       ? safeString(resolvedRelatedCases[0].problemContext || resolvedRelatedCases[0].symptom || resolvedRelatedCases[0].title || resolvedRelatedCases[0].summary).trim()
       : safeString(topic.rootCauseHypothesis || topic.problemType || 'Фактический контекст обращений ещё не собран.').trim());
   const resolutionEvidenceText = resolutionEvidenceIds.length
-    ? `Подтверждение: ${resolutionEvidenceIds.slice(0, 5).join(', ')}${resolutionEvidenceIds.length > 5 ? ` +${resolutionEvidenceIds.length - 5}` : ''}`
-    : 'Подтверждающих обращений в выгрузке нет';
+    ? `Подтверждено по ${requestCount(Math.max(resolutionEvidenceIds.length, analyticsConfirmedResolutionSource))}`
+    : (analyticsConfirmedResolutionSource > 0
+      ? `Подтверждено по ${requestCount(analyticsConfirmedResolutionSource)}`
+      : 'Подтверждающих обращений в выгрузке нет');
   const resolutionPatternCards = supportedResolutionPatterns.length
-    ? supportedResolutionPatterns.map(item => `<div><b>${html(item.name || item.resolution || 'Способ не описан')}</b><span class="muted">${item.count !== undefined ? `${html(count(item.count))} подтверждено` : 'подтверждено обращениями'} · ${html((item.evidenceIds || []).slice(0, 4).join(', '))}</span></div>`).join('')
+    ? supportedResolutionPatterns.map(item => `<div><b>${html(item.name || item.resolution || 'Способ не описан')}</b><span class="muted">${item.count !== undefined ? `${html(requestCount(item.count))} подтверждено` : 'подтверждено обращениями'}</span></div>`).join('')
     : '<div><b>Способы решения не подтверждены</b><span class="muted">Нужны содержательные итоговые комментарии исполнителей, связанные с номерами обращений.</span></div>';
-  const subProblemRows = subProblems.length ? subProblems.map((item, index) => `
+  const detailedSubProblems = Array.isArray(problemAnalytics?.types) && problemAnalytics.types.length
+    ? problemAnalytics.types
+    : subProblems;
+  const subProblemRows = detailedSubProblems.length ? detailedSubProblems.map((item, index) => `
     <tr>
       <td><strong>${index + 1}. ${html(item.name)}</strong></td>
       <td class="num">${html(count(item.count))}</td>
-      <td class="num">${html(pct(item.share))}</td>
-      <td>${html(item.meaning)}</td>
-      <td>${html(hasResolutionEvidence ? item.action : 'Сначала подтвердить фактический способ решения по комментариям обращений.')}</td>
+      <td class="num">${html(pct(topicCount ? num(item.count) * 100 / topicCount : item.share))}</td>
+      <td>${html(item.meaning || 'Подтип определён по заголовку, описанию и содержательному комментарию.')}</td>
+      <td>${html(hasResolutionEvidence ? (item.action || 'Сопоставить с подтверждёнными способами решения.') : 'Сначала подтвердить фактический способ решения по комментариям обращений.')}</td>
     </tr>
   `).join('') : `
     <tr><td><strong>1. Основная тема</strong></td><td class="num">${html(count(topicCount))}</td><td class="num">${html(pct(topicShare))}</td><td>${html(topic.problemType || 'тип проблемы требует уточнения')}</td><td>${html(actionNeeded)}</td></tr>
@@ -588,7 +599,7 @@ const generateTopProblemPostmortemReport = ({
     const resolutionText = item.resolution || item.solution || item.resolutionText || item.comment || 'Не зафиксировано';
     return `
     <tr>
-      <td><strong>${html(item.id || item.key || item.issueKey || 'без номера')}</strong><br><span class="muted">${html(item.assignee || item.executor || item.responsible || 'исполнитель не указан')}</span></td>
+      <td><strong>${html(item.assignee || item.executor || item.responsible || 'исполнитель не указан')}</strong></td>
       <td><strong>${html(item.title || item.summary || item.reason || 'Описание не передано')}</strong>${item.symptom ? `<br><span class="muted">Симптом: ${html(item.symptom)}</span>` : ''}</td>
       <td>${html(item.diagnosis || 'Не зафиксировано')}</td>
       <td><strong>${html(resolutionText)}</strong>${item.resolutionSource ? `<br><span class="muted">Источник: ${html(item.resolutionSource)}</span>` : ''}</td>
@@ -623,32 +634,32 @@ const generateTopProblemPostmortemReport = ({
     topic.slaBreaches === null || topic.slaBreaches === undefined ? 'Передавать SLA-просрочки внутри bottleneckThemes.' : '',
     'Фиксировать итог постмортема: причина, действие, владелец, дата проверки.'
   ].filter(Boolean).map(item => `<li>${html(item)}</li>`).join('');
-  const postmortemSymptoms = (Array.isArray(topic.topSymptoms) ? topic.topSymptoms : [])
-    .map(item => ({
-      name: safeString(typeof item === 'string' ? item : (item?.name || item?.symptom)).trim(),
-      count: typeof item === 'object' && item?.count !== undefined ? num(item.count) : null
-    }))
-    .filter(item => item.name)
-    .slice(0, 3);
-  const postmortemBreakdown = (Array.isArray(subProblems) ? subProblems : [])
-    .filter(item => safeString(item?.name).trim())
-    .slice(0, 4);
+  const analyticsTypes = Array.isArray(problemAnalytics?.types) ? problemAnalytics.types : [];
+  const analyticsResolutions = Array.isArray(problemAnalytics?.resolutions) ? problemAnalytics.resolutions : [];
+  const analyticsClassifiedCount = analyticsTypes.reduce((sum, item) => sum + num(item?.count), 0);
+  const analyticsAnalyzedCount = analyticsClassifiedCount || num(problemAnalytics?.analyzedCount);
+  const analyticsCoverage = topicCount > 0 ? Math.min(100, analyticsAnalyzedCount * 100 / topicCount) : 0;
+  const analyticsUnclassifiedCount = Math.max(0, topicCount - analyticsAnalyzedCount);
+  const analyticsConfirmedResolutionCount = analyticsConfirmedResolutionSource
+    || analyticsResolutions.filter(item => item?.confirmed !== false).reduce((sum, item) => sum + num(item?.count), 0);
+  const postmortemBreakdownSource = analyticsTypes.filter(item => safeString(item?.name).trim());
+  const postmortemBreakdownTailCount = postmortemBreakdownSource.slice(4).reduce((sum, item) => sum + num(item?.count), 0);
+  const postmortemBreakdown = [
+    ...postmortemBreakdownSource.slice(0, 4),
+    ...(postmortemBreakdownTailCount > 0 ? [{ name: 'Другие классифицированные подтипы', count: postmortemBreakdownTailCount }] : [])
+  ];
   const postmortemCauseText = safeString(topic.rootCauseHypothesis).trim()
     || 'Причина пока не подтверждена: нужен разбор контекста и итоговых комментариев связанных обращений.';
   const compactActionText = hasResolutionEvidence
     ? actionNeeded
     : 'Разбор решения пока не готов. Собрать минимум 3 обращения с контекстом проблемы и итоговым комментарием исполнителя.';
-  const analyticsTypes = Array.isArray(problemAnalytics?.types) ? problemAnalytics.types.slice(0, 7) : [];
-  const analyticsResolutions = Array.isArray(problemAnalytics?.resolutions) ? problemAnalytics.resolutions.slice(0, 7) : [];
-  const analyticsAnalyzedCount = num(problemAnalytics?.analyzedCount);
-  const analyticsCoverage = topicCount > 0 ? Math.min(100, analyticsAnalyzedCount * 100 / topicCount) : 0;
   const repeatGroups = problemAnalytics?.repeatGroups && typeof problemAnalytics.repeatGroups === 'object' ? problemAnalytics.repeatGroups : {};
   const analyticsBarRows = (items, color) => items.length
-    ? items.map(item => `<div class="analytics-row"><div class="analytics-row-head"><span>${html(item.name)}</span><b>${html(requestCount(item.count))} · ${html(pct(item.share))}</b></div><div class="analytics-track"><i style="width:${Math.max(3, Math.min(100, num(item.share)))}%;background:${color}"></i></div>${Array.isArray(item.evidenceIds) && item.evidenceIds.length ? `<small>${html(item.evidenceIds.slice(0, 6).join(' · '))}</small>` : ''}</div>`).join('')
+    ? items.map(item => `<div class="analytics-row"><div class="analytics-row-head"><span>${html(item.name)}</span><b>${html(requestCount(item.count))} · ${html(pct(item.share))}</b></div><div class="analytics-track"><i style="width:${Math.max(3, Math.min(100, num(item.share)))}%;background:${color}"></i></div></div>`).join('')
     : '<div class="analytics-empty">В доступных примерах нет данных для группировки.</div>';
   const renderRepeatPanel = (title, items, emptyText) => {
     const rows = Array.isArray(items) ? items.slice(0, 6) : [];
-    return `<div class="repeat-panel"><div class="repeat-title">${html(title)}</div>${rows.length ? rows.map(item => `<div class="repeat-row"><div><b>${html(item.name)}</b><small>${html((item.evidenceIds || []).slice(0, 5).join(' · '))}</small></div><strong>${html(item.count)}×</strong></div>`).join('') : `<div class="analytics-empty">${html(emptyText)}</div>`}</div>`;
+    return `<div class="repeat-panel"><div class="repeat-title">${html(title)}</div>${rows.length ? rows.map(item => `<div class="repeat-row"><div><b>${html(item.name)}</b><small>${Array.isArray(item.examples) && item.examples.length ? html(item.examples.join(' · ')) : `${html(requestCount(item.count))} с одинаковым признаком`}</small></div><strong>${html(item.count)}×</strong></div>`).join('') : `<div class="analytics-empty">${html(emptyText)}</div>`}</div>`;
   };
   const dominantType = analyticsTypes[0];
   const missingResolution = analyticsResolutions.find(item => item.confirmed === false || /не описан/i.test(safeString(item.name)));
@@ -660,13 +671,17 @@ const generateTopProblemPostmortemReport = ({
   const attentionCards = [
     dominantType ? { label: 'Главный сценарий в выборке', value: dominantType.name, note: `${requestCount(dominantType.count)} из ${requestCount(analyticsAnalyzedCount)} разобранных` } : null,
     missingResolution ? { label: 'Пробел в комментариях', value: `${requestCount(missingResolution.count)} без хода решения`, note: 'По этим обращениям нельзя подтвердить причину и переиспользуемый способ устранения.' } : null,
-    repeatSignals[0] ? { label: 'Самый сильный повтор', value: `${repeatSignals[0].name} · ${repeatSignals[0].count}×`, note: `Связанные обращения: ${(repeatSignals[0].evidenceIds || []).slice(0, 5).join(', ')}` } : null
+    repeatSignals[0] ? { label: 'Самый сильный повтор', value: `${repeatSignals[0].name} · ${repeatSignals[0].count}×`, note: `${requestCount(repeatSignals[0].count)} с одним офисом, устройством или заявителем.` } : null
   ].filter(Boolean);
   const previousRankText = previousRank?.found
     ? `№${Math.round(num(previousRank.rank))} · ${requestCount(previousRank.count)}`
     : (previousRank?.hasPreviousWeek ? 'Вне ТОП-5' : 'Нет данных');
   const previousRankTitle = safeString(previousRank?.name || topicName).trim();
   const previousRankPeriod = safeString(previousRank?.dates || (previousRank?.weekNumber ? `Неделя ${previousRank.weekNumber}` : 'прошлая неделя')).trim();
+  const previousCount = previousRank?.found ? num(previousRank.count) : null;
+  const previousDeltaText = previousCount === null
+    ? 'Сравнение объёма пока недоступно'
+    : (topicCount === previousCount ? 'Объём без изменений' : `${topicCount > previousCount ? '+' : '−'}${Math.abs(Math.round(topicCount - previousCount))} к прошлой неделе`);
   const showcaseRepeat = repeatSignals[0] || null;
 
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Постмортем ТОП-1 проблемы</title><style>
@@ -675,7 +690,7 @@ const generateTopProblemPostmortemReport = ({
     .hero{background:radial-gradient(circle at 78% 18%,rgba(56,189,248,.30),transparent 28%),linear-gradient(135deg,#0f172a,#102033 54%,#13294b);color:#fff;border-radius:28px;padding:34px;box-shadow:0 28px 70px rgba(15,23,42,.22);overflow:hidden}
     .hero-grid{display:grid;grid-template-columns:1fr 1.22fr;gap:30px;align-items:center}.eyebrow{color:#9ce7d1;font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:900;margin-bottom:10px}h1{font-size:38px;line-height:1.05;margin:0 0 10px}.subtitle{margin:0;color:#dbeafe;font-size:16px}.meter-grid{display:grid;grid-template-columns:1fr;gap:14px}.pulse,.phone-pulse{position:relative;border:1px solid rgba(255,255,255,.16);border-top:4px solid ${currentState.color};background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.045));border-radius:24px;padding:16px;min-height:178px;overflow:hidden;display:grid;grid-template-columns:120px 1fr;grid-template-areas:"head head" "visual title" "visual note" "visual target";column-gap:18px;align-items:center}.phone-pulse{border-top-color:var(--phone);background:linear-gradient(135deg,rgba(14,165,233,.12),rgba(255,255,255,.045))}.pulse:before,.phone-pulse:before{content:"";position:absolute;inset:-70px auto auto -70px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.14),transparent 62%)}.meter-head{grid-area:head;position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.12)}.meter-head span{display:block;color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.12em;font-weight:900}.meter-head em{display:block;color:#bfdbfe;font-size:10px;font-style:normal;text-align:right;line-height:1.25}.orb,.phone-art{grid-area:visual;position:relative;width:108px;height:108px;border-radius:50%;margin:0;background:radial-gradient(circle at 36% 32%,#fff,${currentState.color} 28%,#111827 74%);box-shadow:0 0 32px ${currentState.color},inset 0 0 24px rgba(255,255,255,.18)}.orb:after,.phone-art:after{content:"";position:absolute;inset:-8px;border:1px solid rgba(255,255,255,.14);border-radius:50%}.phone-art{background:radial-gradient(circle at 38% 32%,rgba(255,255,255,.92),var(--phone) 34%,#0f172a 76%);box-shadow:0 0 32px var(--phone),inset 0 0 24px rgba(255,255,255,.16);display:grid;place-items:center}.phone-art:before{content:"";position:absolute;inset:20px;border-radius:50%;border:1px solid rgba(255,255,255,.18)}.phone-wave,.phone-core{display:none}.phone-svg{position:relative;z-index:1;width:52px;height:52px;fill:#fff;filter:drop-shadow(0 8px 16px rgba(0,0,0,.38))}.missed-badge{position:absolute;z-index:2;right:-6px;top:-6px;min-width:34px;height:28px;border-radius:999px;background:var(--phone);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:900;box-shadow:0 8px 18px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.45)}.pulse-title{grid-area:title;text-align:left;font-size:21px;font-weight:900;color:#fff;align-self:end}.pulse-note{grid-area:note;text-align:left;color:#cbd5e1;font-size:12px;margin-top:3px;min-height:0;align-self:start}.sla-target{grid-area:target;margin-top:8px;text-align:left;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:10px 12px}.sla-target b{display:block;font-size:28px;color:#fff;line-height:1.05}.sla-target span{font-size:10px;color:#dbeafe;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.scale-label{margin:22px 0 8px;color:#93c5fd;font-size:11px;text-transform:uppercase;letter-spacing:.14em;font-weight:900}.traffic{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.state{border:1px solid rgba(255,255,255,.12);border-top:5px solid var(--c);border-radius:16px;padding:10px;background:rgba(255,255,255,.08)}.state b{display:block;font-size:12px}.state span{display:block;color:#cbd5e1;font-size:10px;margin-top:3px}.kpi{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0}.card,section{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 28px rgba(15,23,42,.05)}.card{padding:16px}.card small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.card strong{display:block;font-size:27px;margin-top:6px;color:#102033}.flow{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr 34px 1fr;align-items:stretch;gap:8px;margin:16px 0}.flow-step{border:1px solid var(--line);border-top:5px solid var(--c);border-radius:18px;padding:16px;background:#fff}.flow-step small{display:block;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.flow-step b{display:block;font-size:21px;margin:6px 0;color:#102033}.flow-step p{font-size:12px;color:#475569}.arrow{display:grid;place-items:center;color:#64748b;font-size:28px;font-weight:900}.drop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.drop-card{border:1px solid var(--line);border-left:6px solid ${currentState.color};border-radius:16px;padding:14px;background:#fff}.drop-card small{display:block;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.drop-card b{display:block;font-size:16px;margin:5px 0;color:#102033}.modal-toggle{display:none}.modal{display:none;position:fixed;z-index:50;inset:0;background:rgba(15,23,42,.72);padding:36px;overflow:auto}.modal-toggle:checked+.modal{display:block}.modal-panel{max-width:980px;margin:0 auto;background:#fff;border-radius:24px;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.35)}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:14px}.modal-close,.modal-open{display:inline-block;cursor:pointer;border:0;border-radius:999px;font-weight:900}.modal-close{background:#0f172a;color:#fff;padding:9px 13px}.modal-open{margin-top:12px;background:#102033;color:#fff;padding:10px 15px;box-shadow:0 10px 22px rgba(15,23,42,.18)}.signal-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.signal-strip div{border:1px solid #dbeafe;background:linear-gradient(135deg,#f8fbff,#fff);border-radius:14px;padding:12px}.signal-strip b{display:block;color:#1d4ed8}section{padding:22px;margin:16px 0}h2{font-size:21px;margin:0 0 12px}p{margin:0 0 10px}.note{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px;color:#334155}.focus{border-left:6px solid ${currentState.color};background:${currentState.bg};padding:16px;border-radius:16px;color:#102033}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:10px;border-bottom:1px solid var(--line)}td{padding:10px;border-bottom:1px solid #edf2f7;vertical-align:top}.num{text-align:right;white-space:nowrap;font-weight:900}.muted{color:#64748b}.plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.plan div{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px}.plan b{display:block;color:#1d4ed8;margin-bottom:6px}@media(max-width:980px){.hero-grid{grid-template-columns:1fr}}@media(max-width:820px){.kpi,.traffic,.plan,.flow,.drop-grid,.signal-strip{grid-template-columns:1fr}.pulse,.phone-pulse{grid-template-columns:1fr;grid-template-areas:"head" "visual" "title" "note" "target";text-align:center}.orb,.phone-art{margin:0 auto}.pulse-title,.pulse-note,.sla-target{text-align:center}.arrow{display:none}h1{font-size:30px}.modal{padding:16px}}@media print{body{background:#fff}.page{padding:0}.hero,section,.card{box-shadow:none;break-inside:avoid}.modal{display:block;position:static;background:#fff;padding:0}.modal-close,.modal-open{display:none}}
     .analytics-coverage{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;margin-bottom:16px;padding:14px;border:1px solid #bfdbfe;border-radius:16px;background:#f8fbff}.analytics-coverage strong{font-size:30px;color:#1d4ed8}.analytics-coverage span{display:block;color:#334155;font-weight:900}.analytics-coverage small{display:block;color:#64748b;margin-top:3px}.analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.analytics-card{border:1px solid #dbe5ef;border-radius:18px;padding:16px;background:#fff}.analytics-card h3{margin:0 0 12px;font-size:15px}.analytics-row{margin:11px 0}.analytics-row-head{display:flex;justify-content:space-between;gap:12px;font-size:12px}.analytics-row-head span{font-weight:800}.analytics-row-head b{white-space:nowrap}.analytics-track{height:10px;margin-top:6px;background:#e8eef5;border-radius:999px;overflow:hidden}.analytics-track i{display:block;height:100%;border-radius:999px}.analytics-row small{display:block;margin-top:4px;color:#94a3b8;font-size:9px}.repeat-grid,.attention-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.repeat-panel,.attention-card{border:1px solid #dbe5ef;border-radius:16px;padding:14px;background:#fbfdff}.repeat-title{color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;margin-bottom:8px}.repeat-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #edf2f7}.repeat-row:first-of-type{border-top:0}.repeat-row b,.repeat-row small{display:block}.repeat-row b{font-size:12px}.repeat-row small{margin-top:2px;color:#94a3b8;font-size:9px}.repeat-row strong{font-size:19px;color:#7c3aed}.analytics-empty{color:#94a3b8;font-size:12px;padding:8px 0}.attention-card span{display:block;color:#9a3412;font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.attention-card b{display:block;margin-top:6px;font-size:15px}.attention-card small{display:block;margin-top:5px;color:#64748b}.analytics-warning{margin-top:14px;padding:12px 14px;border:1px solid #fcd34d;border-radius:14px;background:#fffbeb;color:#92400e;font-size:12px}@media(max-width:820px){.analytics-grid,.repeat-grid,.attention-grid{grid-template-columns:1fr}}
-    .pm-heading-side{display:grid;grid-template-columns:auto minmax(150px,210px);gap:10px;align-items:stretch}.pm-rank-card{border:1px solid #fed7aa;border-radius:14px;padding:9px 11px;background:#fff7ed;box-shadow:0 7px 16px rgba(124,58,237,.04)}.pm-rank-card span{display:block;color:#9a3412;font:900 7px/1 Consolas,"Courier New",monospace;letter-spacing:.1em;text-transform:uppercase}.pm-rank-card b{display:block;margin-top:5px;color:#171327;font-size:13px}.pm-rank-card small{display:block;margin-top:3px;color:#64748b;font-size:8px;line-height:1.2;text-transform:none;letter-spacing:0}.pm-breakdown-row{position:relative;overflow:hidden}.pm-breakdown-row i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(249,115,22,.16),rgba(124,58,237,.07));z-index:0}.pm-breakdown-row span,.pm-breakdown-row b{position:relative;z-index:1}.pm-hotspot{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:8px 10px;border:1px solid #ddd6fe;border-radius:10px;background:#f5f3ff}.pm-hotspot span{color:#6d28d9;font:900 7px/1.2 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.08em}.pm-hotspot b{color:#312e81;font-size:9px;text-align:right}.pm-breakdown-caption{display:block;margin-top:4px;color:#64748b;font-size:7px;font-weight:700}@media(max-width:820px){.pm-heading-side{grid-template-columns:1fr}.pm-rank-card{text-align:left}}
+    .pm-heading-side{display:grid;grid-template-columns:auto minmax(150px,210px);gap:10px;align-items:stretch}.pm-rank-card{border:1px solid #fed7aa;border-radius:14px;padding:9px 11px;background:#fff7ed;box-shadow:0 7px 16px rgba(124,58,237,.04)}.pm-rank-card span{display:block;color:#9a3412;font:900 7px/1 Consolas,"Courier New",monospace;letter-spacing:.1em;text-transform:uppercase}.pm-rank-card b{display:block;margin-top:5px;color:#171327;font-size:13px}.pm-rank-card small{display:block;margin-top:3px;color:#64748b;font-size:8px;line-height:1.2;text-transform:none;letter-spacing:0}.pm-breakdown-row{position:relative;overflow:hidden}.pm-breakdown-row i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(249,115,22,.16),rgba(124,58,237,.07));z-index:0}.pm-breakdown-row span,.pm-breakdown-row b{position:relative;z-index:1}.pm-breakdown-row.is-muted{opacity:.72}.pm-hotspot{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:8px 10px;border:1px solid #ddd6fe;border-radius:10px;background:#f5f3ff}.pm-hotspot span{color:#6d28d9;font:900 7px/1.2 Consolas,"Courier New",monospace;text-transform:uppercase;letter-spacing:.08em}.pm-hotspot b{color:#312e81;font-size:9px;text-align:right}.pm-breakdown-caption{display:block;margin-top:4px;color:#64748b;font-size:7px;font-weight:700}.pm-resolution-list{display:grid;gap:4px;margin-top:7px}.pm-resolution-list div{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding-top:4px;border-top:1px solid rgba(148,163,184,.18)}.pm-resolution-list b{font-size:9px;line-height:1.25}.pm-resolution-list em{flex-shrink:0;color:#0891b2;font:900 8px/1.2 Consolas,"Courier New",monospace;font-style:normal}@media(max-width:820px){.pm-heading-side{grid-template-columns:1fr}.pm-rank-card{text-align:left}}
   </style></head><body><main class="page">
 	    <style>
 	      .hero-grid{grid-template-columns:1fr;gap:22px}.meter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -760,23 +775,22 @@ const generateTopProblemPostmortemReport = ({
 	      </div>
 	      <div class="pm-heading">
 	        <div><small>Главная повторяющаяся проблема недели</small><h2>${html(topicName)}</h2></div>
-	        <div class="pm-heading-side"><div class="pm-count"><strong>${html(Math.round(topicCount))}</strong><span>${html(requestCount(topicCount).replace(/^\d+\s*/, ''))} · ${html(pct(topicShare))} от закрытых</span></div><div class="pm-rank-card"><span>${html(previousRankPeriod)}</span><b>${html(previousRankText)}</b><small>${html(previousRankTitle)}</small></div></div>
+	        <div class="pm-heading-side"><div class="pm-count"><strong>${html(Math.round(topicCount))}</strong><span>обращений сейчас · ${html(pct(topicShare))} от закрытых</span></div><div class="pm-rank-card"><span>Прошлая неделя · ${html(previousRankPeriod)}</span><b>${html(previousRankText)}</b><small>${html(previousDeltaText)}${previousRank?.found ? ` · ${html(previousRankTitle)}` : ''}</small></div></div>
 	      </div>
 	      <div class="pm-story">
 	        <div class="pm-panel pm-fact">
-	          <span class="pm-panel-label">01 / Что происходило по факту</span>
-	          <strong>${html(confirmedProblemFact)}</strong>
+	          <span class="pm-panel-label">01 / Какие проблемы встречались чаще всего</span>
+	          <strong>${html(requestCount(topicCount))} вошли в ТОП-1 «${html(topicName)}»</strong>
 	          <div class="pm-meta">${html(topicCategory || 'Категория уточняется')}${topicSystems.length ? ` · ${html(topicSystems.join(', '))}` : ''}</div>
-	          <div class="pm-symptoms">${postmortemSymptoms.length ? postmortemSymptoms.map(item => `<span class="pm-symptom">${html(item.name)}${item.count === null ? '' : ` · ${html(Math.round(item.count))}`}</span>`).join('') : '<span class="pm-symptom">Симптомы требуют детализации из обращений</span>'}</div>
-	          <div class="pm-breakdown"><span class="pm-breakdown-label">Фактическая структура ТОП-1</span><small class="pm-breakdown-caption">Разобрано ${html(Math.round(analyticsAnalyzedCount))} из ${html(Math.round(topicCount))} · покрытие ${html(pct(analyticsCoverage))}</small>${postmortemBreakdown.length ? postmortemBreakdown.slice(0, 4).map(item => `<div class="pm-breakdown-row"><i style="width:${Math.max(4, Math.min(100, num(item.share)))}%"></i><span>${html(item.name)}</span><b>${html(Math.round(num(item.count)))} · ${html(pct(item.share))}</b></div>`).join('') : '<div class="pm-breakdown-row"><span>Подтемы появятся после детализации обращений</span><b>нет данных</b></div>'}${showcaseRepeat ? `<div class="pm-hotspot"><span>Главный повтор</span><b>${html(showcaseRepeat.name)} · ${html(showcaseRepeat.count)}×</b></div>` : ''}</div>
+	          <div class="pm-breakdown"><span class="pm-breakdown-label">Структура ТОП-1 по обращениям</span><small class="pm-breakdown-caption">Классифицировано ${html(Math.round(analyticsAnalyzedCount))} из ${html(Math.round(topicCount))}. Доля каждой строки считается от всех ${html(Math.round(topicCount))} обращений ТОП-1.</small>${postmortemBreakdown.length ? postmortemBreakdown.map(item => `<div class="pm-breakdown-row"><i style="width:${Math.max(4, Math.min(100, topicCount ? num(item.count) * 100 / topicCount : 0))}%"></i><span>${html(item.name)}</span><b>${html(Math.round(num(item.count)))} из ${html(Math.round(topicCount))} · ${html(pct(topicCount ? num(item.count) * 100 / topicCount : 0))}</b></div>`).join('') : '<div class="pm-breakdown-row"><span>Подтемы появятся после детализации обращений</span><b>нет данных</b></div>'}${analyticsUnclassifiedCount > 0 ? `<div class="pm-breakdown-row is-muted"><span>Без достаточного контекста для подтипа</span><b>${html(Math.round(analyticsUnclassifiedCount))} из ${html(Math.round(topicCount))}</b></div>` : ''}</div>
 	        </div>
 	        <div class="pm-analysis">
-	          <div class="pm-analysis-card" style="--pm-accent:#fb923c"><span>02 / Причина</span><strong>${html(postmortemCauseText)}</strong><small>${actionPlanHasTrace ? 'Связано с подтверждёнными обращениями' : 'Гипотеза до подтверждения разбором обращений'}</small></div>
-	          <div class="pm-analysis-card" style="--pm-accent:#22d3ee"><span>03 / Метод решения</span><strong>${html(confirmedResolutionText)}</strong><small>${html(resolutionEvidenceText)}</small></div>
-	          <div class="pm-analysis-card${hasResolutionEvidence ? '' : ' is-gap'}" style="--pm-accent:#34d399"><span>04 / Что меняем</span><strong>${html(compactActionText)}</strong><small>${html(checkText)}</small></div>
+	          <div class="pm-analysis-card" style="--pm-accent:#fb923c"><span>02 / Что видно по причине</span><strong>${html(postmortemCauseText)}</strong><small>${actionPlanHasTrace ? 'Причина связана с подтверждённым контекстом обращений' : 'Это рабочая гипотеза, а не доказанный корень проблемы'}</small></div>
+	          <div class="pm-analysis-card pm-resolution-card" style="--pm-accent:#22d3ee"><span>03 / Как восстанавливали работу</span><strong>${html(requestCount(analyticsConfirmedResolutionCount))} из ${html(requestCount(analyticsAnalyzedCount))} содержат подтверждённое действие</strong><div class="pm-resolution-list">${analyticsResolutions.filter(item => item?.confirmed !== false).slice(0, 3).map(item => `<div><b>${html(item.name)}</b><em>${html(Math.round(num(item.count)))} из ${html(Math.round(analyticsAnalyzedCount))}</em></div>`).join('') || '<div><b>Ход решения пока не описан</b><em>0 подтверждений</em></div>'}</div></div>
+	          <div class="pm-analysis-card${hasResolutionEvidence ? '' : ' is-gap'}" style="--pm-accent:#34d399"><span>04 / Что закрепляем</span><strong>${html(compactActionText)}</strong><small>${html(checkText)}</small></div>
 	        </div>
 	      </div>
-	      <div class="pm-evidence"><span>Цепочка подтверждений</span><b>${resolutionEvidenceIds.length ? html(resolutionEvidenceIds.slice(0, 8).join(' · ')) : 'Пока нет подтверждающих IS — вывод не подменяется предположением'}${resolutionCoverage === null ? '' : ` · покрытие решений ${html(pct(resolutionCoverage))}`}</b></div>
+	      <div class="pm-evidence"><span>Как читать цифры</span><b>${html(Math.round(topicCount))} всего в ТОП-1 → ${html(Math.round(analyticsAnalyzedCount))} классифицировано → ${html(Math.round(analyticsConfirmedResolutionCount))} с описанным решением${showcaseRepeat ? ` → главный повтор ${html(showcaseRepeat.count)} обращения` : ''}</b></div>
 	    </div>
 	    </div>
 	    <div class="email-brief">
@@ -832,7 +846,7 @@ const generateTopProblemPostmortemReport = ({
     <input class="modal-toggle" type="checkbox" id="top-breakdown-modal">
     <div class="modal"><div class="modal-panel"><div class="modal-head"><div><h2>Расшифровка ТОП-проблемы</h2><p class="muted">${html(topicName)} · фактическая разбивка доступных обращений</p></div><label class="modal-close" for="top-breakdown-modal">Закрыть</label></div><table><thead><tr><th>Подтема / сигнал</th><th>Кол-во</th><th>Доля</th><th>Что видно по смыслу</th><th>Что делаем</th></tr></thead><tbody>${subProblemRows}</tbody></table><div class="note" style="margin-top:12px">Разбивка построена по ${html(requestCount(analyticsAnalyzedCount))} с доступным контекстом из ${html(requestCount(topicCount))} ТОП-темы. Неописанная часть не распределяется по категориям предположительно.</div></div></div>
     <section><h2>Короткий вывод для команды</h2><div class="focus"><strong>${html(topicName)}</strong><br>Разбираем не только саму проблему, но и фактический путь устранения: диагностика, действие, маршрут и переиспользуемый шаг. На неделю закрепляем одно изменение и проверяем эффект по SLA и доле помощи выше 1-й линии.<br><label class="modal-open" for="top-breakdown-modal">Открыть расшифровку ТОП-проблемы</label></div><div class="signal-strip"><div><b>1. Что повторяется</b><span class="muted">${html(topicName)}</span></div><div><b>2. Как реально решали</b><span class="muted">${resolutionCoverage === null ? 'нужно заполнить ход решения' : `${html(pct(resolutionCoverage))} примеров с решением`}</span></div><div><b>3. Что закрепляем</b><span class="muted">${html(actionNeeded)}</span></div></div></section>
-    <section><h2>Обращения ТОП-проблемы: от симптома до решения</h2><div class="note" style="margin-bottom:12px">Каждая строка связывает исходную проблему с очищенным комментарием исполнителя. Сообщения ServiceDesk, автоматические проверки, просьбы оценить и формальные ответы исключены.</div><table><thead><tr><th>Тикет / исполнитель</th><th>Что произошло</th><th>Диагностика</th><th>Как решено</th><th>Маршрут / SLA</th><th>Что в БЗ</th></tr></thead><tbody>${caseRows}</tbody></table></section>
+    <section><h2>Обращения ТОП-проблемы: от симптома до решения</h2><div class="note" style="margin-bottom:12px">Каждая строка связывает исходную проблему с очищенным комментарием исполнителя. Служебные сообщения ServiceDesk, автоматические проверки и просьбы оценить исключены; номера обращений скрыты как технический шум.</div><table><thead><tr><th>Исполнитель</th><th>Что произошло</th><th>Диагностика</th><th>Как решено</th><th>Маршрут / SLA</th><th>Что в БЗ</th></tr></thead><tbody>${caseRows}</tbody></table></section>
     <section><h2>Повторяющиеся способы решения</h2><div class="note" style="margin-bottom:12px"><strong>Покрытие решений по обращениям ТОП-проблемы:</strong> ${resolutionCoverage === null ? 'нет данных' : html(pct(resolutionCoverage))}. Здесь остаются только подтвержденные действия, связанные с обращениями этой темы.</div><div class="plan">${resolutionPatternCards}</div></section>
     <section><h2>Задача команде на неделю</h2><div class="plan"><div><b>1. Разобрать</b>Взять 3-5 обращений выше и проверить общий сценарий диагностики и решения.</div><div><b>2. Закрепить</b>${html(actionNeeded)}</div><div><b>3. Проверить</b>${html(checkText)}</div></div></section>
     <section><h2>SLA и маршруты</h2><div class="plan"><div><b>Основной SLA</b>Взятие в работу ≤15 мин: ${html(pct(primarySla))}. Просрочек: ${html(count(training.primaryViolations))}.</div><div><b>Вторичный SLA</b>Решение в срок: ${html(pct(resolutionSla))}. Просрочек: ${html(count(training.resolutionViolations))}.</div><div><b>Маршрут помощи</b>${html(topic.mainRoute || topic.supportLevel || 'нужно уточнить по тикетам')}.</div></div><table style="margin-top:12px"><thead><tr><th>Маршрут</th><th>Тикеты</th><th>Взятие</th><th>Решение</th><th>Вывод</th></tr></thead><tbody>${slaRows}</tbody></table></section>
@@ -4520,10 +4534,12 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
         const name = normalizePostmortemEntity(typeof resolved === 'string' ? resolved : resolved?.name);
         if (!name) return;
         const key = name.toLowerCase();
-        const current = map.get(key) || { ...(typeof resolved === 'object' ? resolved : {}), name, count: 0, evidenceIds: [] };
+        const current = map.get(key) || { ...(typeof resolved === 'object' ? resolved : {}), name, count: 0, evidenceIds: [], examples: [] };
         current.count += 1;
         const id = safeString(item?.id || item?.key || item?.issueKey).trim();
         if (id && !current.evidenceIds.includes(id)) current.evidenceIds.push(id);
+        const example = safeString(item?.title || item?.summary || item?.symptom || item?.problemContext).replace(/\s+/g, ' ').trim();
+        if (example && !current.examples.includes(example) && current.examples.length < 2) current.examples.push(example);
         map.set(key, current);
       });
       return [...map.values()]
@@ -4757,7 +4773,7 @@ const TrainingBoard = ({ weekData, historyKeys, weeksHistory, selectedWeekKey, o
       .map(entry => entry.item);
     const analyticsCases = scoredCases
       .filter(item => safeString(item?.id || item?.key || item?.issueKey).trim())
-      .slice(0, 250);
+      .slice(0, Math.min(250, Math.max(1, Number(topic.count) || 250)));
     const relatedCases = analyticsCases.slice(0, 24);
     const subtypeMap = new Map();
     relatedCases.forEach(item => {
@@ -9767,6 +9783,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         const totalCalls = Number(phone?.total || phone?.calls || phone?.all || phone?.answered || 0) || 0;
         const missed = Number(phone?.missed || phone?.lost || phone?.notAnswered || 0) || 0;
         const handledCalls = Number(phone?.handled || phone?.answered || phone?.accepted || Math.max(0, totalCalls - missed)) || 0;
+        const phoneAvailability = totalCalls > 0 ? Math.max(0, Math.min(100, (totalCalls - missed) * 100 / totalCalls)) : null;
+        const missedRate = totalCalls > 0 ? Math.max(0, Math.min(100, missed * 100 / totalCalls)) : null;
         const availability = getEffectiveDays(weekKey, staff.id);
         const effectiveDays = availability.days;
         return {
@@ -9775,6 +9793,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           totalCalls,
           missed,
           handledCalls,
+          phoneAvailability,
+          missedRate,
           effectiveDays,
           explicitContext: availability.explicit,
           incidentPerDay: effectiveDays > 0 && incident ? incidentCount / effectiveDays : null,
@@ -9790,7 +9810,12 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         rows: staffRows.map(row => {
           const scoreParts = [];
           if (row.incidentPerDay !== null && incidentMedian > 0) scoreParts.push(Math.min(2, row.incidentPerDay / incidentMedian));
-          if (row.callsPerDay !== null && callsMedian > 0) scoreParts.push(Math.min(2, row.callsPerDay / callsMedian));
+          if (row.callsPerDay !== null && callsMedian > 0) {
+            const phoneQualityFactor = row.phoneAvailability === null
+              ? 1
+              : (row.phoneAvailability >= 90 ? 1 : (row.phoneAvailability >= 80 ? 0.9 : (row.phoneAvailability >= 70 ? 0.75 : 0.5)));
+            scoreParts.push(Math.min(2, row.callsPerDay / callsMedian) * phoneQualityFactor);
+          }
           return { ...row, relativeScore: scoreParts.length ? scoreParts.reduce((sum, value) => sum + value, 0) / scoreParts.length : null };
         })
       };
@@ -9808,33 +9833,52 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       const trend = previousAverage && latestAverage !== null ? (latestAverage - previousAverage) / previousAverage : 0;
       const contextCoverage = history.length ? history.filter(row => row.explicitContext).length / history.length : 0;
       const current = weekSnapshots.find(snapshot => snapshot.weekKey === selectedKey)?.rows.find(row => row.id === staff.id) || null;
+      const currentScore = current?.relativeScore ?? null;
+      const currentLevelPercent = currentScore === null ? null : Math.round(currentScore * 100);
+      const lowWeeks = history.filter(row => row.relativeScore < 0.75 || (row.phoneAvailability !== null && row.phoneAvailability < 70)).length;
+      const persistentLow = history.length >= 3 && lowWeeks / history.length >= 0.6;
+      const criticalPhone = Boolean(current?.hasPhoneData && current.totalCalls >= 10 && current.phoneAvailability !== null && current.phoneAvailability < 70);
+      const phoneRisk = Boolean(current?.hasPhoneData && current.totalCalls >= 10 && current.phoneAvailability !== null && current.phoneAvailability < 80);
       let status = 'Недостаточно истории';
       let tone = 'neutral';
-      if (history.length >= 3 && average !== null) {
-        if (average >= 1.15 && trend >= -0.12) {
+      if (currentScore !== null) {
+        if (criticalPhone) {
+          status = `Критично: пропущено ${Math.round(current.missedRate)}% звонков, уровень ниже команды`;
+          tone = 'bad';
+        } else if (persistentLow && contextCoverage < 0.5) {
+          status = 'Показатели устойчиво ниже команды — нужно сверить график';
+          tone = 'warn';
+        } else if (persistentLow) {
+          status = trend >= 0.15
+            ? 'Рост с низкой базы, но результат стабильно ниже команды'
+            : (trend <= -0.1 ? 'Стабильно низкий результат продолжает снижаться' : 'Стабильно низкий результат без улучшения');
+          tone = 'bad';
+        } else if (currentScore < 0.75) {
+          status = trend >= 0.15 ? 'Есть рост от низкой базы, но уровень остаётся низким' : 'Текущий результат заметно ниже команды';
+          tone = 'warn';
+        } else if (phoneRisk) {
+          status = 'Производительность приемлемая, но телефония в зоне риска';
+          tone = 'warn';
+        } else if (history.length >= 3 && average !== null && average >= 1.1 && trend >= -0.12) {
           status = 'Стабильно выше команды';
           tone = 'good';
-        } else if (trend >= 0.15) {
+        } else if (history.length >= 3 && trend >= 0.15 && currentScore >= 0.9) {
           status = 'Результат растёт';
           tone = 'good';
-        } else if (average <= 0.7 && contextCoverage < 0.5) {
-          status = trend <= -0.1 ? 'Показатели низкие и падают — сверить график' : 'Показатели устойчиво низкие — сверить график';
-          tone = 'warn';
-        } else if (average <= 0.7 && trend <= -0.1) {
-          status = 'Критично низко и снижается';
-          tone = 'bad';
-        } else if (average <= 0.7) {
-          status = 'Стабильно ниже команды';
-          tone = 'bad';
         } else if (trend <= -0.15) {
           status = 'Результат снижается';
           tone = 'warn';
         } else {
-          status = 'Стабильный результат';
+          status = currentScore >= 0.9 ? 'Стабильный рабочий результат' : 'Ниже медианы команды, без критичной просадки';
         }
       }
-      return { ...staff, history, current, average, trend, contextCoverage, status, tone };
-    }).sort((a, b) => (b.average ?? -1) - (a.average ?? -1));
+      const trendText = currentLevelPercent === null
+        ? 'нет текущих данных'
+        : (Math.abs(trend) < 0.05
+          ? `текущий уровень ${currentLevelPercent}% от медианы команды`
+          : `${trend > 0 ? '+' : ''}${Math.round(trend * 100)}%${(currentScore < 0.75 || criticalPhone) && trend > 0 ? ' от низкой базы' : ''}; сейчас ${currentLevelPercent}% от медианы команды`);
+      return { ...staff, history, current, average, trend, trendText, currentScore, currentLevelPercent, lowWeeks, persistentLow, criticalPhone, contextCoverage, status, tone };
+    }).sort((a, b) => (b.currentScore ?? -1) - (a.currentScore ?? -1) || (b.average ?? -1) - (a.average ?? -1));
   };
 
   const getCsatValue = () => {
@@ -10248,14 +10292,14 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         <div style="margin-top:12px; border:1px solid #cbd5e1; border-radius:10px; overflow:hidden; background:#ffffff;">
           <div style="padding:12px 14px; background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
             <div style="font-size:13px; color:#0f172a; font-weight:900; text-transform:uppercase;">Динамика первой линии: инциденты и телефония</div>
-            <div style="font-size:11px; color:#64748b; margin-top:3px;">Сравнение до 6 недель. Задачи не учитываются. Дежурство = 0,5 дня; отпуск и больничный исключаются из нормы.</div>
+            <div style="font-size:11px; color:#64748b; margin-top:3px;">Сравнение до 6 недель относительно медианы команды. Задачи не учитываются. Дежурство = 0,5 дня; отпуск и больничный исключаются. Доступность телефонии ниже 70% считается критичной.</div>
           </div>
           <table style="width:100%; border-collapse:collapse;">
             <tr style="background:#ffffff;">
               <th style="text-align:left; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Сотрудник</th>
               <th style="text-align:center; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Недель в анализе</th>
               <th style="text-align:right; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Инциденты</th>
-              <th style="text-align:right; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Обработано звонков</th>
+              <th style="text-align:right; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Звонки: обработано / пропущено</th>
               <th style="text-align:center; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Учтено дней</th>
               <th style="text-align:left; padding:8px; border-bottom:1px solid #e2e8f0; font-size:10px; color:#64748b;">Вывод по динамике</th>
             </tr>
@@ -10266,9 +10310,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; font-size:12px; font-weight:900; color:#0f172a;">${escapeHtml(row.name)}</td>
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">${row.history.length}</td>
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:800;">${current?.hasIncidentData ? current.incidentCount : 'нет данных'}</td>
-                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:800;">${current?.hasPhoneData ? current.handledCalls : 'нет данных'}</td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:800;">${current?.hasPhoneData ? `${current.handledCalls} / <span style="color:${current.phoneAvailability < 70 ? '#b91c1c' : '#64748b'}">${current.missed}</span><div style="font-size:9px; color:${current.phoneAvailability < 70 ? '#b91c1c' : '#64748b'};">доступность ${Math.round(current.phoneAvailability)}%</div>` : 'нет данных'}</td>
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">${current ? current.effectiveDays : 5}${current?.explicitContext ? '' : '*'}</td>
-                <td style="padding:7px 8px; border-bottom:1px solid #f1f5f9;"><span style="display:inline-block; padding:4px 7px; border-radius:999px; border:1px solid ${tone.border}; background:${tone.bg}; color:${tone.color}; font-size:10px; font-weight:900;">${escapeHtml(row.status)}</span>${Math.abs(row.trend) >= 0.05 ? `<div style="font-size:10px; color:#64748b; margin-top:3px;">динамика ${row.trend > 0 ? '+' : ''}${Math.round(row.trend * 100)}%</div>` : ''}</td>
+                <td style="padding:7px 8px; border-bottom:1px solid #f1f5f9;"><span style="display:inline-block; padding:4px 7px; border-radius:999px; border:1px solid ${tone.border}; background:${tone.bg}; color:${tone.color}; font-size:10px; font-weight:900;">${escapeHtml(row.status)}</span><div style="font-size:10px; color:#64748b; margin-top:3px;">${escapeHtml(row.trendText)}</div></td>
               </tr>`;
             }).join('')}
           </table>
@@ -10915,7 +10959,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h3 className="text-base font-black">Динамика первой линии</h3>
-                  <p className="text-[11px] text-slate-500">До 6 недель · только инциденты и обработанные звонки · с поправкой на занятость</p>
+                  <p className="text-[11px] text-slate-500">До 6 недель · инциденты, обработанные и пропущенные звонки · относительно медианы команды · с поправкой на занятость</p>
                 </div>
                 <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Задачи исключены</div>
               </div>
@@ -10937,12 +10981,13 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                         </div>
                         <div className="text-right text-[10px] font-bold uppercase tracking-wide opacity-70">{row.history.length} нед. в анализе</div>
                       </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                         <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Инциденты</div><b className="text-slate-950">{row.current?.hasIncidentData ? row.current.incidentCount : 'нет'}</b></div>
-                        <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Звонки</div><b className="text-slate-950">{row.current?.hasPhoneData ? row.current.handledCalls : 'нет'}</b></div>
+                        <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Обработано</div><b className="text-slate-950">{row.current?.hasPhoneData ? row.current.handledCalls : 'нет'}</b></div>
+                        <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Пропущено</div><b className={row.current?.phoneAvailability < 70 ? 'text-red-700' : 'text-slate-950'}>{row.current?.hasPhoneData ? `${row.current.missed} · ${Math.round(row.current.missedRate)}%` : 'нет'}</b></div>
                         <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Учтено</div><b className="text-slate-950">{row.current?.effectiveDays ?? 5} дн.</b></div>
                       </div>
-                      {Math.abs(row.trend) >= 0.05 && <div className="mt-2 text-[10px] font-bold">Изменение последних недель: {row.trend > 0 ? '+' : ''}{Math.round(row.trend * 100)}%</div>}
+                      <div className="mt-2 text-[10px] font-bold">{row.trendText}</div>
                       {row.contextCoverage < 0.5 && <div className="mt-1 text-[10px] opacity-75">Для строгого вывода заполните календарь прошлых недель.</div>}
                     </div>
                   );
