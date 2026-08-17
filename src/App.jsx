@@ -9309,7 +9309,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
     const saved = wordReportConfig?.firstLineAvailabilityByWeek?.[weekKey]?.[staffId];
     return {
       schedule: firstLineWeekDays.reduce((acc, day) => ({ ...acc, [day.id]: saved?.[day.id] || 'work' }), {}),
-      explicit: Boolean(saved)
+      explicit: true,
+      customized: Boolean(saved)
     };
   };
 
@@ -9851,11 +9852,20 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
       const persistentLow = history.length >= 3 && lowWeeks / history.length >= 0.6;
       const criticalPhone = Boolean(current?.hasPhoneData && current.totalCalls >= 10 && current.phoneAvailability !== null && current.phoneAvailability < 70);
       const phoneRisk = Boolean(current?.hasPhoneData && current.totalCalls >= 10 && current.phoneAvailability !== null && current.phoneAvailability < 80);
+      const expectedIncidentMinimum = current?.hasIncidentData ? Math.round(current.effectiveDays * 10) : null;
+      const incidentMinimumRatio = expectedIncidentMinimum > 0 ? current.incidentCount / expectedIncidentMinimum : null;
+      const incidentThresholdStatus = incidentMinimumRatio === null
+        ? 'по инцидентам нет данных'
+        : (incidentMinimumRatio >= 1
+          ? `инциденты: норма выполнена (${current.incidentCount} из ${expectedIncidentMinimum})`
+          : (incidentMinimumRatio >= 0.9
+            ? `инциденты: практически норма с учётом графика (${current.incidentCount} из ${expectedIncidentMinimum})`
+            : `инцидентов мало: ${current.incidentCount} при ориентире ${expectedIncidentMinimum}`));
       let status = 'Недостаточно истории';
       let tone = 'neutral';
       if (currentScore !== null) {
         if (criticalPhone) {
-          status = `Критично: пропущено ${Math.round(current.missedRate)}% звонков, уровень ниже команды`;
+          status = `${incidentThresholdStatus}. Телефония критично: пропущено ${Math.round(current.missedRate)}% звонков`;
           tone = 'bad';
         } else if (persistentLow && contextCoverage < 0.5) {
           status = 'Показатели устойчиво ниже команды — нужно сверить график';
@@ -9895,7 +9905,14 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         ? `Учтено ${formatDaily(current.effectiveDays)} дн.${scheduleParts.length ? ` · ${scheduleParts.join(', ')}` : ''}`
         : 'график не заполнен';
       const dailyComparisonText = current
-        ? `На 1 учтённый день: ${formatDaily(current.incidentPerDay)} инцидента против ${formatDaily(current.incidentMedian)} у команды; ${formatDaily(current.callsPerDay)} обработанного звонка против ${formatDaily(current.callsMedian)}.`
+        ? [
+          current.hasIncidentData
+            ? `Инциденты: ${current.incidentCount}; ориентир по графику — ${expectedIncidentMinimum} (50 за полную неделю).`
+            : 'По инцидентам нет данных.',
+          current.hasPhoneData
+            ? `Телефония: обработано ${current.handledCalls}, пропущено ${current.missed}, доступность ${Math.round(current.phoneAvailability)}%${criticalPhone ? ' — критично ниже 70%' : ''}.`
+            : 'По телефонии нет данных.'
+        ].join(' ')
         : 'Нет текущих данных для сравнения.';
       const historyText = currentScore === null
         ? 'Нет текущих данных.'
@@ -10317,10 +10334,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         bad: { color: '#b91c1c', bg: '#fef2f2', border: '#fca5a5' },
         neutral: { color: '#475569', bg: '#f8fafc', border: '#cbd5e1' }
       };
-      const rowsWithoutCurrentSchedule = firstLineHistoryAnalytics.filter(row => {
-        const current = row.current;
-        return current && (current.hasIncidentData || current.hasPhoneData) && !current.explicitContext;
-      });
       return `
         <div style="margin-top:12px; border:1px solid #cbd5e1; border-radius:10px; overflow:hidden; background:#ffffff;">
           <div style="padding:12px 14px; background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
@@ -10350,7 +10363,6 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               </tr>`;
             }).join('')}
           </table>
-          ${rowsWithoutCurrentSchedule.length ? `<div style="padding:8px 12px; background:#fffdf5; color:#92400e; font-size:10px;">* На выбранной неделе не заполнен календарь: ${escapeHtml(rowsWithoutCurrentSchedule.map(row => row.name).join(', '))}. Только для этих сотрудников временно принято 5 рабочих дней; негативный вывод требует сверки графика.</div>` : ''}
         </div>`;
     };
 
