@@ -9759,6 +9759,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
 
   const getFirstLineHistoryAnalytics = () => {
     const normalizePerson = (value) => normalizeMetricText(getFullName(value || ''));
+    const formatDaily = (value) => Number.isFinite(Number(value)) ? Number(value).toFixed(1).replace('.', ',').replace(',0', '') : 'нет данных';
     const median = (values) => {
       const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
       if (!sorted.length) return 0;
@@ -9787,6 +9788,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         const missedRate = totalCalls > 0 ? Math.max(0, Math.min(100, missed * 100 / totalCalls)) : null;
         const availability = getEffectiveDays(weekKey, staff.id);
         const effectiveDays = availability.days;
+        const dutyDays = Object.values(availability.schedule || {}).filter(value => value === 'duty').length;
+        const vacationDays = Object.values(availability.schedule || {}).filter(value => value === 'vacation').length;
+        const sickDays = Object.values(availability.schedule || {}).filter(value => value === 'sick').length;
         return {
           ...staff,
           incidentCount,
@@ -9796,6 +9800,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           phoneAvailability,
           missedRate,
           effectiveDays,
+          dutyDays,
+          vacationDays,
+          sickDays,
           explicitContext: availability.explicit,
           incidentPerDay: effectiveDays > 0 && incident ? incidentCount / effectiveDays : null,
           callsPerDay: effectiveDays > 0 && phone ? handledCalls / effectiveDays : null,
@@ -9816,7 +9823,12 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               : (row.phoneAvailability >= 90 ? 1 : (row.phoneAvailability >= 80 ? 0.9 : (row.phoneAvailability >= 70 ? 0.75 : 0.5)));
             scoreParts.push(Math.min(2, row.callsPerDay / callsMedian) * phoneQualityFactor);
           }
-          return { ...row, relativeScore: scoreParts.length ? scoreParts.reduce((sum, value) => sum + value, 0) / scoreParts.length : null };
+          return {
+            ...row,
+            incidentMedian,
+            callsMedian,
+            relativeScore: scoreParts.length ? scoreParts.reduce((sum, value) => sum + value, 0) / scoreParts.length : null
+          };
         })
       };
     });
@@ -9872,12 +9884,29 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
           status = currentScore >= 0.9 ? 'Стабильный рабочий результат' : 'Ниже медианы команды, без критичной просадки';
         }
       }
-      const trendText = currentLevelPercent === null
-        ? 'нет текущих данных'
-        : (Math.abs(trend) < 0.05
-          ? `текущий уровень ${currentLevelPercent}% от медианы команды`
-          : `${trend > 0 ? '+' : ''}${Math.round(trend * 100)}%${(currentScore < 0.75 || criticalPhone) && trend > 0 ? ' от низкой базы' : ''}; сейчас ${currentLevelPercent}% от медианы команды`);
-      return { ...staff, history, current, average, trend, trendText, currentScore, currentLevelPercent, lowWeeks, persistentLow, criticalPhone, contextCoverage, status, tone };
+      const scheduleParts = current
+        ? [
+          current.dutyDays ? `дежурство ${current.dutyDays} дн. × 0,5` : '',
+          current.vacationDays ? `отпуск ${current.vacationDays} дн.` : '',
+          current.sickDays ? `больничный ${current.sickDays} дн.` : ''
+        ].filter(Boolean)
+        : [];
+      const scheduleText = current
+        ? `Учтено ${formatDaily(current.effectiveDays)} дн.${scheduleParts.length ? ` · ${scheduleParts.join(', ')}` : ''}`
+        : 'график не заполнен';
+      const dailyComparisonText = current
+        ? `На 1 учтённый день: ${formatDaily(current.incidentPerDay)} инцидента против ${formatDaily(current.incidentMedian)} у команды; ${formatDaily(current.callsPerDay)} обработанного звонка против ${formatDaily(current.callsMedian)}.`
+        : 'Нет текущих данных для сравнения.';
+      const historyText = currentScore === null
+        ? 'Нет текущих данных.'
+        : (trend >= 0.15
+          ? (currentScore < 0.75 || criticalPhone
+            ? 'Стало лучше относительно собственных прошлых недель, но результат всё ещё заметно ниже команды.'
+            : 'Результат вырос и достиг рабочего уровня команды.')
+          : (trend <= -0.15
+            ? 'Результат ухудшился относительно предыдущих недель.'
+            : (persistentLow ? 'Низкий результат повторяется из недели в неделю.' : 'Существенного изменения к предыдущим неделям нет.')));
+      return { ...staff, history, current, average, trend, scheduleText, dailyComparisonText, historyText, currentScore, currentLevelPercent, lowWeeks, persistentLow, criticalPhone, contextCoverage, status, tone };
     }).sort((a, b) => (b.currentScore ?? -1) - (a.currentScore ?? -1) || (b.average ?? -1) - (a.average ?? -1));
   };
 
@@ -10292,7 +10321,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
         <div style="margin-top:12px; border:1px solid #cbd5e1; border-radius:10px; overflow:hidden; background:#ffffff;">
           <div style="padding:12px 14px; background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
             <div style="font-size:13px; color:#0f172a; font-weight:900; text-transform:uppercase;">Динамика первой линии: инциденты и телефония</div>
-            <div style="font-size:11px; color:#64748b; margin-top:3px;">Сравнение до 6 недель относительно медианы команды. Задачи не учитываются. Дежурство = 0,5 дня; отпуск и больничный исключаются. Доступность телефонии ниже 70% считается критичной.</div>
+            <div style="font-size:11px; color:#64748b; margin-top:3px;">Сравнение ведётся на один учтённый рабочий день: дежурство = 0,5 дня, отпуск и больничный исключаются. Проценты технического коэффициента скрыты; показаны реальные инциденты и звонки на день. Доступность телефонии ниже 70% считается критичной.</div>
           </div>
           <table style="width:100%; border-collapse:collapse;">
             <tr style="background:#ffffff;">
@@ -10311,8 +10340,8 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">${row.history.length}</td>
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:800;">${current?.hasIncidentData ? current.incidentCount : 'нет данных'}</td>
                 <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right; font-size:12px; font-weight:800;">${current?.hasPhoneData ? `${current.handledCalls} / <span style="color:${current.phoneAvailability < 70 ? '#b91c1c' : '#64748b'}">${current.missed}</span><div style="font-size:9px; color:${current.phoneAvailability < 70 ? '#b91c1c' : '#64748b'};">доступность ${Math.round(current.phoneAvailability)}%</div>` : 'нет данных'}</td>
-                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">${current ? current.effectiveDays : 5}${current?.explicitContext ? '' : '*'}</td>
-                <td style="padding:7px 8px; border-bottom:1px solid #f1f5f9;"><span style="display:inline-block; padding:4px 7px; border-radius:999px; border:1px solid ${tone.border}; background:${tone.bg}; color:${tone.color}; font-size:10px; font-weight:900;">${escapeHtml(row.status)}</span><div style="font-size:10px; color:#64748b; margin-top:3px;">${escapeHtml(row.trendText)}</div></td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:11px;">${escapeHtml(row.scheduleText)}${current?.explicitContext ? '' : '*'}</td>
+                <td style="padding:7px 8px; border-bottom:1px solid #f1f5f9;"><span style="display:inline-block; padding:4px 7px; border-radius:999px; border:1px solid ${tone.border}; background:${tone.bg}; color:${tone.color}; font-size:10px; font-weight:900;">${escapeHtml(row.status)}</span><div style="font-size:10px; color:#334155; margin-top:5px;">${escapeHtml(row.dailyComparisonText)}</div><div style="font-size:10px; color:#64748b; margin-top:3px;">${escapeHtml(row.historyText)}</div></td>
               </tr>`;
             }).join('')}
           </table>
@@ -10959,7 +10988,7 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
               <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h3 className="text-base font-black">Динамика первой линии</h3>
-                  <p className="text-[11px] text-slate-500">До 6 недель · инциденты, обработанные и пропущенные звонки · относительно медианы команды · с поправкой на занятость</p>
+                  <p className="text-[11px] text-slate-500">Сравнение на один учтённый день · дежурство = 0,5 · реальные инциденты и звонки против команды · без технических процентов</p>
                 </div>
                 <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Задачи исключены</div>
               </div>
@@ -10987,7 +11016,9 @@ const WordReportGenerator = ({ weekData, historyKeys, weeksHistory, selectedKey,
                         <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Пропущено</div><b className={row.current?.phoneAvailability < 70 ? 'text-red-700' : 'text-slate-950'}>{row.current?.hasPhoneData ? `${row.current.missed} · ${Math.round(row.current.missedRate)}%` : 'нет'}</b></div>
                         <div className="rounded-md border border-white/80 bg-white/75 p-2"><div className="text-[9px] uppercase text-slate-500">Учтено</div><b className="text-slate-950">{row.current?.effectiveDays ?? 5} дн.</b></div>
                       </div>
-                      <div className="mt-2 text-[10px] font-bold">{row.trendText}</div>
+                      <div className="mt-2 text-[10px] font-bold">{row.scheduleText}</div>
+                      <div className="mt-1 text-[10px] text-slate-700">{row.dailyComparisonText}</div>
+                      <div className="mt-1 text-[10px] opacity-75">{row.historyText}</div>
                       {row.contextCoverage < 0.5 && <div className="mt-1 text-[10px] opacity-75">Для строгого вывода заполните календарь прошлых недель.</div>}
                     </div>
                   );
